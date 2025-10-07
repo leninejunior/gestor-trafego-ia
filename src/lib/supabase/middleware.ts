@@ -1,5 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { NextRequest, NextResponse } from 'next/server' // Changed from type NextRequest, type NextResponse
+import { NextRequest, NextResponse } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
@@ -34,13 +34,8 @@ export async function updateSession(request: NextRequest) {
           })
         },
         remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value: '', ...options })
-          } catch (error) {
-            // The `delete` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
+          // Corrigido para usar response.cookies.set para remover o cookie
+          response.cookies.set({ name, value: '', ...options })
         },
       },
     }
@@ -48,5 +43,6 @@ export async function updateSession(request: NextRequest) {
 
   await supabase.auth.getUser()
 
-  return response
+  // Retorna o cliente supabase junto com o objeto de resposta
+  return { supabase, response }
 }

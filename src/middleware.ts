@@ -1,12 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server' // Changed from type NextRequest, type NextResponse
+import { NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
 export async function middleware(request: NextRequest) {
   // update user's auth session
-  const response = await updateSession(request)
+  const { supabase, response } = await updateSession(request) // Desestrutura supabase e response
 
-  const supabaseClient = response.supabaseClient
-  const { data } = await supabaseClient.auth.getUser()
+  const { data } = await supabase.auth.getUser() // Agora supabaseClient está definido
 
   // Se o usuário não estiver logado e tentar acessar o dashboard, redirecione para o login
   if (!data.user && request.nextUrl.pathname.startsWith('/dashboard')) {
