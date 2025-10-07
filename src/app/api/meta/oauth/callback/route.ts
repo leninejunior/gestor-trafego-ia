@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const tokenRes = await fetch(tokenUrl);
-    const tokenData: TokenData = await tokenRes.json(); // Type assertion
+    const tokenData: TokenData = await tokenRes.json();
 
     if (!tokenRes.ok) {
       throw new Error(tokenData.error?.message || 'Failed to fetch access token');
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     adAccountsUrl.searchParams.set('access_token', accessToken);
 
     const adAccountsRes = await fetch(adAccountsUrl);
-    const adAccountsData: AdAccountsData = await adAccountsRes.json(); // Type assertion
+    const adAccountsData: AdAccountsData = await adAccountsRes.json();
 
     if (!adAccountsRes.ok) {
       throw new Error(adAccountsData.error?.message || 'Failed to fetch ad accounts');
@@ -86,10 +86,10 @@ export async function GET(request: NextRequest) {
 
     const supabase = createClient();
     
-    // 3. Get agency_id from the client
+    // 3. Get org_id from the client
     const { data: clientData, error: clientError } = await supabase
       .from('clients')
-      .select('agency_id')
+      .select('org_id')
       .eq('id', clientId)
       .single();
 
@@ -100,12 +100,12 @@ export async function GET(request: NextRequest) {
       .from('ad_accounts')
       .upsert({
         client_id: clientId,
-        org_id: clientData.agency_id, // Assuming agency_id maps to org_id
+        org_id: clientData.org_id, // Usando org_id
         provider: 'meta',
-        external_id: adAccount.id, // Changed from provider_account_id to external_id
+        external_id: adAccount.id,
         name: adAccount.name,
         currency: adAccount.currency,
-      }, { onConflict: 'client_id,external_id' }) // Changed onConflict key
+      }, { onConflict: 'client_id,external_id' })
       .select()
       .single();
 
@@ -115,9 +115,9 @@ export async function GET(request: NextRequest) {
       .from('oauth_tokens')
       .upsert({
         ad_account_id: adAccountRecord.id,
-        org_id: clientData.agency_id, // Assuming agency_id maps to org_id
-        client_id: clientId, // Added client_id
-        provider: 'meta', // Added provider
+        org_id: clientData.org_id, // Usando org_id
+        client_id: clientId,
+        provider: 'meta',
         access_token: accessToken,
         // Note: Meta long-lived tokens last ~60 days. You'd need a cron job to refresh them.
       }, { onConflict: 'ad_account_id' });
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
     // 5. Redirect back to the client detail page
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/clients/${clientId}`);
 
-  } catch (error: any) { // Explicitly type error as any for now
+  } catch (error: any) {
     console.error('OAuth Callback Error:', error);
     // Redirect to an error page or show an error message
     return new Response(`An error occurred: ${error.message}`, { status: 500 });

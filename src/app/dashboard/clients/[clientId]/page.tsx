@@ -7,6 +7,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ConnectMetaButton } from "./connect-meta-button";
+import { SyncButton } from "./sync-button";
 
 export default async function ClientDetailPage({
   params,
@@ -14,14 +16,26 @@ export default async function ClientDetailPage({
   params: { clientId: string };
 }) {
   const supabase = createClient();
-  const { data: client, error } = await supabase
+  const { data: client, error: clientError } = await supabase
     .from("clients")
     .select("*")
     .eq("id", params.clientId)
     .single();
 
-  if (error || !client) {
+  if (clientError || !client) {
     notFound();
+  }
+
+  // Fetch connected Meta Ad Accounts for this client
+  const { data: metaAdAccounts, error: metaAdAccountsError } = await supabase
+    .from("ad_accounts")
+    .select("*")
+    .eq("client_id", params.clientId)
+    .eq("provider", "meta");
+
+  if (metaAdAccountsError) {
+    console.error("Error fetching Meta ad accounts:", metaAdAccountsError);
+    // Handle error appropriately
   }
 
   return (
@@ -31,14 +45,24 @@ export default async function ClientDetailPage({
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Conexões de Anúncios</CardTitle>
+            <CardTitle>Conexões de Anúncios Meta</CardTitle>
             <CardDescription>
-              Conecte as contas de anúncio do seu cliente para sincronizar os dados.
+              Conecte as contas de anúncio do seu cliente no Meta para sincronizar os dados.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* The Connect to Meta button will go here */}
-            <p>Em breve: Botão para conectar ao Meta.</p>
+            {metaAdAccounts && metaAdAccounts.length > 0 ? (
+              <div className="space-y-4">
+                {metaAdAccounts.map((account) => (
+                  <div key={account.id} className="flex items-center justify-between p-2 border rounded-md">
+                    <span>{account.name} ({account.external_id})</span>
+                    <SyncButton adAccountId={account.id} clientId={client.id} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ConnectMetaButton clientId={client.id} />
+            )}
           </CardContent>
         </Card>
       </div>

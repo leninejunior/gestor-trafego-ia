@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 export async function addClient(formData: FormData) {
   const supabase = createClient();
 
-  // First, get the current user to find their agency_id
+  // First, get the current user to find their org_id
   const {
     data: { user },
     error: userError,
@@ -16,14 +16,15 @@ export async function addClient(formData: FormData) {
     return { error: "Usuário não autenticado." };
   }
 
+  // Get the user's primary organization (assuming one for simplicity, or you can add a selector)
   const { data: membership, error: membershipError } = await supabase
     .from("memberships")
-    .select("agency_id")
+    .select("org_id")
     .eq("user_id", user.id)
     .single();
 
   if (membershipError || !membership) {
-    return { error: "Agência não encontrada para este usuário." };
+    return { error: "Organização não encontrada para este usuário." };
   }
 
   const clientName = formData.get("name") as string;
@@ -34,7 +35,7 @@ export async function addClient(formData: FormData) {
 
   const { error: insertError } = await supabase.from("clients").insert({
     name: clientName,
-    agency_id: membership.agency_id,
+    org_id: membership.org_id, // Usando org_id
   });
 
   if (insertError) {
