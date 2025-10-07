@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/table";
 import { AddClientButton } from "./add-client-button"; // Import AddClientButton
 
+export const dynamic = 'force-dynamic'; // Garante que a página seja sempre renderizada dinamicamente
+
 interface Client {
   id: string;
   name: string;
