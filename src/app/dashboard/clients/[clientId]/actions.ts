@@ -62,7 +62,7 @@ export async function syncFacebookAdAccount(
     const campaignsData: MetaAPIResponse<MetaCampaign> = await campaignsRes.json(); // Type assertion
     if (campaignsData.error) throw new Error(campaignsData.error.message);
 
-    const campaignsToUpsert = campaignsData.data.map((c) => ({ // Removed any
+    const campaignsToUpsert = campaignsData.data.map((c: MetaCampaign) => ({ // Removed any
       client_id: clientId, // Added client_id
       org_id: org_id, // Added org_id
       account_id: adAccountId, // Added account_id
@@ -83,7 +83,7 @@ export async function syncFacebookAdAccount(
         const adsetsData: MetaAPIResponse<MetaAdset> = await adsetsRes.json(); // Type assertion
         if (adsetsData.error) continue; // Skip if a campaign has no adsets
 
-        const adsetsToUpsert = adsetsData.data.map((adset) => ({ // Removed any
+        const adsetsToUpsert = adsetsData.data.map((adset: MetaAdset) => ({ // Removed any
             client_id: clientId, // Added client_id
             org_id: org_id, // Added org_id
             account_id: adAccountId, // Added account_id
@@ -105,7 +105,7 @@ export async function syncFacebookAdAccount(
             const adsData: MetaAPIResponse<MetaAd> = await adsRes.json(); // Type assertion
             if (adsData.error) continue;
 
-            const adsToUpsert = adsData.data.map((ad) => ({ // Removed any
+            const adsToUpsert = adsData.data.map((ad: MetaAd) => ({ // Removed any
                 client_id: clientId, // Added client_id
                 org_id: org_id, // Added org_id
                 account_id: adAccountId, // Added account_id

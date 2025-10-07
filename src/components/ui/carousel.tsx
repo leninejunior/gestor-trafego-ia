@@ -12,12 +12,11 @@ import { Button } from "@/components/ui/button"
 type CarouselContextProps = {
   carouselRef: UseEmblaCarouselType[0]
   api: UseEmblaCarouselType[1]
-  scrollNext: () => void
   scrollPrev: () => void
-  canScrollNext: boolean
+  scrollNext: () => void
   canScrollPrev: boolean
-  orientation: "horizontal" | "vertical"
-}
+  canScrollNext: boolean
+} & React.ComponentPropsWithoutRef<"div">
 
 const CarouselContext = React.createContext<CarouselContextProps | null>(null)
 
@@ -25,18 +24,18 @@ function useCarousel() {
   const context = React.useContext(CarouselContext)
 
   if (!context) {
-    throw new Error("useCarousel must be used within a <Carousel>")
+    throw new Error("useCarousel must be used within a <Carousel />")
   }
 
   return context
 }
 
 type CarouselProps = {
-  opts?: React.ComponentProps<typeof useEmblaCarousel>[0]
-  plugins?: React.ComponentProps<typeof useEmblaCarousel>[1]
+  opts?: Parameters<typeof useEmblaCarousel>[0]
+  plugins?: Parameters<typeof useEmblaCarousel>[1]
   orientation?: "horizontal" | "vertical"
   setApi?: (api: UseEmblaCarouselType[1]) => void
-} & React.ComponentProps<"div">
+} & React.ComponentPropsWithoutRef<"div">
 
 const Carousel = React.forwardRef<
   HTMLDivElement,
@@ -110,28 +109,17 @@ const Carousel = React.forwardRef<
 
     return (
       <CarouselContext.Provider
-        value={React.useMemo(
-          () => ({
-            carouselRef,
-            api,
-            scrollNext,
-            scrollPrev,
-            canScrollNext,
-            canScrollPrev,
-            orientation:
-              orientation || (opts?.axis === "y" ? "vertical" : "horizontal"),
-          }),
-          [
-            carouselRef,
-            api,
-            scrollNext,
-            scrollPrev,
-            canScrollNext,
-            canScrollPrev,
-            orientation,
-            opts?.axis,
-          ]
-        )}
+        value={{
+          carouselRef,
+          api: api,
+          opts,
+          orientation:
+            orientation || (opts?.axis === "y" ? "vertical" : "horizontal"),
+          scrollPrev,
+          scrollNext,
+          canScrollPrev,
+          canScrollNext,
+        }}
       >
         <div
           ref={ref}
@@ -141,7 +129,10 @@ const Carousel = React.forwardRef<
           aria-roledescription="carousel"
           {...props}
         >
-          <div ref={carouselRef} className="overflow-hidden">
+          <div
+            ref={carouselRef}
+            className="overflow-hidden"
+          >
             <div
               className={cn(
                 "flex",

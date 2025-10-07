@@ -1,8 +1,10 @@
+"use client"
+
 import * as React from "react"
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { ButtonProps, buttonVariants } from "@/components/ui/button" // Assuming ButtonProps is available
+import { ButtonProps, buttonVariants } from "@/components/ui/button"
 
 const Pagination = ({ className, ...props }: React.ComponentProps<"nav">) => (
   <nav
@@ -16,7 +18,7 @@ Pagination.displayName = "Pagination"
 
 const PaginationContent = React.forwardRef<
   HTMLUListElement,
-  React.ComponentProps<"ul">
+  React.ComponentPropsWithoutRef<"ul">
 >(({ className, ...props }, ref) => (
   <ul
     ref={ref}
@@ -28,7 +30,7 @@ PaginationContent.displayName = "PaginationContent"
 
 const PaginationItem = React.forwardRef<
   HTMLLIElement,
-  React.ComponentProps<"li">
+  React.ComponentPropsWithoutRef<"li">
 >(({ className, ...props }, ref) => (
   <li ref={ref} className={cn("", className)} {...props} />
 ))
@@ -36,8 +38,8 @@ PaginationItem.displayName = "PaginationItem"
 
 type PaginationLinkProps = {
   isActive?: boolean
-} & Pick<ButtonProps, "size"> & // Pick size from ButtonProps
-  React.ComponentProps<"a">
+} & Pick<ButtonProps, "size"> &
+  React.ComponentPropsWithoutRef<"a">
 
 const PaginationLink = ({
   className,

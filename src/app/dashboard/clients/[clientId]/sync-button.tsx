@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { useTransition } from "react";
 import { syncFacebookAdAccount } from "./actions";
+import { toast } from "sonner"; // Import toast from sonner
 
 export function SyncButton({
   adAccountId,
@@ -17,9 +18,9 @@ export function SyncButton({
     startTransition(async () => {
       const result = await syncFacebookAdAccount(adAccountId, clientId);
       if (result?.error) {
-        alert(`Error: ${result.error}`);
+        toast.error(`Error: ${result.error}`); // Use toast for error
       } else {
-        alert("Sincronização concluída com sucesso!");
+        toast.success("Sincronização concluída com sucesso!"); // Use toast for success
       }
     });
   };

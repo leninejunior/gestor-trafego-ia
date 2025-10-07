@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { addClient } from "./actions";
 import { useFormStatus } from "react-dom";
+import { toast } from "sonner"; // Import toast from sonner
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -32,9 +33,9 @@ export function AddClientButton() {
     const result = await addClient(formData);
     if (result.success) {
       setOpen(false);
+      toast.success("Cliente adicionado com sucesso!"); // Use toast for success
     } else {
-      // Here you could show an error message to the user
-      alert(result.error);
+      toast.error(result.error); // Use toast for error
     }
   };
 

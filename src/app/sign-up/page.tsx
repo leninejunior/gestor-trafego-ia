@@ -51,7 +51,7 @@ const SignUpAuthForm = () => {
                         button_label: 'Cadastrar',
                         social_provider_text: 'Cadastre-se com {{provider}}',
                         link_text: 'Não tem uma conta? Cadastre-se',
-                        confirmation_text: 'Verifique seu e-mail para o link de confirmação'
+                        confirmation_text: 'Verifique seu e-email para o link de confirmação'
                     },
                     forgotten_password: {
                         email_label: 'Endereço de e-mail',

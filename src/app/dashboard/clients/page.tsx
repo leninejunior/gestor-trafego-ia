@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { AddClientButton } from "./add-client-button"; // Import AddClientButton
 
 interface Client {
   id: string;
@@ -33,8 +33,7 @@ export default async function ClientsPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Clientes</h1>
-        {/* AddClientButton should be here */}
-        <Button>Adicionar Cliente</Button>
+        <AddClientButton /> {/* AddClientButton should be here */}
       </div>
       <div className="bg-white rounded-lg shadow">
         <Table>

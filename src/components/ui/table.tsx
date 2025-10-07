@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -43,7 +45,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      "border-t bg-muted/50 font-medium [&>tr]:last:h-px",
+      "border-t bg-muted/50 font-medium [&>tr]:last:h-auto",
       className
     )}
     {...props}
@@ -67,7 +69,7 @@ const TableRow = React.forwardRef<
 TableRow.displayName = "TableRow"
 
 const TableHead = React.forwardRef<
-  HTMLTableCellElement, // Corrected type
+  HTMLTableCellElement,
   React.ThHTMLAttributes<HTMLTableCellElement>
 >(({ className, ...props }, ref) => (
   <th
@@ -82,7 +84,7 @@ const TableHead = React.forwardRef<
 TableHead.displayName = "TableHead"
 
 const TableCell = React.forwardRef<
-  HTMLTableCellElement, // Corrected type
+  HTMLTableCellElement,
   React.TdHTMLAttributes<HTMLTableCellElement>
 >(({ className, ...props }, ref) => (
   <td
@@ -94,7 +96,7 @@ const TableCell = React.forwardRef<
 TableCell.displayName = "TableCell"
 
 const TableCaption = React.forwardRef<
-  HTMLTableCaptionElement, // Corrected type
+  HTMLTableCaptionElement,
   React.HTMLAttributes<HTMLTableCaptionElement>
 >(({ className, ...props }, ref) => (
   <caption
