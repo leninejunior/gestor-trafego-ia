@@ -20,8 +20,6 @@ const DrawerTrigger = DrawerPrimitive.Trigger
 
 const DrawerPortal = DrawerPrimitive.Portal
 
-const DrawerClose = DrawerPrimitive.Close
-
 const DrawerOverlay = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
@@ -34,9 +32,14 @@ const DrawerOverlay = React.forwardRef<
 ))
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
+interface DrawerContentProps
+  extends React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> {
+  children?: React.ReactNode
+}
+
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
+  DrawerContentProps
 >(({ className, children, ...props }, ref) => (
   <DrawerPortal>
     <DrawerOverlay />
@@ -83,10 +86,7 @@ const DrawerTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Title
     ref={ref}
-    className={cn(
-      "text-lg font-semibold leading-none tracking-tight",
-      className
-    )}
+    className={cn("text-lg font-semibold leading-none tracking-tight", className)}
     {...props}
   />
 ))
@@ -106,10 +106,9 @@ DrawerDescription.displayName = DrawerPrimitive.Description.displayName
 
 export {
   Drawer,
+  DrawerTrigger,
   DrawerPortal,
   DrawerOverlay,
-  DrawerTrigger,
-  DrawerClose,
   DrawerContent,
   DrawerHeader,
   DrawerFooter,

@@ -6,9 +6,7 @@ import { cn } from "@/lib/utils"
 
 const Breadcrumb = React.forwardRef<
   HTMLElement,
-  React.ComponentPropsWithoutRef<"nav"> & {
-    separator?: React.ReactNode
-  }
+  React.ComponentPropsWithoutRef<"nav">
 >(({ ...props }, ref) => <nav ref={ref} aria-label="breadcrumb" {...props} />)
 Breadcrumb.displayName = "Breadcrumb"
 
@@ -33,7 +31,7 @@ const BreadcrumbItem = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <li
     ref={ref}
-    className={cn("inline-flex items-center gap-1.5", className)}
+    className={cn("inline-flex items-center", className)}
     {...props}
   />
 ))
@@ -80,7 +78,7 @@ const BreadcrumbSeparator = ({
   <li
     role="presentation"
     aria-hidden="true"
-    className={cn("[&>svg]:w-3.5 [&>svg]:h-3.5", className)}
+    className={cn("[&>svg]:size-3.5", className)}
     {...props}
   >
     {children ?? <ChevronRight />}
@@ -102,7 +100,7 @@ const BreadcrumbEllipsis = ({
     <span className="sr-only">More</span>
   </span>
 )
-BreadcrumbEllipsis.displayName = "BreadcrumbElipssis"
+BreadcrumbEllipsis.displayName = "BreadcrumbEllipsis"
 
 export {
   Breadcrumb,

@@ -5,6 +5,7 @@ import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Session, User } from "@supabase/supabase-js"; // Import Session and User types
 
 export default function AuthForm() {
   const supabase = createClient();
@@ -13,7 +14,7 @@ export default function AuthForm() {
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((event: string, session: Session | null) => { // Explicitly type event and session
       if (session) {
         router.push("/dashboard");
       }

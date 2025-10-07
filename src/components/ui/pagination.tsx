@@ -2,12 +2,12 @@ import * as React from "react"
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { ButtonProps, buttonVariants } from "@/components/ui/button"
+import { ButtonProps, buttonVariants } from "@/components/ui/button" // Assuming ButtonProps is available
 
 const Pagination = ({ className, ...props }: React.ComponentProps<"nav">) => (
   <nav
     role="navigation"
-    aria-label="pagination"
+    aria-label="Pagination"
     className={cn("mx-auto flex w-full justify-center", className)}
     {...props}
   />
@@ -36,7 +36,7 @@ PaginationItem.displayName = "PaginationItem"
 
 type PaginationLinkProps = {
   isActive?: boolean
-} & Pick<ButtonProps, "size"> &
+} & Pick<ButtonProps, "size"> & // Pick size from ButtonProps
   React.ComponentProps<"a">
 
 const PaginationLink = ({
@@ -109,9 +109,9 @@ PaginationEllipsis.displayName = "PaginationEllipsis"
 export {
   Pagination,
   PaginationContent,
-  PaginationLink,
-  PaginationItem,
-  PaginationPrevious,
-  PaginationNext,
   PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
 }

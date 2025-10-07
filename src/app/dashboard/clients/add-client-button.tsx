@@ -28,7 +28,7 @@ function SubmitButton() {
 export function AddClientButton() {
   const [open, setOpen] = useState(false);
 
-  const formAction = async (formData: FormData) => {
+  const formAction = async (formData: FormData) => { // Explicitly type formData
     const result = await addClient(formData);
     if (result.success) {
       setOpen(false);

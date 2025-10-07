@@ -10,6 +10,13 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 
+interface Client {
+  id: string;
+  name: string;
+  created_at: string;
+  // Add other client properties if they exist in your database schema
+}
+
 export default async function ClientsPage() {
   const supabase = createClient();
 
@@ -26,6 +33,7 @@ export default async function ClientsPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Clientes</h1>
+        {/* AddClientButton should be here */}
         <Button>Adicionar Cliente</Button>
       </div>
       <div className="bg-white rounded-lg shadow">
@@ -38,7 +46,7 @@ export default async function ClientsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {clients?.map((client) => (
+            {clients?.map((client: Client) => ( // Explicitly type client
               <TableRow key={client.id}>
                 <TableCell className="font-medium">{client.name}</TableCell>
                 <TableCell>

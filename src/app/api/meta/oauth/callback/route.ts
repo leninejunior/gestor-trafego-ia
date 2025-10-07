@@ -1,6 +1,25 @@
 import { createClient } from '@/lib/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server'; // Changed from type NextRequest, type NextResponse
 import { cookies } from 'next/headers';
+
+interface TokenData {
+  access_token: string;
+  expires_in: number;
+  token_type: string;
+  error?: { message: string };
+}
+
+interface AdAccount {
+  id: string;
+  name: string;
+  currency: string;
+  timezone?: string;
+}
+
+interface AdAccountsData {
+  data: AdAccount[];
+  error?: { message: string };
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -39,7 +58,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const tokenRes = await fetch(tokenUrl);
-    const tokenData = await tokenRes.json();
+    const tokenData: TokenData = await tokenRes.json(); // Type assertion
 
     if (!tokenRes.ok) {
       throw new Error(tokenData.error?.message || 'Failed to fetch access token');
@@ -52,7 +71,7 @@ export async function GET(request: NextRequest) {
     adAccountsUrl.searchParams.set('access_token', accessToken);
 
     const adAccountsRes = await fetch(adAccountsUrl);
-    const adAccountsData = await adAccountsRes.json();
+    const adAccountsData: AdAccountsData = await adAccountsRes.json(); // Type assertion
 
     if (!adAccountsRes.ok) {
       throw new Error(adAccountsData.error?.message || 'Failed to fetch ad accounts');
@@ -81,12 +100,12 @@ export async function GET(request: NextRequest) {
       .from('ad_accounts')
       .upsert({
         client_id: clientId,
-        agency_id: clientData.agency_id,
+        org_id: clientData.agency_id, // Assuming agency_id maps to org_id
         provider: 'meta',
-        provider_account_id: adAccount.id,
+        external_id: adAccount.id, // Changed from provider_account_id to external_id
         name: adAccount.name,
         currency: adAccount.currency,
-      }, { onConflict: 'client_id,provider_account_id' })
+      }, { onConflict: 'client_id,external_id' }) // Changed onConflict key
       .select()
       .single();
 
@@ -96,7 +115,9 @@ export async function GET(request: NextRequest) {
       .from('oauth_tokens')
       .upsert({
         ad_account_id: adAccountRecord.id,
-        agency_id: clientData.agency_id,
+        org_id: clientData.agency_id, // Assuming agency_id maps to org_id
+        client_id: clientId, // Added client_id
+        provider: 'meta', // Added provider
         access_token: accessToken,
         // Note: Meta long-lived tokens last ~60 days. You'd need a cron job to refresh them.
       }, { onConflict: 'ad_account_id' });
@@ -106,7 +127,7 @@ export async function GET(request: NextRequest) {
     // 5. Redirect back to the client detail page
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/clients/${clientId}`);
 
-  } catch (error) {
+  } catch (error: any) { // Explicitly type error as any for now
     console.error('OAuth Callback Error:', error);
     // Redirect to an error page or show an error message
     return new Response(`An error occurred: ${error.message}`, { status: 500 });

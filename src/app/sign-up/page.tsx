@@ -1,8 +1,11 @@
+"use client";
+
 import { createClient } from "@/lib/supabase/client";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { Session } from "@supabase/supabase-js"; // Import Session type
 
 // Re-using the AuthForm logic directly here for simplicity, but targeting the 'sign_up' view.
 const SignUpAuthForm = () => {
@@ -12,7 +15,7 @@ const SignUpAuthForm = () => {
     useEffect(() => {
         const {
         data: { subscription },
-        } = supabase.auth.onAuthStateChange((event, session) => {
+        } = supabase.auth.onAuthStateChange((event: string, session: Session | null) => { // Explicitly type event and session
         if (session) {
             router.push("/dashboard");
         }
