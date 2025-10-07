@@ -2,6 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { google } from "googleapis";
+
+// --- Funções existentes do Meta Ads ---
 
 interface MetaCampaign {
   id: string;
@@ -127,5 +130,103 @@ export async function syncFacebookAdAccount(
   } catch (error: any) {
     console.error("Synchronization failed:", error);
     return { error: `Synchronization failed: ${error.message}` };
+  }
+}
+
+// --- Nova Função para Sincronização do Google Ads ---
+
+export async function syncGoogleAdAccount(
+  adAccountId: string,
+  clientId: string
+) {
+  const supabase = createClient();
+
+  // 1. Obter tokens e IDs
+  const { data: accountData, error: accountError } = await supabase
+    .from("ad_accounts")
+    .select("*, oauth_tokens(*)")
+    .eq("id", adAccountId)
+    .single();
+
+  if (accountError || !accountData || !accountData.oauth_tokens[0]) {
+    return { error: "Conta de anúncio ou token não encontrado." };
+  }
+
+  const token = accountData.oauth_tokens[0];
+  const customerId = accountData.external_id;
+  const orgId = accountData.org_id;
+
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  );
+  oauth2Client.setCredentials({
+    access_token: token.access_token,
+    refresh_token: token.refresh_token,
+    expiry_date: new Date(token.expires_at!).getTime(),
+  });
+
+  // 2. Verificar e renovar o access_token se necessário
+  const isTokenExpired = new Date() > new Date(token.expires_at!);
+  if (isTokenExpired) {
+    try {
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      oauth2Client.setCredentials(credentials);
+      // Atualizar o token no banco de dados
+      await supabase.from("oauth_tokens").update({
+        access_token: credentials.access_token,
+        expires_at: new Date(credentials.expiry_date!).toISOString(),
+      }).eq('id', token.id);
+    } catch (refreshError) {
+      console.error("Error refreshing access token:", refreshError);
+      return { error: "Não foi possível renovar o token de acesso." };
+    }
+  }
+
+  // 3. Sincronizar campanhas
+  try {
+    const accessToken = oauth2Client.credentials.access_token;
+    const query = "SELECT campaign.id, campaign.name, campaign.status FROM campaign";
+    
+    const response = await fetch(`https://googleads.googleapis.com/v16/customers/${customerId}/googleAds:search`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'developer-token': process.env.GOOGLE_DEVELOPER_TOKEN!,
+            'login-customer-id': customerId,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Failed to fetch campaigns: ${JSON.stringify(error)}`);
+    }
+
+    const { results } = await response.json();
+
+    if (results && results.length > 0) {
+      const campaignsToUpsert = results.map((r: any) => ({
+        client_id: clientId,
+        org_id: orgId,
+        account_id: adAccountId,
+        external_id: r.campaign.id,
+        name: r.campaign.name,
+        status: r.campaign.status,
+      }));
+
+      const { error: upsertError } = await supabase
+        .from("google_campaigns")
+        .upsert(campaignsToUpsert, { onConflict: "external_id,account_id" });
+
+      if (upsertError) throw upsertError;
+    }
+
+    revalidatePath(`/dashboard/clients/${clientId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Google Ads Sync Error:", error);
+    return { error: `Falha na sincronização: ${error.message}` };
   }
 }
