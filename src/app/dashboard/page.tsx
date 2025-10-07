@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
+export const dynamic = 'force-dynamic'; // Garante que a página seja sempre renderizada dinamicamente
+
 export default async function DashboardPage() {
   const supabase = createClient();
 
