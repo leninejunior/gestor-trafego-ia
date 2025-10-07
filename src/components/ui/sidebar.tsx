@@ -2,16 +2,14 @@
 
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
-import { VariantProps, cva } from "class-variance-authority"
-import { PanelLeft } from "lucide-react"
-
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent, SheetHeader, SheetTrigger } from "@/components/ui/sheet"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { SidebarContent } from "./sidebar-content"
+import { SidebarToggle } from "./sidebar-toggle"
+import { SidebarMobileToggle } from "./sidebar-mobile-toggle"
 
 const SIDEBAR_COOKIE_NAME = "sidebar-open"
 const SIDEBAR_COOKIE_MAX_AGE = 31536000 // 1 year
@@ -137,129 +135,6 @@ const Sidebar = React.forwardRef<HTMLDivElement, SidebarProps>(
   }
 )
 Sidebar.displayName = "Sidebar"
-
-type SidebarContentProps = {
-  collapsible?: "oncanvas" | "offcanvas"
-} & React.ComponentPropsWithoutRef<"div">
-
-const SidebarContent = React.forwardRef<HTMLDivElement, SidebarContentProps>(
-  (
-    { collapsible = "offcanvas", className, children, ...props },
-    ref
-  ) => {
-    const { open, setOpen, openMobile, setOpenMobile, isMobile } = useSidebar()
-
-    if (isMobile) {
-      return (
-        <Sheet open={openMobile} onOpenChange={setOpenMobile}>
-          <SheetContent side="left" className="flex flex-col">
-            <SheetHeader>
-              {/* You can add a title or logo here if needed */}
-            </SheetHeader>
-            <div className="flex h-full w-full flex-col">{children}</div>
-          </SheetContent>
-        </Sheet>
-      )
-    }
-
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          "flex h-full",
-          collapsible === "offcanvas" && "relative",
-          className
-        )}
-        {...props}
-      >
-        {/* This is what handles the sidebar gap on desktop */}
-        <div
-          className={cn(
-            "h-full shrink-0 transition-all duration-300 ease-in-out",
-            collapsible === "oncanvas" && "w-full",
-            collapsible === "offcanvas" && (open ? "w-64" : "w-0")
-          )}
-        />
-        <div
-          data-sidebar="sidebar"
-          className={cn(
-            "flex h-full flex-col",
-            collapsible === "oncanvas" && "w-full",
-            collapsible === "offcanvas" &&
-              "absolute left-0 top-0 z-20 h-full w-64 border-r bg-sidebar transition-transform duration-300 ease-in-out",
-            collapsible === "offcanvas" && (open ? "translate-x-0" : "-translate-x-full"),
-            className
-          )}
-        >
-          <div
-            data-sidebar="sidebar"
-            className={cn(
-              "flex h-full flex-col",
-              collapsible === "oncanvas" && "w-full",
-              collapsible === "offcanvas" && "w-64"
-            )}
-          >
-            {children}
-          </div>
-        </div>
-      </div>
-    )
-  }
-)
-SidebarContent.displayName = "SidebarContent"
-
-const SidebarToggle = React.forwardRef<
-  HTMLButtonElement,
-  React.ComponentProps<typeof Button>
->(({ className, onClick, ...props }, ref) => {
-  const { toggleSidebar } = useSidebar()
-
-  const handleClick = React.useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      toggleSidebar()
-      onClick?.(event)
-    },
-    [toggleSidebar, onClick]
-  )
-
-  return (
-    <Button
-      ref={ref}
-      variant="ghost"
-      size="icon"
-      className={cn("h-7 w-7", className)}
-      onClick={handleClick}
-      {...props}
-    >
-      <PanelLeft />
-      <span className="sr-only">Toggle Sidebar</span>
-    </Button>
-  )
-})
-SidebarToggle.displayName = "SidebarToggle"
-
-const SidebarMobileToggle = React.forwardRef<
-  HTMLButtonElement,
-  React.ComponentProps<"button">
->(({ className, ...props }, ref) => {
-  const { toggleSidebar } = useSidebar()
-
-  return (
-    <button
-      ref={ref}
-      className={cn(
-        "inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 w-9",
-        className
-      )}
-      onClick={toggleSidebar}
-      {...props}
-    >
-      <PanelLeft className="h-4 w-4" />
-      <span className="sr-only">Toggle Sidebar</span>
-    </button>
-  )
-})
-SidebarMobileToggle.displayName = "SidebarMobileToggle"
 
 const SidebarMain = React.forwardRef<
   HTMLElement,
@@ -526,4 +401,5 @@ export {
   SidebarMenuLink,
   SidebarMenuSub,
   SidebarMenuSubItem,
+  useSidebar, // Export useSidebar for other components to consume the context
 }
