@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AddClientButton } from "./add-client-button"; // Import AddClientButton
+import { AddClientButton } from "./add-client-button";
 
 export const dynamic = 'force-dynamic'; // Garante que a página seja sempre renderizada dinamicamente
 
@@ -16,7 +16,6 @@ interface Client {
   id: string;
   name: string;
   created_at: string;
-  // Add other client properties if they exist in your database schema
 }
 
 export default async function ClientsPage() {
@@ -28,14 +27,13 @@ export default async function ClientsPage() {
 
   if (error) {
     console.error("Error fetching clients:", error);
-    // Handle error appropriately
   }
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Clientes</h1>
-        <AddClientButton /> {/* AddClientButton should be here */}
+        <AddClientButton />
       </div>
       <div className="bg-white rounded-lg shadow">
         <Table>
@@ -47,7 +45,7 @@ export default async function ClientsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {clients?.map((client: Client) => ( // Explicitly type client
+            {clients?.map((client: Client) => (
               <TableRow key={client.id}>
                 <TableCell className="font-medium">{client.name}</TableCell>
                 <TableCell>
