@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { addClient } from "./actions";
 import { useFormStatus } from "react-dom";
-import { toast } from "sonner"; // Import toast from sonner
+import { toast } from "sonner";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -29,20 +29,28 @@ function SubmitButton() {
 export function AddClientButton() {
   const [open, setOpen] = useState(false);
 
-  const formAction = async (formData: FormData) => { // Explicitly type formData
+  const formAction = async (formData: FormData) => {
+    console.log("Iniciando ação do formulário com dados:", Object.fromEntries(formData));
+    
     const result = await addClient(formData);
+    
     if (result.success) {
+      console.log("Cliente adicionado com sucesso!");
       setOpen(false);
-      toast.success("Cliente adicionado com sucesso!"); // Use toast for success
+      toast.success("Cliente adicionado com sucesso!");
     } else {
-      toast.error(result.error); // Use toast for error
+      console.error("Erro ao adicionar cliente:", result.error);
+      toast.error(`Erro: ${result.error}`);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      console.log("Estado do diálogo alterado para:", isOpen);
+      setOpen(isOpen);
+    }}>
       <DialogTrigger asChild>
-        <Button>Adicionar Cliente</Button>
+        <Button onClick={() => console.log("Botão 'Adicionar Cliente' clicado")}>Adicionar Cliente</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
