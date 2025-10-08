@@ -6,7 +6,6 @@ import { revalidatePath } from "next/cache";
 export async function addClient(formData: FormData) {
   const supabase = createClient();
 
-  // First, get the current user to find their org_id
   const {
     data: { user },
     error: userError,
@@ -16,15 +15,26 @@ export async function addClient(formData: FormData) {
     return { error: "Usuário não autenticado." };
   }
 
-  // Get the user's primary organization (assuming one for simplicity, or you can add a selector)
-  const { data: membership, error: membershipError } = await supabase
+  // Tenta obter a organização do usuário
+  let { data: membership } = await supabase
     .from("memberships")
     .select("org_id")
     .eq("user_id", user.id)
     .single();
 
-  if (membershipError || !membership) {
-    return { error: "Organização não encontrada para este usuário." };
+  let orgId: string | null = membership?.org_id || null;
+
+  // Se nenhuma associação for encontrada, cria uma organização e uma associação para o usuário
+  if (!orgId) {
+    console.log("Nenhuma associação encontrada, criando nova organização para o usuário:", user.id);
+
+    const { data: newOrgId, error: rpcError } = await supabase.rpc('create_org_and_add_admin');
+
+    if (rpcError || !newOrgId) {
+        console.error("Erro ao chamar a RPC create_org_and_add_admin:", rpcError);
+        return { error: "Não foi possível criar uma organização para o usuário." };
+    }
+    orgId = newOrgId;
   }
 
   const clientName = formData.get("name") as string;
@@ -35,7 +45,7 @@ export async function addClient(formData: FormData) {
 
   const { error: insertError } = await supabase.from("clients").insert({
     name: clientName,
-    org_id: membership.org_id, // Usando org_id
+    org_id: orgId,
   });
 
   if (insertError) {
