@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -50,7 +51,13 @@ export function AddClientButton() {
       setOpen(isOpen);
     }}>
       <DialogTrigger asChild>
-        <Button onClick={() => console.log("Botão 'Adicionar Cliente' clicado")}>Adicionar Cliente</Button>
+        <Button 
+          onClick={() => console.log("Botão 'Adicionar Cliente' clicado")}
+          className="bg-blue-600 hover:bg-blue-700"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Adicionar Cliente
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>

@@ -8,9 +8,10 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
   const state = searchParams.get('state');
 
-  const storedStateCookie = cookies().get('google_oauth_state');
+  const cookieStore = await cookies();
+  const storedStateCookie = cookieStore.get('google_oauth_state');
   if (storedStateCookie) {
-    cookies().delete('google_oauth_state');
+    cookieStore.delete('google_oauth_state');
   }
 
   if (!storedStateCookie || !state || !code) {
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
     
     const externalId = customerResourceName.replace('customers/', '');
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: clientData, error: clientError } = await supabase
       .from('clients')
       .select('org_id')

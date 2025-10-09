@@ -33,7 +33,7 @@ export async function syncFacebookAdAccount(
   adAccountId: string,
   clientId: string
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // 1. Get the access token for the ad account
   const { data: tokenData, error: tokenError } = await supabase
@@ -139,7 +139,7 @@ export async function syncGoogleAdAccount(
   adAccountId: string,
   clientId: string
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // 1. Obter tokens e IDs
   const { data: accountData, error: accountError } = await supabase

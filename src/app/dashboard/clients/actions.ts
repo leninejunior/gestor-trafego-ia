@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 export async function addClient(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   console.log("addClient: Iniciando...");
 

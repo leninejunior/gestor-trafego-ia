@@ -26,11 +26,12 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
   const state = searchParams.get('state');
 
-  const storedStateCookie = cookies().get('meta_oauth_state');
+  const cookieStore = await cookies();
+  const storedStateCookie = cookieStore.get('meta_oauth_state');
   
   // Clear the cookie after reading it
   if (storedStateCookie) {
-    cookies().delete('meta_oauth_state');
+    cookieStore.delete('meta_oauth_state');
   }
 
   if (!storedStateCookie || !state || !code) {
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
       throw new Error('No ad accounts found for this user.');
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
     
     // 3. Get org_id from the client
     const { data: clientData, error: clientError } = await supabase
