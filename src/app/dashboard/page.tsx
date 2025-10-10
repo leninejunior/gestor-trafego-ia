@@ -3,16 +3,16 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RealTimeInsights } from "@/components/dashboard/real-time-insights";
+import SetupChecklist from "@/components/onboarding/setup-checklist";
 import Link from "next/link";
 import { 
   Users, 
-  Facebook, 
-  Chrome, 
   Plus, 
   BarChart3, 
   TrendingUp,
-  DollarSign,
-  Eye
+  Eye,
+  Zap,
+  Target
 } from "lucide-react";
 
 export const dynamic = 'force-dynamic';
@@ -48,6 +48,9 @@ export default async function DashboardPage() {
   const totalGoogleConnections = googleAccounts?.length || 0;
   const totalConnections = totalMetaConnections + totalGoogleConnections;
 
+  // Verificar se precisa mostrar onboarding
+  const needsOnboarding = totalClients === 0 || totalConnections === 0;
+
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
@@ -59,6 +62,13 @@ export default async function DashboardPage() {
           Olá, {user.email}. Aqui está um resumo das suas campanhas e clientes.
         </p>
       </div>
+
+      {/* Onboarding Checklist */}
+      {needsOnboarding && (
+        <div className="mb-8">
+          <SetupChecklist compact={false} />
+        </div>
+      )}
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -78,7 +88,9 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Meta Ads</CardTitle>
-            <Facebook className="h-4 w-4 text-blue-600" />
+            <div className="w-4 h-4 bg-blue-600 rounded flex items-center justify-center">
+              <span className="text-white text-xs font-bold">f</span>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalMetaConnections}</div>
@@ -91,7 +103,9 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Google Ads</CardTitle>
-            <Chrome className="h-4 w-4 text-green-600" />
+            <div className="w-4 h-4 bg-green-600 rounded flex items-center justify-center">
+              <span className="text-white text-xs font-bold">G</span>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalGoogleConnections}</div>

@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -32,6 +31,12 @@ interface MetaConnection {
 export default async function ClientsPage() {
   const supabase = await createClient();
 
+  // Verificar autenticação
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return <div>Não autorizado</div>;
+  }
+
   // Buscar clientes com tratamento de erro
   let clients = null;
   let metaConnections = null;
@@ -40,9 +45,22 @@ export default async function ClientsPage() {
   let errorMessage = "";
 
   try {
+    // Buscar organização do usuário
+    const { data: membership } = await supabase
+      .from('memberships')
+      .select('org_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership) {
+      throw new Error('Organização não encontrada');
+    }
+
+    // Buscar clientes da organização
     const { data: clientsData, error: clientsError } = await supabase
       .from("clients")
       .select("*")
+      .eq("org_id", membership.org_id)
       .order("created_at", { ascending: false });
 
     if (clientsError) {
@@ -50,31 +68,31 @@ export default async function ClientsPage() {
     }
     clients = clientsData;
 
-    // Buscar conexões Meta para cada cliente
+    // Buscar conexões Meta para clientes da organização
     const { data: metaData } = await supabase
       .from("client_meta_connections")
-      .select("*")
+      .select(`
+        *,
+        clients!inner (
+          org_id
+        )
+      `)
+      .eq("clients.org_id", membership.org_id)
       .eq("is_active", true);
     metaConnections = metaData;
 
-    // Buscar contas Google Ads
+    // Buscar contas Google Ads da organização
     const { data: googleData } = await supabase
       .from("ad_accounts")
       .select("*")
+      .eq("org_id", membership.org_id)
       .eq("provider", "google");
     googleAccounts = googleData;
 
   } catch (error: any) {
     console.error("Error fetching clients:", error);
     hasError = true;
-    
-    if (error.code === '42P01') {
-      errorMessage = "Banco de dados não configurado. Execute o script SQL primeiro.";
-    } else if (error.code === 'PGRST301') {
-      errorMessage = "Tabelas não encontradas. Configure o banco de dados.";
-    } else {
-      errorMessage = error.message || "Erro ao conectar com o banco de dados.";
-    }
+    errorMessage = error.message || "Erro ao conectar com o banco de dados.";
   }
 
   const getClientConnections = (clientId: string) => {
