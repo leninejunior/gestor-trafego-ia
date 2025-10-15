@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Cancelar convite
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { inviteId: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ inviteId: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -14,12 +14,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const { inviteId } = params;
+    const { inviteId } = await params;
 
     // Buscar organização do usuário
     const { data: membership } = await supabase
       .from("memberships")
-      .select("org_id, role")
+      .select("organization_id, role")
       .eq("user_id", user.id)
       .single();
 
@@ -35,9 +35,9 @@ export async function DELETE(
     // Verificar se o convite pertence à organização do usuário
     const { data: invite } = await supabase
       .from("organization_invites")
-      .select("id, org_id, status")
+      .select("id, organization_id, status")
       .eq("id", inviteId)
-      .eq("org_id", membership.org_id)
+      .eq("organization_id", membership.organization_id)
       .single();
 
     if (!invite) {
@@ -69,8 +69,8 @@ export async function DELETE(
 
 // Reenviar convite
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { inviteId: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ inviteId: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -80,12 +80,12 @@ export async function POST(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const { inviteId } = params;
+    const { inviteId } = await params;
 
     // Buscar organização do usuário
     const { data: membership } = await supabase
       .from("memberships")
-      .select("org_id, role")
+      .select("organization_id, role")
       .eq("user_id", user.id)
       .single();
 
@@ -103,7 +103,7 @@ export async function POST(
       .from("organization_invites")
       .select("*")
       .eq("id", inviteId)
-      .eq("org_id", membership.org_id)
+      .eq("organization_id", membership.organization_id)
       .single();
 
     if (!invite) {
@@ -111,7 +111,7 @@ export async function POST(
     }
 
     // Gerar novo token e estender expiração
-    const { data: newToken } = await supabase.rpc('generate_invite_token');
+    const newToken = crypto.randomUUID();
     const newExpiresAt = new Date();
     newExpiresAt.setDate(newExpiresAt.getDate() + 7);
 

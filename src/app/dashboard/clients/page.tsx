@@ -53,7 +53,53 @@ export default async function ClientsPage() {
       .single();
 
     if (!membership) {
-      throw new Error('Organização não encontrada');
+      console.log('⚠️ Membership não encontrada, usando fallback para super admin');
+      // Fallback para super admin ou usuário sem organização
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('clients')
+        .select('*')
+        .order('name');
+
+      return (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold">Clientes</h1>
+              <p className="text-muted-foreground">
+                Gerencie seus clientes e suas integrações
+              </p>
+            </div>
+            <AddClientButton />
+          </div>
+
+          <div className="grid gap-4">
+            {clientsData && clientsData.length > 0 ? (
+              clientsData.map((client) => (
+                <div key={client.id} className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold">{client.name}</h3>
+                      <p className="text-sm text-gray-500">ID: {client.id}</p>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/dashboard/clients/${client.id}`}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          Ver Detalhes
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">Nenhum cliente encontrado</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
     }
 
     // Buscar clientes da organização

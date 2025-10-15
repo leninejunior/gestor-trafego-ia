@@ -1,0 +1,35 @@
+/**
+ * Layout para páginas administrativas
+ * - Sidebar com navegação admin
+ * - Header responsivo
+ * - Layout consistente com dashboard
+ */
+
+import { DashboardSidebar } from '@/components/dashboard/sidebar'
+import { DashboardHeader } from '@/components/dashboard/header'
+
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <DashboardSidebar />
+      
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <DashboardHeader />
+        
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-7xl mx-auto">
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
+  )
+}

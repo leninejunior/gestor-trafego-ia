@@ -1,5 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import {
   Card,
   CardContent,
@@ -8,52 +11,122 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ConnectMetaButton } from "./connect-meta-button";
-import { SyncButton } from "./sync-button";
-import { ConnectGoogleButton } from "./connect-google-button";
-import { SyncGoogleButton } from "./sync-google-button";
 import { CampaignsList } from "@/components/meta/campaigns-list";
 import { ManageConnections } from "@/components/meta/manage-connections";
 
-export default async function ClientDetailPage({
-  params,
-}: {
-  params: Promise<{ clientId: string }>;
-}) {
-  const { clientId } = await params;
-  const supabase = await createClient();
-  const { data: client, error: clientError } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("id", clientId)
-    .single();
+interface Client {
+  id: string;
+  name: string;
+  org_id: string;
+  created_at: string;
+  updated_at: string;
+}
 
-  if (clientError || !client) {
-    notFound();
+interface MetaConnection {
+  id: string;
+  client_id: string;
+  ad_account_id: string;
+  account_name: string;
+  currency: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export default function ClientDetailPage() {
+  const params = useParams();
+  const clientId = params.clientId as string;
+  
+  const [client, setClient] = useState<Client | null>(null);
+  const [metaConnections, setMetaConnections] = useState<MetaConnection[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (clientId) {
+      loadClientData();
+    }
+  }, [clientId]);
+
+  const loadClientData = async () => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      console.log('🔍 [CLIENT PAGE] Carregando dados do cliente:', clientId);
+
+      // Buscar dados do cliente
+      const { data: clientData, error: clientError } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("id", clientId)
+        .single();
+
+      if (clientError || !clientData) {
+        console.error('❌ [CLIENT PAGE] Erro ao buscar cliente:', clientError);
+        setError('Cliente não encontrado');
+        return;
+      }
+
+      console.log('✅ [CLIENT PAGE] Cliente encontrado:', clientData.name);
+      setClient(clientData);
+
+      // Buscar conexões Meta
+      const { data: connections, error: connectionsError } = await supabase
+        .from("client_meta_connections")
+        .select("*")
+        .eq("client_id", clientId)
+        .eq("is_active", true);
+
+      if (connectionsError) {
+        console.error('❌ [CLIENT PAGE] Erro ao buscar conexões:', connectionsError);
+      } else {
+        console.log('✅ [CLIENT PAGE] Conexões encontradas:', connections?.length || 0);
+        setMetaConnections(connections || []);
+      }
+
+    } catch (err) {
+      console.error('💥 [CLIENT PAGE] Erro geral:', err);
+      setError('Erro ao carregar dados do cliente');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p>Carregando dados do cliente...</p>
+        </div>
+      </div>
+    );
   }
 
-  // Buscar conexões Meta para este cliente
-  const { data: metaConnections, error: metaError } = await supabase
-    .from("client_meta_connections")
-    .select("*")
-    .eq("client_id", clientId)
-    .eq("is_active", true);
-
-  // Buscar contas de anúncio conectadas para este cliente (Google)
-  const { data: adAccounts, error: adAccountsError } = await supabase
-    .from("ad_accounts")
-    .select("*")
-    .eq("client_id", clientId);
-
-  if (adAccountsError) {
-    console.error("Error fetching ad accounts:", adAccountsError);
+  if (error || !client) {
+    return (
+      <div className="text-center py-8">
+        <h2 className="text-xl font-semibold text-red-600 mb-2">Erro</h2>
+        <p className="text-gray-600">{error || 'Cliente não encontrado'}</p>
+      </div>
+    );
   }
 
-  const googleAdAccounts = adAccounts?.filter(acc => acc.provider === 'google') || [];
   const hasMetaConnection = metaConnections && metaConnections.length > 0;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">{client.name}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">{client.name}</h1>
+        <button
+          onClick={loadClientData}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          disabled={loading}
+        >
+          {loading ? 'Carregando...' : 'Recarregar'}
+        </button>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Card do Meta Ads */}
@@ -81,27 +154,18 @@ export default async function ClientDetailPage({
           </CardContent>
         </Card>
 
-        {/* Card do Google Ads */}
+        {/* Card do Google Ads - Temporariamente desabilitado */}
         <Card>
           <CardHeader>
             <CardTitle>Google Ads</CardTitle>
             <CardDescription>
-              Conecte as contas de anúncio do seu cliente no Google para sincronizar os dados.
+              Integração com Google Ads em desenvolvimento.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {googleAdAccounts.length > 0 ? (
-              <div className="space-y-4">
-                {googleAdAccounts.map((account) => (
-                  <div key={account.id} className="flex items-center justify-between p-2 border rounded-md">
-                    <span>{account.name} ({account.external_id})</span>
-                    <SyncGoogleButton adAccountId={account.id} clientId={client.id} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <ConnectGoogleButton clientId={client.id} />
-            )}
+            <div className="text-center py-6 text-gray-500">
+              <p>Google Ads em breve...</p>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -11,42 +11,33 @@ export async function GET() {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
-    // Buscar informações do usuário, organização e plano
-    const { data: membershipData } = await supabase
+    // Buscar membership do usuário
+    const { data: membership } = await supabase
       .from('memberships')
-      .select(`
-        role,
-        organizations (
-          name
-        ),
-        subscriptions (
-          subscription_plans (
-            name
-          )
-        )
-      `)
+      .select('role, organization_id')
       .eq('user_id', user.id)
+      .eq('status', 'active')
       .single();
 
-    // Buscar plano ativo da organização
-    const { data: subscriptionData } = await supabase
-      .from('subscriptions')
-      .select(`
-        subscription_plans (
-          name
-        )
-      `)
-      .eq('org_id', membershipData?.organizations?.id || '')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    // Buscar organização
+    let orgName = 'Minha Organização';
+    if (membership?.organization_id) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', membership.organization_id)
+        .single();
+      
+      if (org?.name) {
+        orgName = org.name;
+      }
+    }
 
     const userInfo = {
       email: user.email || '',
-      orgName: membershipData?.organizations?.name || 'Sem organização',
-      role: membershipData?.role || 'viewer',
-      planName: subscriptionData?.subscription_plans?.name || 'Sem plano'
+      orgName,
+      role: membership?.role || 'viewer',
+      planName: 'Pro Plan'
     };
 
     return NextResponse.json(userInfo);

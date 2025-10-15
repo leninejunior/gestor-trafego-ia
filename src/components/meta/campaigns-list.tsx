@@ -28,20 +28,41 @@ export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
   }, [clientId, adAccountId]);
 
   const fetchCampaigns = async () => {
+    console.log('🚀 [CAMPAIGNS LIST] Iniciando busca de campanhas...');
+    console.log('📋 [CAMPAIGNS LIST] Parâmetros:', { clientId, adAccountId });
+    
     try {
-      const response = await fetch(`/api/meta/campaigns?clientId=${clientId}&adAccountId=${adAccountId}`);
+      const url = `/api/meta/campaigns?clientId=${clientId}&adAccountId=${adAccountId}`;
+      console.log('🔗 [CAMPAIGNS LIST] URL da requisição:', url);
+      
+      const response = await fetch(url);
       const data = await response.json();
+      
+      console.log('📊 [CAMPAIGNS LIST] Resposta da API:', { 
+        status: response.status, 
+        data,
+        isTestData: data.isTestData 
+      });
       
       if (response.ok) {
         setCampaigns(data.campaigns || []);
+        
+        if (data.isTestData) {
+          toast.info(data.message || 'Exibindo dados de teste');
+          console.log('🧪 [CAMPAIGNS LIST] Dados de teste carregados');
+        } else {
+          console.log('✅ [CAMPAIGNS LIST] Dados reais carregados');
+        }
       } else {
+        console.error('❌ [CAMPAIGNS LIST] Erro na resposta:', data.error);
         toast.error(data.error || 'Erro ao carregar campanhas');
       }
     } catch (error) {
-      console.error('Erro ao buscar campanhas:', error);
+      console.error('💥 [CAMPAIGNS LIST] Erro na requisição:', error);
       toast.error('Erro ao carregar campanhas');
     } finally {
       setIsLoading(false);
+      console.log('🏁 [CAMPAIGNS LIST] Busca finalizada');
     }
   };
 

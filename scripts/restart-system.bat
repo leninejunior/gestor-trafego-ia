@@ -40,17 +40,27 @@ if %errorlevel% neq 0 (
     pause
     exit /b 1
 ) else (
-    for /f %%i in ('node --version') do echo ✅ Node.js: %%i
+    echo ✅ Node.js encontrado
 )
 
-REM Verificar pnpm
-pnpm --version >nul 2>&1
+REM Verificar npm
+npm --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ❌ pnpm não encontrado!
-    echo 💡 Instalando pnpm...
-    npm install -g pnpm
+    echo ❌ npm não encontrado!
+    pause
+    exit /b 1
 ) else (
-    for /f %%i in ('pnpm --version') do echo ✅ pnpm: %%i
+    echo ✅ npm encontrado
+)
+
+REM Definir package manager (usar npm por padrão)
+set PACKAGE_MANAGER=npm
+pnpm --version >nul 2>&1
+if %errorlevel% equ 0 (
+    echo ✅ pnpm encontrado, usando pnpm
+    set PACKAGE_MANAGER=pnpm
+) else (
+    echo ✅ Usando npm
 )
 
 REM Verificar arquivos essenciais
@@ -78,47 +88,43 @@ REM 3. Limpar cache
 echo.
 echo 🧹 Limpando cache...
 
-REM Limpar cache do pnpm
-pnpm store prune >nul 2>&1
-echo ✅ Cache do pnpm limpo
-
 REM Limpar cache do Next.js
 if exist .next (
     rmdir /s /q .next >nul 2>&1
     echo ✅ Cache do Next.js limpo
 )
 
-REM Perguntar sobre reinstalação
-echo.
-set /p reinstall="🤔 Deseja reinstalar dependências? (s/N): "
-if /i "%reinstall%"=="s" (
-    echo 🗑️  Removendo node_modules...
-    if exist node_modules (
-        rmdir /s /q node_modules >nul 2>&1
+REM Limpar cache do package manager
+if "%PACKAGE_MANAGER%"=="pnpm" (
+    pnpm store prune >nul 2>&1
+    echo ✅ Cache do pnpm limpo
+) else (
+    npm cache clean --force >nul 2>&1
+    echo ✅ Cache do npm limpo
+)
+
+REM Verificar se node_modules existe
+if not exist node_modules (
+    echo 📦 node_modules não encontrado, instalando dependências...
+    if "%PACKAGE_MANAGER%"=="pnpm" (
+        pnpm install
+    ) else (
+        npm install
     )
     
-    echo 📦 Instalando dependências...
-    pnpm install
-    
-    if %errorlevel% equ 0 (
-        echo ✅ Dependências instaladas com sucesso
-    ) else (
+    if %errorlevel% neq 0 (
         echo ❌ Erro ao instalar dependências!
         pause
         exit /b 1
     )
-)
-
-REM 4. Verificar build
-echo.
-echo 🔨 Verificando build...
-pnpm run build >nul 2>&1
-
-if %errorlevel% equ 0 (
-    echo ✅ Build realizado com sucesso
+    echo ✅ Dependências instaladas com sucesso
 ) else (
-    echo ⚠️  Erro no build, mas continuando...
+    echo ✅ node_modules encontrado
 )
+
+REM 4. Pular verificação de build para desenvolvimento
+echo.
+echo ⚡ Pulando build para modo desenvolvimento...
 
 REM 5. Iniciar sistema
 echo.
@@ -140,4 +146,8 @@ echo ▶️  Iniciando servidor de desenvolvimento...
 echo.
 
 REM Iniciar em modo desenvolvimento
-pnpm run dev
+if "%PACKAGE_MANAGER%"=="pnpm" (
+    pnpm run dev
+) else (
+    npm run dev
+)

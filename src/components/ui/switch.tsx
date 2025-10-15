@@ -1,3 +1,7 @@
+/**
+ * Switch Component
+ */
+
 "use client"
 
 import * as React from "react"

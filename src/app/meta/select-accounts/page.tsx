@@ -41,9 +41,17 @@ export default function SelectAccountsPage() {
   const clientId = searchParams.get('client_id');
 
   useEffect(() => {
+    console.log('🔍 [SELECT ACCOUNTS] Parâmetros da URL:');
+    console.log('- Access Token:', accessToken ? 'presente' : 'ausente');
+    console.log('- Client ID:', clientId);
+    console.log('- URL completa:', window.location.href);
+    
     if (!accessToken || !clientId) {
-      toast.error('Parâmetros inválidos');
-      router.push('/dashboard/clients');
+      console.error('❌ [SELECT ACCOUNTS] Parâmetros inválidos');
+      toast.error('Parâmetros inválidos - redirecionando...');
+      setTimeout(() => {
+        router.push('/dashboard/clients');
+      }, 2000);
       return;
     }
 
@@ -52,6 +60,8 @@ export default function SelectAccountsPage() {
 
   const fetchAccounts = async () => {
     try {
+      console.log('📡 [SELECT ACCOUNTS] Buscando contas Meta...');
+      
       const response = await fetch('/api/meta/accounts', {
         method: 'POST',
         headers: {
@@ -61,15 +71,29 @@ export default function SelectAccountsPage() {
       });
 
       const data = await response.json();
+      
+      console.log('📊 [SELECT ACCOUNTS] Resposta da API:', {
+        status: response.status,
+        adAccounts: data.adAccounts?.length || 0,
+        pages: data.pages?.length || 0,
+        error: data.error || null
+      });
 
       if (response.ok) {
         setAdAccounts(data.adAccounts || []);
         setPages(data.pages || []);
+        
+        if (data.adAccounts?.length === 0) {
+          toast.warning('Nenhuma conta de anúncios encontrada');
+        } else {
+          toast.success(`${data.adAccounts.length} conta(s) encontrada(s)`);
+        }
       } else {
+        console.error('❌ [SELECT ACCOUNTS] Erro na API:', data);
         toast.error(data.error || 'Erro ao carregar contas');
       }
     } catch (error) {
-      console.error('Erro ao buscar contas:', error);
+      console.error('💥 [SELECT ACCOUNTS] Erro ao buscar contas:', error);
       toast.error('Erro ao carregar contas');
     } finally {
       setIsLoading(false);
@@ -169,6 +193,17 @@ export default function SelectAccountsPage() {
           <p className="text-gray-600">
             Escolha as contas de anúncios e páginas que deseja conectar
           </p>
+          
+          {/* Debug Info */}
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-left">
+            <h3 className="font-medium text-blue-800 mb-2">🔍 Informações de Debug:</h3>
+            <div className="text-sm text-blue-700 space-y-1">
+              <p><strong>Client ID:</strong> {clientId || 'Não encontrado'}</p>
+              <p><strong>Access Token:</strong> {accessToken ? 'Presente' : 'Ausente'}</p>
+              <p><strong>Contas encontradas:</strong> {adAccounts.length}</p>
+              <p><strong>Páginas encontradas:</strong> {pages.length}</p>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

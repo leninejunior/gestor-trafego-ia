@@ -1,170 +1,107 @@
-# Scripts de Automação do Sistema
+# 📁 Scripts do Sistema
 
-Esta pasta contém scripts para automatizar tarefas comuns do sistema.
+Este diretório contém scripts essenciais para gerenciar o sistema.
 
-## 📋 Scripts Disponíveis
+## 🚀 Scripts Principais
 
-### 🚀 `setup.ps1` - Configuração Inicial
-**Uso:** `pnpm run setup` ou `.\scripts\setup.ps1`
-
-Configura o ambiente pela primeira vez:
-- ✅ Verifica pré-requisitos (Node.js, Git)
-- 📦 Instala pnpm se necessário
-- ⚙️ Cria arquivo .env a partir de env.exemple
-- 📚 Instala todas as dependências
-- 🔨 Testa o build
-- 📋 Mostra próximos passos para configuração
-
-### 🔄 `restart-system.ps1` - Reinicialização Completa
-**Uso:** `pnpm run restart` ou `.\scripts\restart-system.ps1`
-
-Reinicialização completa do sistema:
-- 🔪 Mata todos os processos Node.js/Next.js
-- 🔍 Verifica dependências e arquivos essenciais
-- 🧹 Limpa cache (pnpm, Next.js)
-- 📦 Opção de reinstalar dependências
-- 🔨 Verifica build
-- 🚀 Inicia o sistema
-
-### ⚡ `quick-restart.bat` - Reinicialização Rápida
-**Uso:** `pnpm run quick-restart` ou `.\scripts\quick-restart.bat`
-
-Reinicialização rápida sem verificações:
-- 🔪 Mata processos rapidamente
-- 🧹 Limpa cache do Next.js
-- 🚀 Inicia imediatamente
-
-### 🔍 `system-check.ps1` - Verificação do Sistema
-**Uso:** `pnpm run check` ou `.\scripts\system-check.ps1`
-
-Verifica a saúde do sistema sem reiniciar:
-- ✅ Status de Node.js, pnpm, arquivos
-- 🔄 Processos ativos
-- 🌐 Status das portas (3000, 3001, 5000)
-- 💾 Espaço em disco
-- 🗂️ Tamanho do cache
-- 📊 Resumo geral
-
-## 🖥️ Compatibilidade
-
-### Windows
-- ✅ PowerShell (.ps1) - Scripts principais
-- ✅ Batch (.bat) - Scripts rápidos
-- ✅ CMD - Todos os scripts funcionam
-
-### Execução de PowerShell
-Se houver erro de política de execução:
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-## 🚨 Solução de Problemas
-
-### "Processo não pode ser finalizado"
-- Execute como Administrador
-- Use o Task Manager para finalizar manualmente
-- Reinicie o computador se necessário
-
-### "pnpm não encontrado"
-- Execute: `npm install -g pnpm`
-- Ou use o script setup.ps1
-
-### "Porta 3000 ocupada"
-- Os scripts automaticamente liberam a porta
-- Manualmente: `netstat -ano | findstr :3000`
-- Depois: `taskkill /f /pid [PID]`
-
-### "Erro de permissão PowerShell"
-```powershell
-# Temporário (sessão atual)
-Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
-
-# Permanente (usuário atual)
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-## 📝 Logs e Debug
-
-### Logs dos Scripts
-- PowerShell: Saída colorida no terminal
-- Batch: Saída simples no CMD
-- Erros são exibidos em vermelho
-
-### Debug Manual
+### `restart-system.bat`
+Script principal para reinicialização completa do sistema.
 ```bash
-# Verificar processos Node.js
-tasklist | findstr node
-
-# Verificar portas ocupadas
-netstat -ano | findstr :3000
-
-# Verificar espaço em disco
-dir /-c
-
-# Limpar cache manualmente
-rmdir /s /q .next
-rmdir /s /q node_modules
+npm run restart
 ```
+**Funcionalidades:**
+- Mata processos Node.js existentes
+- Limpa cache do Next.js
+- Verifica dependências
+- Instala dependências se necessário
+- Inicia servidor de desenvolvimento
 
-## 🔧 Personalização
-
-### Adicionar Nova Porta
-Edite os scripts e adicione a porta desejada:
-```powershell
-# Em restart-system.ps1
-Stop-ProcessByPort -Port 8080
-
-# Em quick-restart.bat
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":8080"') do (
-    taskkill /f /pid %%a >nul 2>&1
-)
-```
-
-### Modificar Verificações
-No `system-check.ps1`, adicione novas verificações:
-```powershell
-$customOk = Test-SystemComponent -Name "MinhaVerificacao" -Test {
-    # Sua lógica aqui
-    return $true
-} -SuccessMessage "OK" -FailMessage "Erro"
-```
-
-## 📚 Exemplos de Uso
-
-### Desenvolvimento Diário
+### `quick-restart.bat`
+Script para reinicialização rápida (sem verificações).
 ```bash
-# Manhã - verificar sistema
-pnpm run check
+npm run quick-restart
+```
+**Funcionalidades:**
+- Mata processos rapidamente
+- Limpa cache básico
+- Inicia servidor imediatamente
 
-# Problema? Reinicialização rápida
-pnpm run quick-restart
+## 🔧 Scripts Utilitários
 
-# Problema persistente? Reinicialização completa
-pnpm run restart
+### `check-env.js`
+Verificação de variáveis de ambiente essenciais.
+```bash
+npm run check-env
+```
+**Verifica:**
+- Variáveis do Supabase
+- Configurações da Meta API
+- URLs da aplicação
+
+### `test-system.js`
+Teste completo do sistema e validação de arquivos.
+```bash
+npm run test-system
+```
+**Funcionalidades:**
+- Valida estrutura de arquivos
+- Testa sintaxe de componentes
+- Verifica dependências
+- Relatório completo de status
+
+## 📊 Scripts de Banco de Dados
+
+### `apply-advanced-features-schema.js`
+Aplicação do schema completo de funcionalidades avançadas.
+```bash
+npm run apply-schema
+```
+**Aplica:**
+- Schema de funcionalidades avançadas
+- Tabelas de push notifications
+- Workflows e automações
+- Sistema de monitoramento
+- APIs públicas
+
+## 📝 Uso Recomendado
+
+### Desenvolvimento Diário:
+```bash
+npm run quick-restart  # Reinício rápido
 ```
 
-### Configuração Nova Máquina
+### Problemas ou Primeira Instalação:
 ```bash
-# 1. Clonar repositório
-git clone [repo]
-
-# 2. Configuração inicial
-pnpm run setup
-
-# 3. Configurar .env manualmente
-
-# 4. Iniciar desenvolvimento
-pnpm run dev
+npm run restart        # Reinício completo com verificações
 ```
 
-### Resolução de Problemas
+### Verificar Sistema:
 ```bash
-# 1. Verificar o que está errado
-pnpm run check
+npm run check-env      # Verificar configurações
+npm run test-system    # Teste completo
+```
 
-# 2. Tentar reinicialização completa
-pnpm run restart
+### Aplicar Schema:
+```bash
+npm run apply-schema   # Aplicar schema do banco
+```
 
-# 3. Se necessário, reinstalar dependências
-# (opção no script restart)
+## ⚠️ Notas Importantes
+
+- Scripts funcionam no Windows (cmd/PowerShell)
+- Sempre execute a partir da raiz do projeto
+- Use `quick-restart` para desenvolvimento diário
+- Use `restart` quando houver problemas
+- Mantenha o `.env` configurado corretamente
+
+## 🗂️ Estrutura Atual
+
+```
+scripts/
+├── restart-system.bat      # Reinício completo
+├── quick-restart.bat       # Reinício rápido  
+├── check-env.js           # Verificar .env
+├── test-system.js         # Teste do sistema
+├── apply-advanced-features-schema.js  # Schema DB
+└── README.md              # Esta documentação
 ```

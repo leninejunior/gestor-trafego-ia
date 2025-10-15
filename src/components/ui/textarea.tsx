@@ -1,4 +1,6 @@
-"use client"
+/**
+ * Textarea Component
+ */
 
 import * as React from "react"
 

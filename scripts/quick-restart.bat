@@ -3,10 +3,10 @@ chcp 65001 >nul
 title Reinicialização Rápida
 
 echo.
-echo ⚡ Reinicialização Rápida do Sistema
+echo ⚡ REINICIALIZAÇÃO RÁPIDA
 echo.
 
-REM Matar processos rapidamente
+REM Matar processos Node.js
 echo 🔪 Finalizando processos...
 taskkill /f /im node.exe >nul 2>&1
 taskkill /f /im npm.exe >nul 2>&1
@@ -27,9 +27,14 @@ if exist .next (
 )
 
 echo.
-echo 🚀 Reiniciando...
+echo 🚀 Iniciando servidor...
 echo 🔗 http://localhost:3000
 echo.
 
-REM Iniciar
-pnpm run dev
+REM Verificar se tem pnpm, senão usar npm
+pnpm --version >nul 2>&1
+if %errorlevel% equ 0 (
+    pnpm run dev
+) else (
+    npm run dev
+)

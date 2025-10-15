@@ -34,18 +34,10 @@ export async function addClient(formData: FormData) {
   let orgId: string | null = membership?.org_id || null;
   console.log("addClient: orgId inicial:", orgId);
 
-  // Se nenhuma associação for encontrada, cria uma organização e uma associação para o usuário
+  // Se nenhuma associação for encontrada, retornar erro
   if (!orgId) {
-    console.log("addClient: Nenhuma associação encontrada, tentando criar nova organização para o usuário:", user.id);
-
-    const { data: newOrgId, error: rpcError } = await supabase.rpc('create_org_and_add_admin');
-
-    if (rpcError || !newOrgId) {
-        console.error("addClient: Erro ao chamar a RPC create_org_and_add_admin:", rpcError);
-        return { error: "Não foi possível criar uma organização para o usuário." };
-    }
-    orgId = newOrgId;
-    console.log("addClient: Nova orgId criada via RPC:", orgId);
+    console.log("addClient: Usuário não possui organização.");
+    return { error: "Você não possui uma organização. Entre em contato com um administrador para ser adicionado a uma organização." };
   }
 
   const clientName = formData.get("name") as string;

@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 // Atualizar role do membro
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { memberId: string } }
+  { params }: { params: Promise<{ memberId: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -14,7 +14,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const { memberId } = params;
+    const { memberId } = await params;
     const { role, status } = await request.json();
 
     // Buscar organização do usuário atual
@@ -109,7 +109,7 @@ export async function PATCH(
 // Remover membro
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { memberId: string } }
+  { params }: { params: Promise<{ memberId: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -119,7 +119,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const { memberId } = params;
+    const { memberId } = await params;
 
     // Buscar organização do usuário atual
     const { data: currentMembership } = await supabase

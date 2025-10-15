@@ -15,7 +15,13 @@ import {
   UserPlus,
   Shield,
   Building2,
-  DollarSign
+  DollarSign,
+  Wallet,
+  Link2,
+  Bot,
+  Brain,
+  Activity,
+  Target
 } from "lucide-react";
 import { Badge } from "../ui/badge";
 
@@ -41,6 +47,11 @@ const navigationSections: NavigationSection[] = [
         icon: Home,
       },
       {
+        name: "Campanhas",
+        href: "/dashboard/campaigns",
+        icon: BarChart3,
+      },
+      {
         name: "Clientes",
         href: "/dashboard/clients",
         icon: Users,
@@ -53,7 +64,7 @@ const navigationSections: NavigationSection[] = [
       {
         name: "Analytics",
         href: "/dashboard/analytics",
-        icon: BarChart3,
+        icon: Activity,
       },
     ]
   },
@@ -74,6 +85,26 @@ const navigationSections: NavigationSection[] = [
         name: "WhatsApp",
         href: "/dashboard/whatsapp",
         icon: MessageSquare,
+      },
+    ]
+  },
+  {
+    title: "Avançado",
+    items: [
+      {
+        name: "Métricas Personalizadas",
+        href: "/dashboard/metrics",
+        icon: BarChart3,
+      },
+      {
+        name: "Dashboard Personalizável",
+        href: "/dashboard/custom-views",
+        icon: Settings,
+      },
+      {
+        name: "Objetivos Inteligentes",
+        href: "/dashboard/objectives",
+        icon: Target,
       },
     ]
   },
@@ -113,92 +144,149 @@ const navigationSections: NavigationSection[] = [
         adminOnly: true,
       },
       {
-        name: "Financeiro",
-        href: "/admin/billing",
-        icon: DollarSign,
+        name: "Usuários",
+        href: "/admin/users",
+        icon: Users,
+        adminOnly: true,
+      },
+      {
+        name: "Monitoramento",
+        href: "/admin/monitoring",
+        icon: Activity,
         adminOnly: true,
       },
     ]
   }
 ];
 
-export function DashboardSidebar() {
+interface DashboardSidebarProps {
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: DashboardSidebarProps) {
   const pathname = usePathname();
 
   return (
-    <div className="flex flex-col w-64 bg-white shadow-lg">
-      {/* Logo */}
-      <div className="flex items-center justify-center h-16 px-4 bg-blue-600">
-        <h1 className="text-xl font-bold text-white">
-          Ads Manager
-        </h1>
-      </div>
+    <>
+      {/* Mobile overlay */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={onMobileClose}
+        />
+      )}
 
-      {/* Navigation */}
-      <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
-        {navigationSections.map((section) => {
-          // Filtrar itens admin apenas para super admins
-          const visibleItems = section.items.filter((item: NavigationItem) => {
-            if (item.adminOnly) {
-              // Por enquanto, mostrar para todos - depois implementaremos verificação real
-              return true;
-            }
-            return true;
-          });
-
-          if (visibleItems.length === 0) return null;
-
-          return (
-            <div key={section.title}>
-              {/* Section Title */}
-              <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                {section.title}
-              </h3>
-              
-              {/* Section Items */}
-              <div className="space-y-1">
-                {visibleItems.map((item: NavigationItem) => {
-                  const isActive = pathname === item.href || 
-                    (item.href !== "/dashboard" && pathname.startsWith(item.href));
-                  
-                  return (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      className={cn(
-                        "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                        isActive
-                          ? "bg-blue-100 text-blue-700"
-                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
-                        item.adminOnly && "border-l-2 border-red-500"
-                      )}
-                    >
-                      <item.icon className="w-5 h-5 mr-3" />
-                      {item.name}
-                      {item.adminOnly && (
-                        <Badge variant="destructive" className="ml-auto text-xs px-1 py-0">
-                          ADMIN
-                        </Badge>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
+      {/* Sidebar */}
+      <div className={cn(
+        "fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
+        isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
+        {/* Logo */}
+        <div className="flex items-center justify-between h-16 px-4 bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg">
+          <Link href="/dashboard" className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+              <BarChart3 className="w-5 h-5 text-blue-600" />
             </div>
-          );
-        })}
-      </nav>
+            <h1 className="text-xl font-bold text-white">
+              Ads Manager
+            </h1>
+          </Link>
+          
+          {/* Close button for mobile */}
+          <button
+            onClick={onMobileClose}
+            className="lg:hidden text-white hover:text-gray-200 p-1"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
-      {/* User Info */}
-      <SidebarUserInfo />
+        {/* Navigation */}
+        <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
+          {navigationSections.map((section) => {
+            // Filtrar itens admin apenas para super admins
+            const visibleItems = section.items.filter((item: NavigationItem) => {
+              if (item.adminOnly) {
+                // Por enquanto, mostrar para todos - depois implementaremos verificação real
+                return true;
+              }
+              return true;
+            });
 
-      {/* Footer */}
-      <div className="p-3 border-t border-gray-200">
-        <div className="text-xs text-gray-500 text-center">
-          <div className="font-medium">Ads Manager SaaS</div>
-          <div className="mt-1">v2.0 - Sistema Completo</div>
+            if (visibleItems.length === 0) return null;
+
+            return (
+              <div key={section.title}>
+                {/* Section Title */}
+                <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  {section.title}
+                </h3>
+                
+                {/* Section Items */}
+                <div className="space-y-1">
+                  {visibleItems.map((item: NavigationItem) => {
+                    const isActive = pathname === item.href || 
+                      (item.href !== "/dashboard" && pathname && pathname.startsWith(item.href));
+                    
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        onClick={onMobileClose} // Close mobile menu on navigation
+                        className={cn(
+                          "flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group",
+                          isActive
+                            ? item.adminOnly 
+                              ? "bg-red-50 text-red-700 border-l-4 border-red-500"
+                              : "bg-blue-50 text-blue-700 border-l-4 border-blue-500"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-l-4 hover:border-gray-300",
+                          item.adminOnly && !isActive && "hover:bg-red-50 hover:text-red-600 hover:border-red-300"
+                        )}
+                      >
+                        <item.icon className={cn(
+                          "w-5 h-5 mr-3 transition-colors",
+                          isActive 
+                            ? item.adminOnly ? "text-red-600" : "text-blue-600"
+                            : "text-gray-400 group-hover:text-gray-600"
+                        )} />
+                        <span className="flex-1">{item.name}</span>
+                        {item.adminOnly && (
+                          <Badge 
+                            variant="destructive" 
+                            className="ml-2 text-xs px-1.5 py-0.5 bg-red-100 text-red-700 border-red-200"
+                          >
+                            ADMIN
+                          </Badge>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* User Info */}
+        <div className="border-t border-gray-200">
+          <SidebarUserInfo />
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-100 bg-gray-50">
+          <div className="text-xs text-gray-500 text-center">
+            <div className="font-semibold text-gray-700">Ads Manager SaaS</div>
+            <div className="mt-1 flex items-center justify-center space-x-1">
+              <span>v2.0</span>
+              <span>•</span>
+              <span className="text-green-600 font-medium">Sistema Completo</span>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

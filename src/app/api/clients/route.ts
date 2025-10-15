@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { supabase } from '@supabase/auth-ui-shared';
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,32 +33,15 @@ export async function GET(request: NextRequest) {
     let orgId = membership?.org_id;
 
     if (!membership) {
-      console.log('⚠️ Nenhum membership encontrado. Tentando criar organização...');
+      console.log('⚠️ Usuário não possui organização. Retornando lista vazia.');
       
-      try {
-        // Tentar criar organização automaticamente
-        const { data: newOrgId, error: rpcError } = await supabase.rpc('create_org_and_add_admin');
-        
-        if (rpcError) {
-          console.error('❌ Erro ao criar organização:', rpcError);
-          return NextResponse.json({ 
-            error: `Não foi possível criar organização: ${rpcError.message}` 
-          }, { status: 500 });
-        }
-        
-        console.log('✅ Organização criada automaticamente:', newOrgId);
-        
-        // Buscar o membership recém-criado
-        const { data: newMembership } = await supabase
-          .from('memberships')
-          .select('org_id')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (newMembership) {
-          orgId = newMembership.org_id;
-          console.log('✅ Novo membership encontrado:', orgId);
-        } else {
+      // Não criar organização automaticamente - usuário deve ser convidado ou criar manualmente
+      return NextResponse.json({ 
+        clients: [],
+        message: 'Usuário não possui organização. Entre em contato com um administrador para ser adicionado a uma organização.',
+        needsOrganization: true
+      });
+    }
           return NextResponse.json({ 
             error: 'Falha ao criar membership automaticamente' 
           }, { status: 500 });
