@@ -56,7 +56,7 @@ export default function SelectAccountsPage() {
     }
 
     fetchAccounts();
-  }, [accessToken, clientId]);
+  }, [accessToken, clientId, router]);
 
   const fetchAccounts = async () => {
     try {

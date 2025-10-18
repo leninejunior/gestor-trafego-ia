@@ -8,9 +8,25 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const state = searchParams.get('state');
+  const error = searchParams.get('error');
+  const errorReason = searchParams.get('error_reason');
+  const errorDescription = searchParams.get('error_description');
   
   console.log('Code:', code ? 'presente' : 'ausente');
   console.log('State:', state);
+  console.log('Error:', error);
+  console.log('Error Reason:', errorReason);
+  console.log('Error Description:', errorDescription);
+  
+  // Se o usuário cancelou ou negou permissões
+  if (error) {
+    console.log('❌ Usuário cancelou ou negou permissões:', error);
+    const clientId = state ? state.split('_')[1] : null;
+    const redirectUrl = clientId 
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/clients/${clientId}?error=user_cancelled`
+      : `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/clients?error=user_cancelled`;
+    return NextResponse.redirect(redirectUrl);
+  }
   
   if (!code || !state) {
     console.error('Code ou state ausente');
@@ -63,17 +79,30 @@ export async function GET(request: NextRequest) {
 
     // Limpar conexões antigas antes de redirecionar
     console.log('Limpando conexões antigas para cliente:', clientId);
-    const supabase = await createClient();
-    
-    const { error: deleteError } = await supabase
-      .from('client_meta_connections')
-      .delete()
-      .eq('client_id', clientId);
-    
-    if (deleteError) {
-      console.error('Erro ao limpar conexões antigas:', deleteError);
-    } else {
-      console.log('Conexões antigas removidas com sucesso');
+    try {
+      const supabase = await createClient();
+      
+      // Verificar se há sessão ativa
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        console.warn('⚠️ Sessão não encontrada, pulando limpeza de conexões antigas');
+        // Continuar sem limpar - não é crítico
+      } else {
+        const { error: deleteError } = await supabase
+          .from('client_meta_connections')
+          .delete()
+          .eq('client_id', clientId);
+        
+        if (deleteError) {
+          console.error('Erro ao limpar conexões antigas:', deleteError);
+        } else {
+          console.log('Conexões antigas removidas com sucesso');
+        }
+      }
+    } catch (cleanupError) {
+      console.warn('⚠️ Erro ao limpar conexões antigas (não crítico):', cleanupError);
+      // Continuar mesmo com erro - não é crítico
     }
 
     // Redirecionar para página de seleção de contas

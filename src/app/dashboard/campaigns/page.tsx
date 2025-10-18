@@ -37,6 +37,7 @@ import {
 import Link from 'next/link'
 import { ClientSearch } from '@/components/clients/client-search'
 import { CampaignSearch } from '@/components/campaigns/campaign-search'
+import { DateRangePicker } from '@/components/campaigns/date-range-picker'
 
 interface Client {
   id: string
@@ -94,7 +95,7 @@ export default function CampaignsPage() {
   const [selectedCampaign, setSelectedCampaign] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [objectiveFilter, setObjectiveFilter] = useState<string>('all')
-  const [dateRange, setDateRange] = useState<string>('30')
+  const [dateRange, setDateRange] = useState<string>('365')
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [sortBy, setSortBy] = useState<string>('spend')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
@@ -138,7 +139,7 @@ export default function CampaignsPage() {
     try {
       setLoading(true);
       
-      const response = await fetch('/api/meta/sync-real-campaigns', {
+      const response = await fetch('/api/meta/sync-campaigns', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -449,17 +450,10 @@ export default function CampaignsPage() {
 
             <div>
               <label className="text-sm font-medium mb-2 block">Período</label>
-              <Select value={dateRange} onValueChange={setDateRange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">7 dias</SelectItem>
-                  <SelectItem value="30">30 dias</SelectItem>
-                  <SelectItem value="90">90 dias</SelectItem>
-                  <SelectItem value="365">1 ano</SelectItem>
-                </SelectContent>
-              </Select>
+              <DateRangePicker
+                value={dateRange}
+                onChange={setDateRange}
+              />
             </div>
 
             <div>
@@ -859,39 +853,128 @@ export default function CampaignsPage() {
                 <Activity className="h-5 w-5 mr-2" />
                 Insights e Recomendações
               </CardTitle>
+              <CardDescription>
+                Análise inteligente baseada nas campanhas filtradas
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <TrendingUp className="h-5 w-5 text-green-600" />
-                    <h4 className="font-medium text-green-800">Performance Excelente</h4>
-                  </div>
-                  <p className="text-sm text-green-700">
-                    Suas campanhas de remarketing estão com ROAS acima de 5x. Continue investindo neste segmento.
+              {filteredCampaigns.length === 0 ? (
+                <div className="text-center py-8">
+                  <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-lg font-medium text-gray-600">Nenhuma campanha para analisar</p>
+                  <p className="text-gray-500">
+                    Ajuste os filtros para ver insights das campanhas
                   </p>
                 </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Insight de Performance Geral */}
+                  {avgROAS >= 4 && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <TrendingUp className="h-5 w-5 text-green-600" />
+                        <h4 className="font-medium text-green-800">Performance Excelente</h4>
+                      </div>
+                      <p className="text-sm text-green-700">
+                        Suas campanhas filtradas estão com ROAS de {avgROAS.toFixed(2)}x. Excelente retorno sobre investimento!
+                      </p>
+                    </div>
+                  )}
 
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Target className="h-5 w-5 text-yellow-600" />
-                    <h4 className="font-medium text-yellow-800">Oportunidade de Melhoria</h4>
-                  </div>
-                  <p className="text-sm text-yellow-700">
-                    CTR das campanhas de brand awareness está baixo (0.88%). Considere testar novos criativos.
-                  </p>
-                </div>
+                  {avgROAS < 2 && avgROAS > 0 && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <TrendingDown className="h-5 w-5 text-red-600" />
+                        <h4 className="font-medium text-red-800">Atenção Necessária</h4>
+                      </div>
+                      <p className="text-sm text-red-700">
+                        ROAS atual de {avgROAS.toFixed(2)}x está abaixo do ideal. Considere revisar segmentação e criativos.
+                      </p>
+                    </div>
+                  )}
 
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Users className="h-5 w-5 text-blue-600" />
-                    <h4 className="font-medium text-blue-800">Insight de Audiência</h4>
+                  {/* Insight de CTR */}
+                  {avgCTR < 1 && totalMetrics.impressions > 0 && (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Target className="h-5 w-5 text-yellow-600" />
+                        <h4 className="font-medium text-yellow-800">Oportunidade de Melhoria</h4>
+                      </div>
+                      <p className="text-sm text-yellow-700">
+                        CTR de {avgCTR.toFixed(2)}% está baixo. Considere testar novos criativos e mensagens mais impactantes.
+                      </p>
+                    </div>
+                  )}
+
+                  {avgCTR >= 2 && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <MousePointer className="h-5 w-5 text-green-600" />
+                        <h4 className="font-medium text-green-800">Engajamento Excelente</h4>
+                      </div>
+                      <p className="text-sm text-green-700">
+                        CTR de {avgCTR.toFixed(2)}% indica que seus anúncios estão muito relevantes para o público.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Insight de Demografia */}
+                  {demographics.length > 0 && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Users className="h-5 w-5 text-blue-600" />
+                        <h4 className="font-medium text-blue-800">Insight de Audiência</h4>
+                      </div>
+                      <p className="text-sm text-blue-700">
+                        {(() => {
+                          const topAge = demographics
+                            .reduce((acc: any[], demo) => {
+                              const existing = acc.find(item => item.age_range === demo.age_range)
+                              if (existing) {
+                                existing.conversions += demo.conversions
+                              } else {
+                                acc.push({ age_range: demo.age_range, conversions: demo.conversions })
+                              }
+                              return acc
+                            }, [])
+                            .sort((a, b) => b.conversions - a.conversions)[0]
+                          
+                          if (topAge) {
+                            const percentage = ((topAge.conversions / totalMetrics.conversions) * 100).toFixed(0)
+                            return `Faixa etária ${topAge.age_range} representa ${percentage}% das conversões. Considere aumentar o investimento neste segmento.`
+                          }
+                          return 'Analise os dados demográficos para otimizar sua segmentação.'
+                        })()}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Insight de Investimento */}
+                  <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <DollarSign className="h-5 w-5 text-purple-600" />
+                      <h4 className="font-medium text-purple-800">Resumo de Investimento</h4>
+                    </div>
+                    <p className="text-sm text-purple-700">
+                      Investimento total de {formatCurrency(totalMetrics.spend)} em {filteredCampaigns.length} campanha(s), 
+                      gerando {formatNumber(totalMetrics.conversions)} conversões com CPC médio de {formatCurrency(avgCPC)}.
+                    </p>
                   </div>
-                  <p className="text-sm text-blue-700">
-                    Faixa etária 25-34 anos representa 40% das conversões. Considere aumentar o investimento neste segmento.
-                  </p>
+
+                  {/* Insight de Frequência */}
+                  {filteredCampaigns.some(c => c.frequency > 3) && (
+                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Eye className="h-5 w-5 text-orange-600" />
+                        <h4 className="font-medium text-orange-800">Atenção à Frequência</h4>
+                      </div>
+                      <p className="text-sm text-orange-700">
+                        Algumas campanhas têm frequência acima de 3. Considere expandir o público ou pausar temporariamente para evitar fadiga de anúncio.
+                      </p>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

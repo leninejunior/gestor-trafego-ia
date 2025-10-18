@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
 const updateAlertSchema = z.object({
@@ -12,7 +11,7 @@ const updateAlertSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -79,7 +78,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -139,7 +138,7 @@ export async function createAlert(
   thresholdValue: number,
   message: string
 ) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createClient();
 
   // Determinar severidade baseada no desvio
   const deviation = Math.abs(currentValue - thresholdValue) / thresholdValue;
@@ -186,7 +185,7 @@ export async function checkMetricsAndCreateAlerts(
   userId: string,
   campaignData: Record<string, any>
 ) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createClient();
 
   try {
     // Buscar objetivos ativos do usuário

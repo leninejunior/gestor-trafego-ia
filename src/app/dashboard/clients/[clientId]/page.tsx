@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -35,12 +36,37 @@ interface MetaConnection {
 
 export default function ClientDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const clientId = params.clientId as string;
   
   const [client, setClient] = useState<Client | null>(null);
   const [metaConnections, setMetaConnections] = useState<MetaConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Verificar se há mensagens de erro ou sucesso na URL
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    const successParam = searchParams.get('success');
+    
+    if (errorParam === 'user_cancelled') {
+      toast.info('Conexão cancelada', {
+        description: 'Você cancelou a conexão com o Meta Ads. Tente novamente quando quiser.'
+      });
+    } else if (errorParam === 'authorization_failed') {
+      toast.error('Falha na autorização', {
+        description: 'Não foi possível autorizar a conexão com o Meta Ads.'
+      });
+    } else if (errorParam === 'no_ad_accounts') {
+      toast.warning('Nenhuma conta encontrada', {
+        description: 'Não encontramos contas de anúncios vinculadas à sua conta Meta.'
+      });
+    } else if (successParam === 'meta_connected') {
+      toast.success('Conectado com sucesso!', {
+        description: 'Sua conta Meta Ads foi conectada. As campanhas serão sincronizadas em breve.'
+      });
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (clientId) {
@@ -55,6 +81,15 @@ export default function ClientDetailPage() {
 
       console.log('🔍 [CLIENT PAGE] Carregando dados do cliente:', clientId);
 
+      // Verificar autenticação
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('❌ [CLIENT PAGE] Erro de autenticação:', authError);
+        setError('Usuário não autenticado');
+        return;
+      }
+      console.log('✅ [CLIENT PAGE] Usuário autenticado:', user.id);
+
       // Buscar dados do cliente
       const { data: clientData, error: clientError } = await supabase
         .from("clients")
@@ -62,8 +97,20 @@ export default function ClientDetailPage() {
         .eq("id", clientId)
         .single();
 
-      if (clientError || !clientData) {
-        console.error('❌ [CLIENT PAGE] Erro ao buscar cliente:', clientError);
+      if (clientError) {
+        console.error('❌ [CLIENT PAGE] Erro ao buscar cliente:', {
+          error: clientError,
+          code: clientError.code,
+          message: clientError.message,
+          details: clientError.details,
+          hint: clientError.hint
+        });
+        setError(`Erro ao buscar cliente: ${clientError.message || 'Desconhecido'}`);
+        return;
+      }
+
+      if (!clientData) {
+        console.error('❌ [CLIENT PAGE] Cliente não encontrado');
         setError('Cliente não encontrado');
         return;
       }
@@ -87,7 +134,8 @@ export default function ClientDetailPage() {
 
     } catch (err) {
       console.error('💥 [CLIENT PAGE] Erro geral:', err);
-      setError('Erro ao carregar dados do cliente');
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      setError(`Erro ao carregar dados do cliente: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

@@ -23,9 +23,25 @@ export function SidebarUserInfo() {
         if (response.ok) {
           const data = await response.json();
           setUserInfo(data);
+        } else {
+          console.error('Erro ao carregar info do usuário:', response.status);
+          // Definir valores padrão em caso de erro
+          setUserInfo({
+            email: 'Usuário',
+            orgName: 'Organização',
+            role: 'viewer',
+            planName: 'Free'
+          });
         }
       } catch (error) {
         console.error('Erro ao carregar info do usuário:', error);
+        // Definir valores padrão em caso de erro
+        setUserInfo({
+          email: 'Usuário',
+          orgName: 'Organização',
+          role: 'viewer',
+          planName: 'Free'
+        });
       } finally {
         setLoading(false);
       }

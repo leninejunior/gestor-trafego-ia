@@ -12,20 +12,23 @@ export async function GET() {
     }
 
     // Buscar membership do usuário
-    const { data: membership } = await supabase
+    const { data: membership, error: membershipError } = await supabase
       .from('memberships')
-      .select('role, organization_id')
+      .select('role, org_id')
       .eq('user_id', user.id)
-      .eq('status', 'active')
       .single();
+
+    if (membershipError) {
+      console.error('Erro ao buscar membership:', membershipError);
+    }
 
     // Buscar organização
     let orgName = 'Minha Organização';
-    if (membership?.organization_id) {
+    if (membership?.org_id) {
       const { data: org } = await supabase
         .from('organizations')
         .select('name')
-        .eq('id', membership.organization_id)
+        .eq('id', membership.org_id)
         .single();
       
       if (org?.name) {
@@ -48,7 +51,7 @@ export async function GET() {
       email: 'Usuário',
       orgName: 'Organização',
       role: 'viewer',
-      planName: 'Carregando...'
-    });
+      planName: 'Free'
+    }, { status: 200 }); // Retornar 200 mesmo com erro para não quebrar a UI
   }
 }
