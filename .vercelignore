@@ -39,6 +39,7 @@ temp/
 # Features avançadas com problemas de build (temporário)
 src/app/dashboard/objectives.disabled/
 src/components/objectives/
+src/app/api/objectives/
 src/app/admin/balance/
 src/app/admin/llm-config/
 src/app/admin/ai-agent/
