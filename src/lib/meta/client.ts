@@ -69,9 +69,8 @@ export class MetaAdsClient {
         'cpm',
         'cpc',
         'ctr',
-        'cost_per_conversion',
-        'conversions',
-        'conversion_rate'
+        'actions',
+        'cost_per_action_type'
       ], {
         time_range: dateRange || {
           since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],

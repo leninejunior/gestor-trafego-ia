@@ -42,18 +42,6 @@ export async function GET(request: NextRequest) {
         needsOrganization: true
       });
     }
-          return NextResponse.json({ 
-            error: 'Falha ao criar membership automaticamente' 
-          }, { status: 500 });
-        }
-        
-      } catch (autoCreateError: any) {
-        console.error('❌ Falha na criação automática:', autoCreateError);
-        return NextResponse.json({ 
-          error: `Organização não encontrada e não foi possível criar automaticamente: ${autoCreateError.message}` 
-        }, { status: 500 });
-      }
-    }
 
     console.log('✅ Usando org_id:', orgId);
 

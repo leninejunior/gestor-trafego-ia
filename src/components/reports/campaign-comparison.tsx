@@ -31,7 +31,7 @@ export function CampaignComparison({ clientId }: CampaignComparisonProps) {
 
   const loadCampaigns = async () => {
     try {
-      const response = await fetch(`/api/meta/campaigns?clientId=${clientId}`);
+      const response = await fetch(`/api/dashboard/campaigns?client_id=${clientId}`);
       if (response.ok) {
         const data = await response.json();
         setCampaigns(data.campaigns || []);
