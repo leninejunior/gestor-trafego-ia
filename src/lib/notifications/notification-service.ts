@@ -15,7 +15,7 @@ export interface NotificationRule {
   id: string;
   name: string;
   description: string;
-  condition: string; // SQL-like condition
+  condition: string;
   template: NotificationData;
   isActive: boolean;
   frequency: 'immediate' | 'daily' | 'weekly';
@@ -23,12 +23,6 @@ export interface NotificationRule {
 }
 
 export class NotificationService {
-  private supabase: any;
-
-  constructor() {
-    this.supabase = createClient();
-  }
-
   // Criar notificação
   async createNotification(
     userId: string,
@@ -36,7 +30,8 @@ export class NotificationService {
     data: NotificationData
   ): Promise<{ success: boolean; id?: string; error?: string }> {
     try {
-      const { data: notification, error } = await this.supabase
+      const supabase = await createClient();
+      const { data: notification, error } = await supabase
         .from('notifications')
         .insert({
           user_id: userId,
@@ -55,12 +50,8 @@ export class NotificationService {
         .select('id')
         .single();
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       return { success: true, id: notification.id };
-
     } catch (error) {
       console.error('Erro ao criar notificação:', error);
       return {
@@ -82,37 +73,24 @@ export class NotificationService {
     } = {}
   ): Promise<any[]> {
     try {
-      let query = this.supabase
+      const supabase = await createClient();
+      let query = supabase
         .from('notifications')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (options.unreadOnly) {
-        query = query.eq('is_read', false);
-      }
-
-      if (options.category) {
-        query = query.eq('category', options.category);
-      }
-
-      if (options.priority) {
-        query = query.eq('priority', options.priority);
-      }
-
+      if (options.unreadOnly) query = query.eq('is_read', false);
+      if (options.category) query = query.eq('category', options.category);
+      if (options.priority) query = query.eq('priority', options.priority);
       if (options.limit) {
         const offset = options.offset || 0;
         query = query.range(offset, offset + options.limit - 1);
       }
 
       const { data, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       return data || [];
-
     } catch (error) {
       console.error('Erro ao buscar notificações:', error);
       return [];
@@ -122,7 +100,8 @@ export class NotificationService {
   // Marcar notificação como lida
   async markAsRead(notificationId: string, userId: string): Promise<boolean> {
     try {
-      const { error } = await this.supabase
+      const supabase = await createClient();
+      const { error } = await supabase
         .from('notifications')
         .update({ 
           is_read: true,
@@ -132,7 +111,6 @@ export class NotificationService {
         .eq('user_id', userId);
 
       return !error;
-
     } catch (error) {
       console.error('Erro ao marcar notificação como lida:', error);
       return false;
@@ -142,7 +120,8 @@ export class NotificationService {
   // Marcar todas as notificações como lidas
   async markAllAsRead(userId: string): Promise<boolean> {
     try {
-      const { error } = await this.supabase
+      const supabase = await createClient();
+      const { error } = await supabase
         .from('notifications')
         .update({ 
           is_read: true,
@@ -152,7 +131,6 @@ export class NotificationService {
         .eq('is_read', false);
 
       return !error;
-
     } catch (error) {
       console.error('Erro ao marcar todas as notificações como lidas:', error);
       return false;
@@ -162,14 +140,14 @@ export class NotificationService {
   // Deletar notificação
   async deleteNotification(notificationId: string, userId: string): Promise<boolean> {
     try {
-      const { error } = await this.supabase
+      const supabase = await createClient();
+      const { error } = await supabase
         .from('notifications')
         .delete()
         .eq('id', notificationId)
         .eq('user_id', userId);
 
       return !error;
-
     } catch (error) {
       console.error('Erro ao deletar notificação:', error);
       return false;
@@ -179,18 +157,15 @@ export class NotificationService {
   // Contar notificações não lidas
   async getUnreadCount(userId: string): Promise<number> {
     try {
-      const { count, error } = await this.supabase
+      const supabase = await createClient();
+      const { count, error } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
         .eq('is_read', false);
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       return count || 0;
-
     } catch (error) {
       console.error('Erro ao contar notificações não lidas:', error);
       return 0;
@@ -201,21 +176,17 @@ export class NotificationService {
   async checkAndCreateAutomaticNotifications(): Promise<void> {
     try {
       console.log('🔔 Verificando regras de notificação automática...');
-
-      // Buscar regras ativas
-      const { data: rules } = await this.supabase
+      const supabase = await createClient();
+      const { data: rules } = await supabase
         .from('notification_rules')
         .select('*')
         .eq('is_active', true);
 
-      if (!rules || rules.length === 0) {
-        return;
-      }
+      if (!rules || rules.length === 0) return;
 
       for (const rule of rules) {
         await this.processNotificationRule(rule);
       }
-
     } catch (error) {
       console.error('Erro ao processar notificações automáticas:', error);
     }
@@ -224,7 +195,6 @@ export class NotificationService {
   // Processar regra específica de notificação
   private async processNotificationRule(rule: any): Promise<void> {
     try {
-      // Executar condição da regra (simplificado)
       const conditions = await this.evaluateRuleCondition(rule.condition);
 
       for (const condition of conditions) {
@@ -245,27 +215,24 @@ export class NotificationService {
           notification
         );
       }
-
     } catch (error) {
       console.error(`Erro ao processar regra ${rule.id}:`, error);
     }
   }
 
-  // Avaliar condição da regra (implementação simplificada)
+  // Avaliar condição da regra
   private async evaluateRuleCondition(condition: string): Promise<Array<{
     userId: string;
     organizationId: string;
     data: Record<string, any>;
   }>> {
-    // Esta é uma implementação simplificada
-    // Em produção, seria necessário um parser mais robusto
-    
     const results = [];
 
     try {
+      const supabase = await createClient();
+      
       if (condition.includes('campaign_performance_drop')) {
-        // Verificar campanhas com queda de performance
-        const { data: campaigns } = await this.supabase
+        const { data: campaigns } = await supabase
           .from('meta_insights')
           .select(`
             *,
@@ -281,7 +248,7 @@ export class NotificationService {
             )
           `)
           .gte('date_start', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-          .lt('ctr', 1.0); // CTR abaixo de 1%
+          .lt('ctr', 1.0);
 
         for (const campaign of campaigns || []) {
           if (campaign.meta_campaigns?.client_meta_connections) {
@@ -299,8 +266,7 @@ export class NotificationService {
       }
 
       if (condition.includes('high_spend_alert')) {
-        // Verificar gastos altos
-        const { data: highSpend } = await this.supabase
+        const { data: highSpend } = await supabase
           .from('meta_insights')
           .select(`
             *,
@@ -316,7 +282,7 @@ export class NotificationService {
             )
           `)
           .gte('date_start', new Date().toISOString().split('T')[0])
-          .gt('spend', 1000); // Gasto acima de R$ 1000 por dia
+          .gt('spend', 1000);
 
         for (const insight of highSpend || []) {
           if (insight.meta_campaigns?.client_meta_connections) {
@@ -332,7 +298,6 @@ export class NotificationService {
           }
         }
       }
-
     } catch (error) {
       console.error('Erro ao avaliar condição:', error);
     }
@@ -343,17 +308,16 @@ export class NotificationService {
   // Interpolar template com dados
   private interpolateTemplate(template: string, data: Record<string, any>): string {
     let result = template;
-    
     Object.entries(data).forEach(([key, value]) => {
       const placeholder = `{{${key}}}`;
       result = result.replace(new RegExp(placeholder, 'g'), String(value));
     });
-
     return result;
   }
 
   // Criar regras de notificação padrão
   async createDefaultNotificationRules(organizationId: string): Promise<void> {
+    const supabase = await createClient();
     const defaultRules: Partial<NotificationRule>[] = [
       {
         name: 'Queda de Performance',
@@ -410,7 +374,7 @@ export class NotificationService {
 
     try {
       for (const rule of defaultRules) {
-        await this.supabase
+        await supabase
           .from('notification_rules')
           .insert({
             ...rule,
@@ -418,9 +382,7 @@ export class NotificationService {
             template: JSON.stringify(rule.template)
           });
       }
-
       console.log('✅ Regras de notificação padrão criadas');
-
     } catch (error) {
       console.error('Erro ao criar regras padrão:', error);
     }

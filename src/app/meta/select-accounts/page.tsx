@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +26,7 @@ interface Page {
   followers_count?: number;
 }
 
-export default function SelectAccountsPage() {
+function SelectAccountsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -326,5 +326,20 @@ export default function SelectAccountsPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function SelectAccountsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Facebook className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
+          <p className="text-lg font-medium">Carregando...</p>
+        </div>
+      </div>
+    }>
+      <SelectAccountsContent />
+    </Suspense>
   );
 }
