@@ -41,13 +41,7 @@ src/app/dashboard/objectives.disabled/
 src/components/objectives/
 src/app/api/objectives/
 src/app/api/v1/
-src/app/admin/balance/
-src/app/admin/billing/
-src/app/admin/llm-config/
-src/app/admin/ai-agent/
-src/app/admin/utm/
-src/app/admin/monitoring/
-src/app/admin/organizations/
+src/app/admin/
 src/app/api/admin/monitoring/
 src/app/dashboard/billing/
 src/lib/notifications/push-service.ts
