@@ -76,6 +76,7 @@ function SelectAccountsContent() {
         status: response.status,
         adAccounts: data.adAccounts?.length || 0,
         pages: data.pages?.length || 0,
+        total: data.total,
         error: data.error || null
       });
 
@@ -86,7 +87,10 @@ function SelectAccountsContent() {
         if (data.adAccounts?.length === 0) {
           toast.warning('Nenhuma conta de anúncios encontrada');
         } else {
-          toast.success(`${data.adAccounts.length} conta(s) encontrada(s)`);
+          const totalMsg = data.total 
+            ? `${data.total.adAccounts} conta(s) de anúncios e ${data.total.pages} página(s) encontradas`
+            : `${data.adAccounts.length} conta(s) encontrada(s)`;
+          toast.success(totalMsg);
         }
       } else {
         console.error('❌ [SELECT ACCOUNTS] Erro na API:', data);
