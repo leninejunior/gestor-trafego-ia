@@ -1,4 +1,7 @@
--- Schema para captura de leads da landing page
+-- ============================================
+-- PASSO 1: Criar tabela e permitir inserção pública
+-- Execute este SQL AGORA no Supabase
+-- ============================================
 
 -- Tabela de leads interessados
 CREATE TABLE IF NOT EXISTS public.landing_leads (
@@ -31,17 +34,17 @@ CREATE POLICY "Allow public insert leads"
   TO anon, authenticated
   WITH CHECK (true);
 
--- Permitir que usuários autenticados vejam todos os leads
--- NOTA: Quando a tabela users existir, você pode refinar para apenas super_admin
-CREATE POLICY "Authenticated users can view all leads"
+-- TEMPORÁRIO: Permitir que usuários autenticados vejam leads
+-- (Será substituído pela policy de super_admin no Passo 2)
+CREATE POLICY "Temp: Authenticated users can view leads"
   ON public.landing_leads
   FOR SELECT
   TO authenticated
   USING (true);
 
--- Permitir que usuários autenticados atualizem leads
--- NOTA: Quando a tabela users existir, você pode refinar para apenas super_admin
-CREATE POLICY "Authenticated users can update leads"
+-- TEMPORÁRIO: Permitir que usuários autenticados atualizem leads
+-- (Será substituído pela policy de super_admin no Passo 2)
+CREATE POLICY "Temp: Authenticated users can update leads"
   ON public.landing_leads
   FOR UPDATE
   TO authenticated
@@ -67,3 +70,38 @@ CREATE TRIGGER update_landing_leads_updated_at_trigger
 COMMENT ON TABLE public.landing_leads IS 'Leads capturados através da landing page';
 COMMENT ON COLUMN public.landing_leads.lead_type IS 'Tipo de lead: agency, company, traffic_manager, social_media, other';
 COMMENT ON COLUMN public.landing_leads.status IS 'Status do lead: new, contacted, qualified, converted, lost';
+
+
+-- ============================================
+-- PASSO 2: Restringir para super admins apenas
+-- Execute este SQL DEPOIS que a tabela users existir
+-- ============================================
+
+-- Remover policies temporárias
+-- DROP POLICY IF EXISTS "Temp: Authenticated users can view leads" ON public.landing_leads;
+-- DROP POLICY IF EXISTS "Temp: Authenticated users can update leads" ON public.landing_leads;
+
+-- Criar policies restritas para super admin
+-- CREATE POLICY "Super admins can view all leads"
+--   ON public.landing_leads
+--   FOR SELECT
+--   TO authenticated
+--   USING (
+--     EXISTS (
+--       SELECT 1 FROM public.users
+--       WHERE users.id = auth.uid()
+--       AND users.role = 'super_admin'
+--     )
+--   );
+
+-- CREATE POLICY "Super admins can update leads"
+--   ON public.landing_leads
+--   FOR UPDATE
+--   TO authenticated
+--   USING (
+--     EXISTS (
+--       SELECT 1 FROM public.users
+--       WHERE users.id = auth.uid()
+--       AND users.role = 'super_admin'
+--     )
+--   );

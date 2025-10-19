@@ -151,9 +151,14 @@
     @apply bg-background text-foreground;
   }
   
-  /* Remover scroll duplo - forçar overflow hidden no html e body */
-  html, body {
+  /* Remover scroll duplo apenas em páginas com layout dashboard/admin */
+  body:has(.dashboard-layout) {
     @apply overflow-hidden;
+    height: 100%;
+    width: 100%;
+  }
+  
+  html {
     height: 100%;
     width: 100%;
   }

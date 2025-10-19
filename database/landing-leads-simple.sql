@@ -1,4 +1,5 @@
--- Schema para captura de leads da landing page
+-- Schema SIMPLIFICADO para captura de leads da landing page
+-- Versão sem dependência da tabela users
 
 -- Tabela de leads interessados
 CREATE TABLE IF NOT EXISTS public.landing_leads (
@@ -25,6 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_landing_leads_lead_type ON public.landing_leads(l
 ALTER TABLE public.landing_leads ENABLE ROW LEVEL SECURITY;
 
 -- Permitir inserção pública (para o formulário da landing page)
+-- IMPORTANTE: Permite que qualquer pessoa (anônima) insira leads
 CREATE POLICY "Allow public insert leads"
   ON public.landing_leads
   FOR INSERT
@@ -32,7 +34,7 @@ CREATE POLICY "Allow public insert leads"
   WITH CHECK (true);
 
 -- Permitir que usuários autenticados vejam todos os leads
--- NOTA: Quando a tabela users existir, você pode refinar para apenas super_admin
+-- (Você pode refinar isso depois quando tiver a tabela users)
 CREATE POLICY "Authenticated users can view all leads"
   ON public.landing_leads
   FOR SELECT
@@ -40,7 +42,6 @@ CREATE POLICY "Authenticated users can view all leads"
   USING (true);
 
 -- Permitir que usuários autenticados atualizem leads
--- NOTA: Quando a tabela users existir, você pode refinar para apenas super_admin
 CREATE POLICY "Authenticated users can update leads"
   ON public.landing_leads
   FOR UPDATE
