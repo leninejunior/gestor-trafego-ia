@@ -47,6 +47,7 @@ src/app/admin/llm-config/
 src/app/admin/ai-agent/
 src/app/admin/utm/
 src/app/admin/monitoring/
+src/app/admin/organizations/[orgId]/
 src/app/api/admin/monitoring/
 src/app/dashboard/billing/
 src/lib/notifications/push-service.ts
