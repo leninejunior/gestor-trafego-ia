@@ -91,7 +91,7 @@ export default function AdminCampaignsPage() {
   // Filtros
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [objectiveFilter, setObjectiveFilter] = useState<string>('all')
-  const [dateRange, setDateRange] = useState<string>('30')
+  const [dateRange, setDateRange] = useState<string>('this_month')
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [sortBy, setSortBy] = useState<string>('spend')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')

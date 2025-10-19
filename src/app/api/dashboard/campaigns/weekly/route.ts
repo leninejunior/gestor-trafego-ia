@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Definir período baseado no parâmetro days (mesmo código das campanhas)
-    const daysParam = searchParams.get('days') || '365'
+    const daysParam = searchParams.get('days') || 'this_month'
     let timeRange: { since: string; until: string }
     
     if (daysParam.startsWith('custom:')) {

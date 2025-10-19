@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       const metaApiUrl = `https://graph.facebook.com/v18.0/${connection.ad_account_id}/campaigns`
       
       // Definir período baseado no parâmetro days
-      const daysParam = searchParams.get('days') || '365'
+      const daysParam = searchParams.get('days') || 'this_month'
       let timeRange: { since: string; until: string }
       
       if (daysParam.startsWith('custom:')) {
