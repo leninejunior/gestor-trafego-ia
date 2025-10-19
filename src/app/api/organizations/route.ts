@@ -24,18 +24,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Buscar todas as organizações com contagem de membros
+    // Buscar todas as organizações
     const { data: organizations, error } = await supabase
       .from('organizations')
-      .select(`
-        *,
-        memberships (count)
-      `)
+      .select('*')
       .order('name')
 
     if (error) throw error
 
-    return NextResponse.json({ organizations })
+    // Buscar contagem de membros para cada organização
+    const orgsWithCounts = await Promise.all(
+      (organizations || []).map(async (org) => {
+        const { count } = await supabase
+          .from('memberships')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', org.id)
+        
+        return {
+          ...org,
+          memberships: [{ count: count || 0 }]
+        }
+      })
+    )
+
+    return NextResponse.json({ organizations: orgsWithCounts })
   } catch (error: any) {
     console.error('Error fetching organizations:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
