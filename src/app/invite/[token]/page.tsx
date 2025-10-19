@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 interface InvitePageProps {
   params: Promise<{
     token: string;
-  };
+  }>;
 }
 
 export default async function InvitePage({ params }: InvitePageProps) {
