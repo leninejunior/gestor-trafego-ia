@@ -16,13 +16,13 @@ import { AcceptInviteButton } from "@/components/invite/accept-invite-button";
 export const dynamic = 'force-dynamic';
 
 interface InvitePageProps {
-  params: {
+  params: Promise<{
     token: string;
   };
 }
 
 export default async function InvitePage({ params }: InvitePageProps) {
-  const { token } = params;
+  const { token } = await params;
   const supabase = await createClient();
 
   // Verificar se usuário está logado
