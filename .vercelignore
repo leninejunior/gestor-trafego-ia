@@ -40,6 +40,7 @@ temp/
 src/app/dashboard/objectives.disabled/
 src/components/objectives/
 src/app/api/objectives/
+src/app/api/v1/
 src/app/admin/balance/
 src/app/admin/llm-config/
 src/app/admin/ai-agent/
