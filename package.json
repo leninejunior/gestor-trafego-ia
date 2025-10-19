@@ -12,7 +12,9 @@
     "start-dev": "scripts\\start-dev.bat",
     "check-env": "node scripts/check-env.js",
     "test-system": "node scripts/test-system.js",
-    "apply-schema": "node scripts/apply-advanced-features-schema.js"
+    "apply-schema": "node scripts/apply-advanced-features-schema.js",
+    "pre-deploy": "node scripts/pre-deploy-check.js",
+    "deploy": "npm run pre-deploy && vercel --prod"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

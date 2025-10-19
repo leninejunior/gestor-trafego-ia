@@ -1,0 +1,37 @@
+# Arquivos que não devem ir para produção
+*.md
+!README.md
+
+# Scripts de desenvolvimento
+scripts/fix-*.ps1
+scripts/fix-*.bat
+scripts/fix-*.sql
+scripts/setup-*.ps1
+scripts/restart-*.bat
+scripts/check-*.sql
+scripts/diagnose-*.sql
+
+# Documentação de debug
+CORRECAO_*.md
+CORRIGIR_*.md
+APLICAR_*.md
+RESOLVER_*.md
+LIMPEZA_*.md
+
+# Arquivos de teste
+scripts/test-*.js
+
+# Configurações locais
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Temporários
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
