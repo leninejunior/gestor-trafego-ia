@@ -39,9 +39,16 @@ temp/
 # Features avançadas com problemas de build (temporário)
 src/app/dashboard/objectives.disabled/
 src/components/objectives/
-src/app/admin/balance/page.tsx
+src/app/admin/balance/
 src/app/admin/llm-config/
 src/app/admin/ai-agent/
 src/app/admin/utm/
+src/app/admin/monitoring/
 src/lib/notifications/push-service.ts
 src/app/api/notifications/push/
+src/app/api/webhooks/
+src/lib/meta/advanced-client.ts
+src/lib/meta/advanced-sync-service.ts
+src/lib/monitoring/
+src/lib/backup/
+src/lib/automation/

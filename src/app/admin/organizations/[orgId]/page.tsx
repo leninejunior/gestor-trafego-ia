@@ -39,13 +39,13 @@ import {
 export const dynamic = 'force-dynamic';
 
 interface OrganizationDetailsProps {
-  params: {
+  params: Promise<{
     orgId: string;
-  };
+  }>;
 }
 
 export default async function OrganizationDetailsPage({ params }: OrganizationDetailsProps) {
-  const { orgId } = params;
+  const { orgId } = await params;
   const supabase = await createClient();
 
   // Verificar se é super admin
