@@ -2,14 +2,16 @@ import type { NextConfig } from "next";
 import type { Configuration } from "webpack"; // Import Configuration type from webpack
 
 const nextConfig: NextConfig = {
-  webpack: (config: Configuration) => { // Explicitly type config
+  webpack: (config: Configuration) => {
     if (process.env.NODE_ENV === "development") {
-      config.module?.rules.push({ // Use optional chaining for module and rules
-        test: /\.(jsx|tsx)$/,
-        exclude: /node_modules/,
-        enforce: "pre",
-        use: "@dyad-sh/nextjs-webpack-component-tagger",
-      });
+      if (config.module && config.module.rules) {
+        config.module.rules.push({
+          test: /\.(jsx|tsx)$/,
+          exclude: /node_modules/,
+          enforce: "pre",
+          use: "@dyad-sh/nextjs-webpack-component-tagger",
+        });
+      }
     }
     return config;
   },
