@@ -58,6 +58,7 @@ src/app/admin/utm/
 src/app/admin/ai-agent/
 src/app/admin/llm-config/
 src/app/admin/monitoring/
+src/app/admin/billing/
 src/app/api/admin/balance/
 src/app/api/admin/campaigns/
 src/app/api/admin/utm/

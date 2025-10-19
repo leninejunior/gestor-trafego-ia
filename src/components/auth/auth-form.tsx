@@ -3,25 +3,41 @@
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { createClient } from "@/lib/supabase/client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Session, User } from "@supabase/supabase-js"; // Import Session and User types
+import { Session, User } from "@supabase/supabase-js";
 
 export default function AuthForm() {
   const supabase = createClient();
   const router = useRouter();
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
+    // Verificar se já está logado
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session && !isRedirecting) {
+        setIsRedirecting(true);
+        router.push("/dashboard");
+        router.refresh();
+      }
+    });
+
+    // Escutar mudanças de autenticação
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event: string, session: Session | null) => { // Explicitly type event and session
-      if (session) {
-        router.push("/dashboard");
+    } = supabase.auth.onAuthStateChange((event: string, session: Session | null) => {
+      if (event === 'SIGNED_IN' && session && !isRedirecting) {
+        setIsRedirecting(true);
+        // Pequeno delay para garantir que a sessão foi salva
+        setTimeout(() => {
+          router.push("/dashboard");
+          router.refresh();
+        }, 100);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase, router]);
+  }, [supabase, router, isRedirecting]);
 
   return (
     <div className="w-full max-w-md">
