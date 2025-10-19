@@ -150,4 +150,59 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Remover scroll duplo - forçar overflow hidden no html e body */
+  html, body {
+    @apply overflow-hidden;
+    height: 100%;
+    width: 100%;
+  }
+  
+  /* Permitir scroll apenas no root do Next.js */
+  #__next {
+    height: 100%;
+    width: 100%;
+  }
+}
+
+/* Scrollbar customizada - estilo moderno e discreto */
+@layer utilities {
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 3px;
+    transition: background 0.2s;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+  }
+
+  /* Firefox */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+  }
+
+  /* Scrollbar invisível até hover */
+  .custom-scrollbar-hover::-webkit-scrollbar-thumb {
+    background: transparent;
+  }
+
+  .custom-scrollbar-hover:hover::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+  }
+
+  .custom-scrollbar-hover:hover::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+  }
 }

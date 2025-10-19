@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -15,15 +16,13 @@ import {
   UserPlus,
   Shield,
   Building2,
-  DollarSign,
-  Wallet,
-  Link2,
-  Bot,
-  Brain,
   Activity,
-  Target
+  Target,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
 
 interface NavigationItem {
   name: string;
@@ -150,6 +149,12 @@ const navigationSections: NavigationSection[] = [
         adminOnly: true,
       },
       {
+        name: "Leads",
+        href: "/admin/leads",
+        icon: UserPlus,
+        adminOnly: true,
+      },
+      {
         name: "Monitoramento",
         href: "/admin/monitoring",
         icon: Activity,
@@ -166,6 +171,7 @@ interface DashboardSidebarProps {
 
 export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: DashboardSidebarProps) {
   const pathname = usePathname();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
     <>
@@ -179,19 +185,35 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
 
       {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
+        "fixed inset-y-0 left-0 z-50 bg-white shadow-xl transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col overflow-x-hidden",
+        isCollapsed ? "w-20" : "w-64",
         isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
         {/* Logo */}
-        <div className="flex items-center justify-between h-16 px-4 bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg">
+        <div className="flex items-center justify-between h-16 px-4 bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg flex-shrink-0 relative">
           <Link href="/dashboard" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
               <BarChart3 className="w-5 h-5 text-blue-600" />
             </div>
-            <h1 className="text-xl font-bold text-white">
-              Ads Manager
-            </h1>
+            {!isCollapsed && (
+              <h1 className="text-xl font-bold text-white whitespace-nowrap">
+                Ads Manager
+              </h1>
+            )}
           </Link>
+          
+          {/* Toggle button for desktop */}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 text-white rounded-full items-center justify-center hover:bg-blue-700 transition-colors shadow-lg z-10"
+            title={isCollapsed ? "Expandir sidebar" : "Recolher sidebar"}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
+          </button>
           
           {/* Close button for mobile */}
           <button
@@ -205,7 +227,7 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
+        <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto overflow-x-hidden custom-scrollbar-hover">
           {navigationSections.map((section) => {
             // Filtrar itens admin apenas para super admins
             const visibleItems = section.items.filter((item: NavigationItem) => {
@@ -221,9 +243,11 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
             return (
               <div key={section.title}>
                 {/* Section Title */}
-                <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                  {section.title}
-                </h3>
+                {!isCollapsed && (
+                  <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                    {section.title}
+                  </h3>
+                )}
                 
                 {/* Section Items */}
                 <div className="space-y-1">
@@ -235,31 +259,46 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
                       <Link
                         key={item.name}
                         href={item.href}
-                        onClick={onMobileClose} // Close mobile menu on navigation
+                        onClick={onMobileClose}
+                        title={isCollapsed ? item.name : undefined}
                         className={cn(
-                          "flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group",
+                          "flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group relative",
                           isActive
                             ? item.adminOnly 
                               ? "bg-red-50 text-red-700 border-l-4 border-red-500"
                               : "bg-blue-50 text-blue-700 border-l-4 border-blue-500"
                             : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-l-4 hover:border-gray-300",
-                          item.adminOnly && !isActive && "hover:bg-red-50 hover:text-red-600 hover:border-red-300"
+                          item.adminOnly && !isActive && "hover:bg-red-50 hover:text-red-600 hover:border-red-300",
+                          isCollapsed && "justify-center"
                         )}
                       >
                         <item.icon className={cn(
-                          "w-5 h-5 mr-3 transition-colors",
+                          "w-5 h-5 transition-colors flex-shrink-0",
+                          !isCollapsed && "mr-3",
                           isActive 
                             ? item.adminOnly ? "text-red-600" : "text-blue-600"
                             : "text-gray-400 group-hover:text-gray-600"
                         )} />
-                        <span className="flex-1">{item.name}</span>
-                        {item.adminOnly && (
-                          <Badge 
-                            variant="destructive" 
-                            className="ml-2 text-xs px-1.5 py-0.5 bg-red-100 text-red-700 border-red-200"
-                          >
-                            ADMIN
-                          </Badge>
+                        {!isCollapsed && (
+                          <>
+                            <span className="flex-1">{item.name}</span>
+                            {item.adminOnly && (
+                              <Badge 
+                                variant="destructive" 
+                                className="ml-2 text-xs px-1.5 py-0.5 bg-red-100 text-red-700 border-red-200"
+                              >
+                                ADMIN
+                              </Badge>
+                            )}
+                          </>
+                        )}
+                        
+                        {/* Tooltip for collapsed state */}
+                        {isCollapsed && (
+                          <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                            {item.name}
+                            {item.adminOnly && " (ADMIN)"}
+                          </div>
                         )}
                       </Link>
                     );
@@ -271,21 +310,23 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
         </nav>
 
         {/* User Info */}
-        <div className="border-t border-gray-200">
+        <div className="border-t border-gray-200 flex-shrink-0">
           <SidebarUserInfo />
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-100 bg-gray-50">
-          <div className="text-xs text-gray-500 text-center">
-            <div className="font-semibold text-gray-700">Ads Manager SaaS</div>
-            <div className="mt-1 flex items-center justify-center space-x-1">
-              <span>v2.0</span>
-              <span>•</span>
-              <span className="text-green-600 font-medium">Sistema Completo</span>
+        {!isCollapsed && (
+          <div className="p-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+            <div className="text-xs text-gray-500 text-center">
+              <div className="font-semibold text-gray-700">Ads Manager SaaS</div>
+              <div className="mt-1 flex items-center justify-center space-x-1">
+                <span>v2.0</span>
+                <span>•</span>
+                <span className="text-green-600 font-medium">Sistema Completo</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </>
   );
