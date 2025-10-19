@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     const clients = (clientsData || []).map(client => ({
       id: client.id,
       name: client.name,
-      organization_name: client.organizations?.name || 'Sem organização'
+      organization_name: (client.organizations as any)?.name || 'Sem organização'
     }))
 
     console.log('Final clients:', clients)
