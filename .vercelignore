@@ -50,3 +50,17 @@ src/lib/meta/advanced-sync-service.ts
 src/lib/monitoring/
 src/lib/backup/
 src/lib/automation/
+
+# Páginas admin com problemas (temporário)
+src/app/admin/balance/
+src/app/admin/campaigns/
+src/app/admin/utm/
+src/app/admin/ai-agent/
+src/app/admin/llm-config/
+src/app/admin/monitoring/
+src/app/api/admin/balance/
+src/app/api/admin/campaigns/
+src/app/api/admin/utm/
+src/app/api/admin/ai-agent/
+src/app/api/admin/llm-config/
+src/app/api/admin/monitoring/
