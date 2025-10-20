@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { formatters } from '@/lib/utils/date-formatter'
 
 export async function GET(request: NextRequest) {
   try {
@@ -189,8 +190,16 @@ export async function GET(request: NextRequest) {
           const spend = parseFloat(item.spend || '0')
           const roas = spend > 0 && conversions > 0 ? (conversions * 50) / spend : 0
 
+          // Formatar datas corretamente
+          let weekLabel = 'Semana'
+          if (item.date_start && item.date_stop) {
+            const startDate = new Date(item.date_start)
+            const endDate = new Date(item.date_stop)
+            weekLabel = `${formatters.week(startDate)} - ${formatters.week(endDate)}`
+          }
+
           weeklyData.push({
-            week: item.date_start ? `${item.date_start} - ${item.date_stop}` : 'Semana',
+            week: weekLabel,
             spend: Math.round(spend),
             impressions: parseInt(item.impressions || '0'),
             clicks: parseInt(item.clicks || '0'),
@@ -207,7 +216,8 @@ export async function GET(request: NextRequest) {
           const weekEnd = new Date(weekStart)
           weekEnd.setDate(weekEnd.getDate() + 6)
 
-          const weekLabel = `${weekStart.getDate()}/${weekStart.getMonth() + 1} - ${weekEnd.getDate()}/${weekEnd.getMonth() + 1}`
+          // Usar formatador de datas
+          const weekLabel = `${formatters.week(weekStart)} - ${formatters.week(weekEnd)}`
 
           const baseSpend = 1000 + (Math.random() * 1000)
           const baseImpressions = 15000 + (Math.random() * 10000)

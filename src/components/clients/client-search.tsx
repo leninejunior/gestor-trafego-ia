@@ -128,8 +128,6 @@ export function ClientSearch({
                   <div className="font-medium">{client.name}</div>
                   <div className="text-xs text-muted-foreground">
                     {client.organization_name}
-                    {client.campaigns_count !== undefined && ` • ${client.campaigns_count} campanhas`}
-                    {isSuperAdmin && client.total_spend && ` • ${formatCurrency(client.total_spend)}`}
                   </div>
                 </DropdownMenuItem>
               ))
@@ -172,18 +170,22 @@ export function ClientSearch({
               )}
             </div>
             
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <span className="text-muted-foreground">Campanhas:</span>
-                <div className="font-medium">{selectedClientData.campaigns_count || 0}</div>
+            {(selectedClientData.campaigns_count !== undefined || selectedClientData.total_spend !== undefined) && (
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {selectedClientData.campaigns_count !== undefined && (
+                  <div>
+                    <span className="text-muted-foreground">Campanhas:</span>
+                    <div className="font-medium">{selectedClientData.campaigns_count}</div>
+                  </div>
+                )}
+                {isSuperAdmin && selectedClientData.total_spend !== undefined && (
+                  <div>
+                    <span className="text-muted-foreground">Gasto Total:</span>
+                    <div className="font-medium">{formatCurrency(selectedClientData.total_spend)}</div>
+                  </div>
+                )}
               </div>
-              {isSuperAdmin && selectedClientData.total_spend !== undefined && (
-                <div>
-                  <span className="text-muted-foreground">Gasto Total:</span>
-                  <div className="font-medium">{formatCurrency(selectedClientData.total_spend)}</div>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
       )}

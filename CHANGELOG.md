@@ -1,5 +1,36 @@
 # 📝 Changelog - Sistema SaaS Completo
 
+## [2.1.0] - 2025-01-19 - Melhorias e Correções
+
+### ✨ Adicionado
+- **CRUD de Organizações**: Sistema completo de criar, editar e deletar organizações
+- **Contador de Campanhas**: Exibição do número de campanhas por cliente
+- **API de Organizações**: Endpoints completos para gerenciamento
+- **Documentação Consolidada**: README.md atualizado e completo
+
+### 🔧 Corrigido
+- **Filtro de Campanhas**: Alterado padrão de 1 ano para mês atual
+- **Login**: Corrigido redirecionamento após autenticação
+- **API Organizações**: Corrigido erro 500 em produção
+- **Páginas Admin**: Habilitadas em produção (organizações, usuários, leads)
+
+### 🚀 Melhorado
+- **API Clientes**: Adicionada contagem de campanhas
+- **Autenticação**: Melhorada verificação de sessão
+- **Deploy**: Otimizado .vercelignore para produção
+
+### 🧹 Limpeza
+- Removida documentação duplicada e obsoleta
+- Removidos scripts SQL não utilizados
+- Removidos scripts PowerShell obsoletos
+- Organizada estrutura de documentação
+
+### 📚 Documentação
+- Criado README.md completo e atualizado
+- Criado guia de limpeza de arquivos
+- Atualizado CHANGELOG.md
+- Mantida apenas documentação essencial
+
 ## [2.0.0] - 2024-12-19 - SISTEMA COMPLETO
 
 ### 🎉 **MAJOR RELEASE - Sistema SaaS Completo Implementado**

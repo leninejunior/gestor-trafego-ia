@@ -32,8 +32,12 @@ import {
   Activity,
   RefreshCw,
   Building2,
-  Search
+  Search,
+  Power,
+  Loader2
 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { useToast } from '@/hooks/use-toast'
 import Link from 'next/link'
 import { ClientSearch } from '@/components/clients/client-search'
 import { CampaignSearch } from '@/components/campaigns/campaign-search'
@@ -89,6 +93,8 @@ export default function CampaignsPage() {
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
   const [loading, setLoading] = useState(true)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [togglingCampaign, setTogglingCampaign] = useState<string | null>(null)
+  const { toast } = useToast()
   
   // Filtros
   const [selectedClient, setSelectedClient] = useState<string>('all')
@@ -183,7 +189,19 @@ export default function CampaignsPage() {
       const campaignsResponse = await fetch(`/api/dashboard/campaigns?${params}`)
       if (campaignsResponse.ok) {
         const campaignsData = await campaignsResponse.json()
-        setCampaigns(campaignsData.campaigns || [])
+        const loadedCampaigns = campaignsData.campaigns || []
+        setCampaigns(loadedCampaigns)
+        
+        // Atualizar contador de campanhas no cliente selecionado
+        if (selectedClient !== 'all') {
+          setClients(prevClients => 
+            prevClients.map(client => 
+              client.id === selectedClient 
+                ? { ...client, campaigns_count: loadedCampaigns.length }
+                : client
+            )
+          )
+        }
         
         // Log para debug
         if (campaignsData.message) {
@@ -275,6 +293,55 @@ export default function CampaignsPage() {
 
   const formatNumber = (value: number) => {
     return new Intl.NumberFormat('pt-BR').format(value)
+  }
+
+  const toggleCampaignStatus = async (campaignId: string, currentStatus: string) => {
+    try {
+      setTogglingCampaign(campaignId)
+      
+      const newStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE'
+      
+      const response = await fetch(`/api/campaigns/${campaignId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          clientId: selectedClient
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao alterar status')
+      }
+
+      // Atualizar campanha localmente
+      setCampaigns(prevCampaigns =>
+        prevCampaigns.map(campaign =>
+          campaign.id === campaignId
+            ? { ...campaign, status: newStatus as 'ACTIVE' | 'PAUSED' }
+            : campaign
+        )
+      )
+
+      toast({
+        title: 'Status atualizado!',
+        description: data.message,
+      })
+
+    } catch (error) {
+      console.error('Erro ao alterar status:', error)
+      toast({
+        title: 'Erro',
+        description: error instanceof Error ? error.message : 'Erro ao alterar status da campanha',
+        variant: 'destructive'
+      })
+    } finally {
+      setTogglingCampaign(null)
+    }
   }
 
   const selectedClientName = clients.find(c => c.id === selectedClient)?.name || 'Todos os clientes'
@@ -636,6 +703,18 @@ export default function CampaignsPage() {
                     <div key={campaign.id} className="p-4 border rounded-lg hover:bg-gray-50">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-3">
+                          <div className="flex items-center gap-2">
+                            {togglingCampaign === campaign.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            ) : (
+                              <Switch
+                                checked={campaign.status === 'ACTIVE'}
+                                onCheckedChange={() => toggleCampaignStatus(campaign.id, campaign.status)}
+                                disabled={togglingCampaign !== null || campaign.status === 'ARCHIVED'}
+                                title={campaign.status === 'ARCHIVED' ? 'Campanhas arquivadas não podem ser alteradas' : 'Ativar/Pausar campanha'}
+                              />
+                            )}
+                          </div>
                           <h3 className="font-semibold">{campaign.name}</h3>
                           <Badge className={getStatusColor(campaign.status)}>
                             {campaign.status}
