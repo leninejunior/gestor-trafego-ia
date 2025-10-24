@@ -19,9 +19,12 @@ import {
   Activity,
   Target,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Crown,
+  Lock
 } from "lucide-react";
 import { Badge } from "../ui/badge";
+import { useFeatureMatrix } from "@/hooks/use-feature-gate";
 import { Button } from "../ui/button";
 
 interface NavigationItem {
@@ -29,6 +32,7 @@ interface NavigationItem {
   href: string;
   icon: any;
   adminOnly?: boolean;
+  requiresFeature?: string; // Feature key required to access this item
 }
 
 interface NavigationSection {
@@ -94,16 +98,19 @@ const navigationSections: NavigationSection[] = [
         name: "Métricas Personalizadas",
         href: "/dashboard/metrics",
         icon: BarChart3,
+        requiresFeature: "customReports",
       },
       {
         name: "Dashboard Personalizável",
         href: "/dashboard/custom-views",
         icon: Settings,
+        requiresFeature: "advancedAnalytics",
       },
       {
         name: "Objetivos Inteligentes",
         href: "/dashboard/objectives",
         icon: Target,
+        requiresFeature: "advancedAnalytics",
       },
     ]
   },
@@ -149,6 +156,24 @@ const navigationSections: NavigationSection[] = [
         adminOnly: true,
       },
       {
+        name: "Planos",
+        href: "/admin/plans",
+        icon: CreditCard,
+        adminOnly: true,
+      },
+      {
+        name: "Assinaturas",
+        href: "/admin/subscriptions",
+        icon: Crown,
+        adminOnly: true,
+      },
+      {
+        name: "Gestão de Cobrança",
+        href: "/admin/billing-management",
+        icon: CreditCard,
+        adminOnly: true,
+      },
+      {
         name: "Leads",
         href: "/admin/leads",
         icon: UserPlus,
@@ -172,6 +197,7 @@ interface DashboardSidebarProps {
 export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: DashboardSidebarProps) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { matrix, loading: featureLoading } = useFeatureMatrix();
 
   return (
     <>
@@ -229,12 +255,18 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
         {/* Navigation */}
         <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto overflow-x-hidden custom-scrollbar-hover">
           {navigationSections.map((section) => {
-            // Filtrar itens admin apenas para super admins
+            // Filtrar itens admin apenas para super admins e verificar features
             const visibleItems = section.items.filter((item: NavigationItem) => {
               if (item.adminOnly) {
                 // Por enquanto, mostrar para todos - depois implementaremos verificação real
                 return true;
               }
+              
+              // Check feature requirements
+              if (item.requiresFeature && !featureLoading) {
+                return matrix[item.requiresFeature] === true;
+              }
+              
               return true;
             });
 
@@ -254,6 +286,8 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
                   {visibleItems.map((item: NavigationItem) => {
                     const isActive = pathname === item.href || 
                       (item.href !== "/dashboard" && pathname && pathname.startsWith(item.href));
+                    
+                    const hasFeatureAccess = !item.requiresFeature || matrix[item.requiresFeature] === true;
                     
                     return (
                       <Link
@@ -290,6 +324,9 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
                                 ADMIN
                               </Badge>
                             )}
+                            {item.requiresFeature && !hasFeatureAccess && (
+                              <Crown className="w-4 h-4 text-orange-500 ml-2" />
+                            )}
                           </>
                         )}
                         
@@ -298,6 +335,7 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
                           <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
                             {item.name}
                             {item.adminOnly && " (ADMIN)"}
+                            {item.requiresFeature && !hasFeatureAccess && " (UPGRADE)"}
                           </div>
                         )}
                       </Link>

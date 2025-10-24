@@ -31,14 +31,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
+
 import { Building2, Plus, Edit, Trash2, Users } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 interface Organization {
   id: string
   name: string
-  slug: string
   created_at: string
   memberships: { count: number }[]
 }
@@ -50,7 +49,7 @@ export default function OrganizationsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
-  const [formData, setFormData] = useState({ name: '', slug: '' })
+  const [formData, setFormData] = useState({ name: '' })
   const { toast } = useToast()
 
   useEffect(() => {
@@ -91,7 +90,7 @@ export default function OrganizationsPage() {
           description: 'Organização criada com sucesso'
         })
         setIsCreateDialogOpen(false)
-        setFormData({ name: '', slug: '' })
+        setFormData({ name: '' })
         loadOrganizations()
       } else {
         const error = await response.json()
@@ -123,7 +122,7 @@ export default function OrganizationsPage() {
         })
         setIsEditDialogOpen(false)
         setSelectedOrg(null)
-        setFormData({ name: '', slug: '' })
+        setFormData({ name: '' })
         loadOrganizations()
       } else {
         const error = await response.json()
@@ -169,7 +168,9 @@ export default function OrganizationsPage() {
 
   const openEditDialog = (org: Organization) => {
     setSelectedOrg(org)
-    setFormData({ name: org.name, slug: org.slug })
+    setFormData({ 
+      name: org.name || ''
+    })
     setIsEditDialogOpen(true)
   }
 
@@ -216,7 +217,7 @@ export default function OrganizationsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>Slug</TableHead>
+
                   <TableHead>Membros</TableHead>
                   <TableHead>Criado em</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -231,9 +232,7 @@ export default function OrganizationsPage() {
                         <span className="font-medium">{org.name}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{org.slug}</Badge>
-                    </TableCell>
+
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Users className="w-4 h-4 text-muted-foreground" />
@@ -287,15 +286,9 @@ export default function OrganizationsPage() {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Nome da organização"
               />
-            </div>
-            <div>
-              <Label htmlFor="slug">Slug</Label>
-              <Input
-                id="slug"
-                value={formData.slug}
-                onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
-                placeholder="slug-da-organizacao"
-              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Digite o nome da organização
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -321,17 +314,13 @@ export default function OrganizationsPage() {
               <Label htmlFor="edit-name">Nome</Label>
               <Input
                 id="edit-name"
-                value={formData.name}
+                value={formData.name || ''}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Nome da organização"
               />
-            </div>
-            <div>
-              <Label htmlFor="edit-slug">Slug</Label>
-              <Input
-                id="edit-slug"
-                value={formData.slug}
-                onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
-              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Atualize o nome da organização
+              </p>
             </div>
           </div>
           <DialogFooter>

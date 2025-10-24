@@ -1,0 +1,1090 @@
+openapi: 3.0.3
+info:
+  title: Payment Microservice API
+  description: |
+    A unified payment processing API supporting multiple providers (Stripe, Iugu, PagSeguro, Mercado Pago).
+    
+    ## Features
+    - Multi-provider payment processing
+    - Automatic failover between providers
+    - Subscription management
+    - Webhook notifications
+    - Comprehensive audit logging
+    
+    ## Authentication
+    All endpoints require JWT authentication via the Authorization header:
+    ```
+    Authorization: Bearer <jwt_token>
+    ```
+    
+    ## Rate Limiting
+    API requests are rate-limited per organization:
+    - Standard Plan: 1,000 requests/minute
+    - Premium Plan: 5,000 requests/minute
+    - Enterprise Plan: Custom limits
+    
+  version: 2.0.0
+  contact:
+    name: Payment Service Support
+    email: support@payment-service.com
+    url: https://docs.payment-service.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.payment-service.com
+    description: Production server
+  - url: https://staging-api.payment-service.com
+    description: Staging server
+  - url: https://sandbox-api.payment-service.com
+    description: Sandbox server
+
+security:
+  - BearerAuth: []
+
+paths:
+  # Authentication
+  /api/v2/auth/token:
+    post:
+      tags:
+        - Authentication
+      summary: Obtain access token
+      description: Exchange client credentials for JWT access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: Token generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # Payments
+  /api/v2/payments:
+    post:
+      tags:
+        - Payments
+      summary: Create payment
+      description: Create a new payment transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '201':
+          description: Payment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    
+    get:
+      tags:
+        - Payments
+      summary: List payments
+      description: Retrieve a paginated list of payments
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          description: Filter by payment status
+          schema:
+            $ref: '#/components/schemas/PaymentStatus'
+        - name: provider
+          in: query
+          description: Filter by provider name
+          schema:
+            type: string
+        - name: customerId
+          in: query
+          description: Filter by customer ID
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          description: Filter by creation date (start)
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          description: Filter by creation date (end)
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Payments retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v2/payments/{paymentId}:
+    get:
+      tags:
+        - Payments
+      summary: Get payment
+      description: Retrieve a specific payment by ID
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          description: Payment ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v2/payments/{paymentId}/refund:
+    post:
+      tags:
+        - Payments
+      summary: Refund payment
+      description: Create a refund for a completed payment
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          description: Payment ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundRequest'
+      responses:
+        '201':
+          description: Refund created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # Subscriptions
+  /api/v2/subscriptions:
+    post:
+      tags:
+        - Subscriptions
+      summary: Create subscription
+      description: Create a new recurring subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionRequest'
+      responses:
+        '201':
+          description: Subscription created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    
+    get:
+      tags:
+        - Subscriptions
+      summary: List subscriptions
+      description: Retrieve a paginated list of subscriptions
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SubscriptionStatus'
+        - name: customerId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Subscriptions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionListResponse'
+
+  /api/v2/subscriptions/{subscriptionId}:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get subscription
+      description: Retrieve a specific subscription by ID
+      parameters:
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Subscription retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    patch:
+      tags:
+        - Subscriptions
+      summary: Update subscription
+      description: Update an existing subscription
+      parameters:
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionUpdateRequest'
+      responses:
+        '200':
+          description: Subscription updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      tags:
+        - Subscriptions
+      summary: Cancel subscription
+      description: Cancel an active subscription
+      parameters:
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Subscription canceled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Providers
+  /api/v2/providers:
+    get:
+      tags:
+        - Providers
+      summary: List providers
+      description: Retrieve available payment providers and their status
+      responses:
+        '200':
+          description: Providers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderListResponse'
+
+  /api/v2/providers/{providerName}/health:
+    get:
+      tags:
+        - Providers
+      summary: Get provider health
+      description: Check the health status of a specific provider
+      parameters:
+        - name: providerName
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [stripe, iugu, pagseguro, mercadopago]
+      responses:
+        '200':
+          description: Provider health retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderHealthResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Webhooks
+  /api/v2/webhooks:
+    post:
+      tags:
+        - Webhooks
+      summary: Configure webhook
+      description: Configure webhook endpoints for receiving payment events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookRequest'
+      responses:
+        '201':
+          description: Webhook configured successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    
+    get:
+      tags:
+        - Webhooks
+      summary: List webhooks
+      description: Retrieve configured webhooks
+      responses:
+        '200':
+          description: Webhooks retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookListResponse'
+
+  /api/v2/webhooks/{webhookId}:
+    delete:
+      tags:
+        - Webhooks
+      summary: Delete webhook
+      description: Remove a configured webhook
+      parameters:
+        - name: webhookId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Webhook deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Health Check
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check service health status
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness check
+      description: Check if service is ready to accept requests
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+        '503':
+          description: Service is not ready
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Authentication
+    TokenRequest:
+      type: object
+      required:
+        - clientId
+        - clientSecret
+        - organizationId
+      properties:
+        clientId:
+          type: string
+          description: Client identifier
+        clientSecret:
+          type: string
+          description: Client secret
+        organizationId:
+          type: string
+          description: Organization identifier
+
+    TokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          description: Token expiration time in seconds
+        refreshToken:
+          type: string
+          description: Refresh token for obtaining new access tokens
+
+    # Payments
+    PaymentRequest:
+      type: object
+      required:
+        - amount
+        - currency
+        - paymentMethod
+        - organizationId
+      properties:
+        amount:
+          type: number
+          minimum: 0.01
+          description: Payment amount
+        currency:
+          type: string
+          enum: [BRL, USD, EUR]
+          description: Payment currency
+        paymentMethod:
+          type: string
+          enum: [credit_card, debit_card, pix, boleto, apple_pay, google_pay]
+          description: Payment method
+        organizationId:
+          type: string
+          description: Organization identifier
+        customerId:
+          type: string
+          description: Customer identifier
+        description:
+          type: string
+          maxLength: 255
+          description: Payment description
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+        returnUrl:
+          type: string
+          format: uri
+          description: Success redirect URL
+        cancelUrl:
+          type: string
+          format: uri
+          description: Cancel redirect URL
+
+    PaymentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Payment identifier
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+        amount:
+          type: number
+          description: Payment amount
+        currency:
+          type: string
+          description: Payment currency
+        paymentMethod:
+          type: string
+          description: Payment method used
+        organizationId:
+          type: string
+          description: Organization identifier
+        customerId:
+          type: string
+          description: Customer identifier
+        description:
+          type: string
+          description: Payment description
+        metadata:
+          type: object
+          additionalProperties: true
+        providerName:
+          type: string
+          description: Payment provider used
+        providerTransactionId:
+          type: string
+          description: Provider's transaction ID
+        paymentUrl:
+          type: string
+          format: uri
+          description: Payment URL for redirect flows
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+
+    PaymentStatus:
+      type: string
+      enum: [pending, processing, completed, failed, canceled, refunded]
+
+    PaymentListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+
+    # Refunds
+    RefundRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          minimum: 0.01
+          description: Refund amount (optional, defaults to full amount)
+        reason:
+          type: string
+          enum: [duplicate, fraudulent, requested_by_customer, other]
+          description: Refund reason
+        metadata:
+          type: object
+          additionalProperties: true
+
+    RefundResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Refund identifier
+        paymentId:
+          type: string
+          description: Original payment ID
+        status:
+          type: string
+          enum: [pending, completed, failed]
+        amount:
+          type: number
+          description: Refund amount
+        currency:
+          type: string
+          description: Refund currency
+        reason:
+          type: string
+          description: Refund reason
+        metadata:
+          type: object
+          additionalProperties: true
+        providerRefundId:
+          type: string
+          description: Provider's refund ID
+        createdAt:
+          type: string
+          format: date-time
+
+    # Subscriptions
+    SubscriptionRequest:
+      type: object
+      required:
+        - customerId
+        - planId
+        - organizationId
+      properties:
+        customerId:
+          type: string
+          description: Customer identifier
+        planId:
+          type: string
+          description: Subscription plan ID
+        organizationId:
+          type: string
+          description: Organization identifier
+        trialDays:
+          type: integer
+          minimum: 0
+          maximum: 365
+          description: Trial period in days
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SubscriptionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Subscription identifier
+        customerId:
+          type: string
+        planId:
+          type: string
+        organizationId:
+          type: string
+        status:
+          $ref: '#/components/schemas/SubscriptionStatus'
+        currentPeriodStart:
+          type: string
+          format: date-time
+        currentPeriodEnd:
+          type: string
+          format: date-time
+        trialEnd:
+          type: string
+          format: date-time
+        canceledAt:
+          type: string
+          format: date-time
+        providerName:
+          type: string
+        providerSubscriptionId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SubscriptionStatus:
+      type: string
+      enum: [trialing, active, past_due, canceled, unpaid]
+
+    SubscriptionUpdateRequest:
+      type: object
+      properties:
+        planId:
+          type: string
+          description: New plan ID
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SubscriptionListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+
+    # Providers
+    ProviderListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderInfo'
+
+    ProviderInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Provider name
+        displayName:
+          type: string
+          description: Provider display name
+        status:
+          type: string
+          enum: [active, inactive, maintenance]
+        priority:
+          type: integer
+          description: Provider priority (lower = higher priority)
+        supportedMethods:
+          type: array
+          items:
+            type: string
+          description: Supported payment methods
+        supportedCurrencies:
+          type: array
+          items:
+            type: string
+          description: Supported currencies
+        healthStatus:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        lastHealthCheck:
+          type: string
+          format: date-time
+
+    ProviderHealthResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        responseTime:
+          type: integer
+          description: Response time in milliseconds
+        lastCheck:
+          type: string
+          format: date-time
+        details:
+          type: object
+          properties:
+            apiConnectivity:
+              type: string
+              enum: [ok, error]
+            webhookEndpoint:
+              type: string
+              enum: [ok, error]
+            credentialsValid:
+              type: boolean
+
+    # Webhooks
+    WebhookRequest:
+      type: object
+      required:
+        - url
+        - events
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Webhook endpoint URL
+        events:
+          type: array
+          items:
+            type: string
+            enum: [payment.created, payment.completed, payment.failed, payment.refunded, subscription.created, subscription.updated, subscription.canceled]
+          description: Events to subscribe to
+        secret:
+          type: string
+          description: Webhook secret for signature validation
+
+    WebhookResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Webhook identifier
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: string
+          format: date-time
+
+    WebhookListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookResponse'
+
+    # Health
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        uptime:
+          type: integer
+          description: Uptime in seconds
+        checks:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [ok, error]
+            redis:
+              type: string
+              enum: [ok, error]
+            providers:
+              type: object
+              additionalProperties:
+                type: string
+                enum: [ok, error]
+
+    ReadinessResponse:
+      type: object
+      properties:
+        ready:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+
+    # Common
+    PaginationInfo:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+        limit:
+          type: integer
+          description: Items per page
+        total:
+          type: integer
+          description: Total number of items
+        totalPages:
+          type: integer
+          description: Total number of pages
+        hasNext:
+          type: boolean
+          description: Whether there are more pages
+        hasPrev:
+          type: boolean
+          description: Whether there are previous pages
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Error code
+            message:
+              type: string
+              description: Error message
+            details:
+              type: object
+              additionalProperties: true
+              description: Additional error details
+            timestamp:
+              type: string
+              format: date-time
+            requestId:
+              type: string
+              description: Request identifier for tracking
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: INVALID_REQUEST
+              message: Request validation failed
+              details:
+                field: amount
+                reason: must be greater than 0
+              timestamp: "2024-01-15T10:30:00Z"
+              requestId: req_123456
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: UNAUTHORIZED
+              message: Invalid or missing authentication token
+              timestamp: "2024-01-15T10:30:00Z"
+              requestId: req_123456
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: FORBIDDEN
+              message: Insufficient permissions for this operation
+              timestamp: "2024-01-15T10:30:00Z"
+              requestId: req_123456
+
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: NOT_FOUND
+              message: The requested resource was not found
+              timestamp: "2024-01-15T10:30:00Z"
+              requestId: req_123456
+
+    PaymentRequired:
+      description: Payment declined
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: PAYMENT_DECLINED
+              message: The payment was declined by the provider
+              details:
+                providerCode: card_declined
+                providerMessage: Your card was declined
+              timestamp: "2024-01-15T10:30:00Z"
+              requestId: req_123456
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Request limit per minute
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Remaining requests in current window
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Time when rate limit resets (Unix timestamp)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: RATE_LIMITED
+              message: Rate limit exceeded. Please try again later
+              timestamp: "2024-01-15T10:30:00Z"
+              requestId: req_123456
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: An internal server error occurred
+              timestamp: "2024-01-15T10:30:00Z"
+              requestId: req_123456
+
+tags:
+  - name: Authentication
+    description: Authentication and token management
+  - name: Payments
+    description: Payment processing operations
+  - name: Subscriptions
+    description: Subscription management
+  - name: Providers
+    description: Payment provider management
+  - name: Webhooks
+    description: Webhook configuration and management
+  - name: Health
+    description: Service health and readiness checks

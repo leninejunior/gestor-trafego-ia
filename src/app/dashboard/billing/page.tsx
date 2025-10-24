@@ -1,284 +1,402 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
+  Settings, 
   CreditCard, 
-  Calendar, 
-  Users, 
-  Building2, 
-  Zap,
-  Check,
-  X
+  Receipt, 
+  AlertTriangle,
+  ArrowLeft
 } from "lucide-react";
 
-export const dynamic = 'force-dynamic';
+// Import our new subscription components
+import { CurrentPlanDisplay } from "@/components/subscription/current-plan-display";
+import { PlanComparison } from "@/components/subscription/plan-comparison";
+import { BillingHistoryTable } from "@/components/subscription/billing-history-table";
+import { PaymentMethodForm } from "@/components/subscription/payment-method-form";
+import { UpgradePrompt } from "@/components/subscription/upgrade-prompt";
 
-export default async function BillingPage() {
-  const supabase = await createClient();
+// Import subscription hook
+import { useSubscription } from "@/hooks/use-subscription";
+import { useUser } from "@/hooks/use-user";
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+interface CancellationDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (reason: string) => void;
+  loading: boolean;
+}
 
-  if (!user) {
-    return redirect("/login");
-  }
+function CancellationDialog({ open, onOpenChange, onConfirm, loading }: CancellationDialogProps) {
+  const [reason, setReason] = useState("");
+  const [selectedReason, setSelectedReason] = useState("");
 
-  // Buscar organização do usuário
-  const { data: membership } = await supabase
-    .from("memberships")
-    .select(`
-      org_id,
-      role,
-      organizations (
-        id,
-        name
-      )
-    `)
-    .eq("user_id", user.id)
-    .single();
+  const predefinedReasons = [
+    "Muito caro",
+    "Não uso mais",
+    "Encontrei uma alternativa melhor",
+    "Problemas técnicos",
+    "Mudança de estratégia",
+    "Outro"
+  ];
 
-  if (!membership) {
-    return redirect("/dashboard");
-  }
-
-  // Buscar assinatura atual
-  const { data: subscription } = await supabase
-    .from("subscriptions")
-    .select(`
-      *,
-      subscription_plans (
-        name,
-        description,
-        price_monthly,
-        price_yearly,
-        max_ad_accounts,
-        max_users,
-        max_clients,
-        features
-      )
-    `)
-    .eq("org_id", membership.org_id)
-    .eq("status", "active")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-
-  // Buscar todos os planos disponíveis
-  const { data: plans } = await supabase
-    .from("subscription_plans")
-    .select("*")
-    .eq("is_active", true)
-    .order("price_monthly");
-
-  // Buscar uso atual
-  const { data: clients } = await supabase
-    .from("clients")
-    .select("id")
-    .eq("org_id", membership.org_id);
-
-  const { data: adAccounts } = await supabase
-    .from("ad_accounts")
-    .select("id")
-    .eq("org_id", membership.org_id);
-
-  const { data: users } = await supabase
-    .from("memberships")
-    .select("id")
-    .eq("org_id", membership.org_id);
-
-  const currentUsage = {
-    clients: clients?.length || 0,
-    adAccounts: adAccounts?.length || 0,
-    users: users?.length || 0
+  const handleConfirm = () => {
+    const finalReason = selectedReason === "Outro" ? reason : selectedReason;
+    onConfirm(finalReason);
   };
 
-  const currentPlan = subscription?.subscription_plans;
-
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Planos e Cobrança</h1>
-        <p className="text-gray-600 mt-2">
-          Gerencie sua assinatura e acompanhe o uso dos recursos
-        </p>
-      </div>
-
-      {/* Plano Atual */}
-      {currentPlan && (
+    <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`}>
+      <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  Plano Atual: {currentPlan.name}
-                </CardTitle>
-                <CardDescription>{currentPlan.description}</CardDescription>
-              </div>
-              <Badge variant={subscription?.status === 'active' ? 'default' : 'destructive'}>
-                {subscription?.status === 'active' ? 'Ativo' : 'Inativo'}
-              </Badge>
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Cancelar Assinatura
+            </CardTitle>
+            <CardDescription>
+              Lamentamos ver você partir. Sua assinatura permanecerá ativa até o final do período atual.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Clientes</span>
-                  <span className="text-sm text-gray-500">
-                    {currentUsage.clients} / {currentPlan.max_clients}
-                  </span>
-                </div>
-                <Progress 
-                  value={(currentUsage.clients / currentPlan.max_clients) * 100} 
-                  className="h-2"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Contas de Anúncios</span>
-                  <span className="text-sm text-gray-500">
-                    {currentUsage.adAccounts} / {currentPlan.max_ad_accounts}
-                  </span>
-                </div>
-                <Progress 
-                  value={(currentUsage.adAccounts / currentPlan.max_ad_accounts) * 100} 
-                  className="h-2"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Usuários</span>
-                  <span className="text-sm text-gray-500">
-                    {currentUsage.users} / {currentPlan.max_users}
-                  </span>
-                </div>
-                <Progress 
-                  value={(currentUsage.users / currentPlan.max_users) * 100} 
-                  className="h-2"
-                />
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Por que está cancelando?</label>
+              <div className="mt-2 space-y-2">
+                {predefinedReasons.map((reasonOption) => (
+                  <label key={reasonOption} className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="reason"
+                      value={reasonOption}
+                      checked={selectedReason === reasonOption}
+                      onChange={(e) => setSelectedReason(e.target.value)}
+                      className="text-blue-600"
+                    />
+                    <span className="text-sm">{reasonOption}</span>
+                  </label>
+                ))}
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-4 border-t">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-gray-500" />
-                <span className="text-sm text-gray-600">
-                  Próxima cobrança: {new Date(subscription?.current_period_end).toLocaleDateString('pt-BR')}
-                </span>
+            {selectedReason === "Outro" && (
+              <div>
+                <label className="text-sm font-medium">Descreva o motivo:</label>
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="mt-1 w-full p-2 border rounded-md"
+                  rows={3}
+                  placeholder="Conte-nos mais sobre sua decisão..."
+                />
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold">
-                  R$ {subscription?.billing_cycle === 'yearly' 
-                    ? currentPlan.price_yearly.toFixed(2) 
-                    : currentPlan.price_monthly.toFixed(2)}
-                </div>
-                <div className="text-sm text-gray-500">
-                  /{subscription?.billing_cycle === 'yearly' ? 'ano' : 'mês'}
-                </div>
-              </div>
+            )}
+
+            <div className="flex gap-3 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+                className="flex-1"
+              >
+                Manter Assinatura
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={handleConfirm}
+                disabled={loading || !selectedReason}
+                className="flex-1"
+              >
+                {loading ? "Cancelando..." : "Confirmar Cancelamento"}
+              </Button>
             </div>
           </CardContent>
         </Card>
-      )}
+      </div>
+    </div>
+  );
+}
 
-      {/* Planos Disponíveis */}
-      <div>
-        <h2 className="text-2xl font-bold mb-6">Planos Disponíveis</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {plans?.map((plan) => {
-            const isCurrentPlan = currentPlan?.name === plan.name;
-            const features = Array.isArray(plan.features) ? plan.features : [];
-            
-            return (
-              <Card key={plan.id} className={`relative ${isCurrentPlan ? 'ring-2 ring-blue-500' : ''}`}>
-                {isCurrentPlan && (
-                  <Badge className="absolute -top-2 left-1/2 transform -translate-x-1/2">
-                    Plano Atual
-                  </Badge>
-                )}
-                
-                <CardHeader className="text-center">
-                  <CardTitle className="text-xl">{plan.name}</CardTitle>
-                  <CardDescription className="min-h-[40px]">
-                    {plan.description}
-                  </CardDescription>
-                  <div className="pt-4">
-                    <div className="text-3xl font-bold">
-                      R$ {plan.price_monthly.toFixed(0)}
-                    </div>
-                    <div className="text-sm text-gray-500">/mês</div>
-                    {plan.price_yearly > 0 && (
-                      <div className="text-sm text-green-600 mt-1">
-                        R$ {plan.price_yearly.toFixed(0)}/ano (2 meses grátis)
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
+export default function BillingPage() {
+  const router = useRouter();
+  const { user, loading: userLoading } = useUser();
+  const [organizationId, setOrganizationId] = useState<string>("");
+  const [currentUsage, setCurrentUsage] = useState({
+    clients: 0,
+    campaigns: 0,
+    users: 0
+  });
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [showCancellationDialog, setShowCancellationDialog] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
-                <CardContent className="space-y-4">
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span>Clientes</span>
-                      <span className="font-medium">{plan.max_clients}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Contas de Anúncios</span>
-                      <span className="font-medium">{plan.max_ad_accounts}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Usuários</span>
-                      <span className="font-medium">{plan.max_users}</span>
-                    </div>
-                  </div>
+  const {
+    subscription,
+    billingInfo,
+    availablePlans,
+    loading: subscriptionLoading,
+    error,
+    refreshSubscription,
+    upgradeSubscription,
+    cancelSubscription,
+  } = useSubscription({ organizationId });
 
-                  <div className="border-t pt-4">
-                    <div className="space-y-2">
-                      {features.map((feature, index) => (
-                        <div key={index} className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span>{feature}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+  // Get organization ID and current usage
+  useEffect(() => {
+    const fetchOrganizationData = async () => {
+      if (!user) return;
 
-                  <Button 
-                    className="w-full" 
-                    variant={isCurrentPlan ? "outline" : "default"}
-                    disabled={isCurrentPlan}
-                  >
-                    {isCurrentPlan ? "Plano Atual" : "Escolher Plano"}
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
+      try {
+        const supabase = createClient();
+
+        // Get user's organization
+        const { data: membership } = await supabase
+          .from("memberships")
+          .select(`
+            organization_id,
+            role,
+            organizations (
+              id,
+              name
+            )
+          `)
+          .eq("user_id", user.id)
+          .single();
+
+        if (!membership) {
+          router.push("/dashboard");
+          return;
+        }
+
+        setOrganizationId(membership.organization_id);
+
+        // Get current usage
+        const [clientsResult, campaignsResult, usersResult] = await Promise.all([
+          supabase.from("clients").select("id").eq("organization_id", membership.organization_id),
+          supabase.from("campaigns").select("id").eq("organization_id", membership.organization_id),
+          supabase.from("memberships").select("id").eq("organization_id", membership.organization_id)
+        ]);
+
+        setCurrentUsage({
+          clients: clientsResult.data?.length || 0,
+          campaigns: campaignsResult.data?.length || 0,
+          users: usersResult.data?.length || 0
+        });
+      } catch (err) {
+        console.error("Error fetching organization data:", err);
+      }
+    };
+
+    if (!userLoading && user) {
+      fetchOrganizationData();
+    }
+  }, [user, userLoading, router]);
+
+  const handlePlanSelect = async (planId: string, billingCycle: 'monthly' | 'annual') => {
+    try {
+      setUpgrading(true);
+      await upgradeSubscription(planId, billingCycle);
+      // Show success message or redirect
+    } catch (err) {
+      console.error("Upgrade error:", err);
+      // Show error message
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
+  const handleCancelSubscription = async (reason: string) => {
+    try {
+      setCanceling(true);
+      await cancelSubscription(reason);
+      setShowCancellationDialog(false);
+      // Show success message
+    } catch (err) {
+      console.error("Cancellation error:", err);
+      // Show error message
+    } finally {
+      setCanceling(false);
+    }
+  };
+
+  if (userLoading || subscriptionLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    router.push("/login");
+    return null;
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Planos e Cobrança</h1>
+          <p className="text-muted-foreground mt-2">
+            Gerencie sua assinatura e acompanhe o uso dos recursos
+          </p>
         </div>
+        <Card>
+          <CardContent className="text-center py-8">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={refreshSubscription} variant="outline">
+              Tentar Novamente
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Planos e Cobrança</h1>
+          <p className="text-muted-foreground mt-2">
+            Gerencie sua assinatura e acompanhe o uso dos recursos
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar
+        </Button>
       </div>
 
-      {/* Histórico de Faturas */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Histórico de Faturas</CardTitle>
-          <CardDescription>
-            Suas faturas e pagamentos recentes
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-gray-500">
-            <CreditCard className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Nenhuma fatura encontrada</p>
-            <p className="text-sm">As faturas aparecerão aqui após o primeiro pagamento</p>
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Visão Geral
+          </TabsTrigger>
+          <TabsTrigger value="plans" className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Planos
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="flex items-center gap-2">
+            <Receipt className="h-4 w-4" />
+            Cobrança
+          </TabsTrigger>
+          <TabsTrigger value="payment" className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Pagamento
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          {subscription && billingInfo ? (
+            <CurrentPlanDisplay
+              subscription={subscription}
+              billingInfo={billingInfo}
+              currentUsage={currentUsage}
+              onUpgrade={() => setShowUpgradePrompt(true)}
+              onManageBilling={() => setShowCancellationDialog(true)}
+            />
+          ) : (
+            <Card>
+              <CardContent className="text-center py-8">
+                <CreditCard className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-muted-foreground mb-4">Nenhuma assinatura ativa encontrada</p>
+                <Button onClick={() => setShowUpgradePrompt(true)}>
+                  Escolher Plano
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Quick Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Ações Rápidas</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => setShowUpgradePrompt(true)}
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Alterar Plano
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => setShowCancellationDialog(true)}
+                  disabled={!subscription}
+                >
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Cancelar Assinatura
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Suporte</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Precisa de ajuda com sua assinatura? Entre em contato conosco.
+                </p>
+                <Button variant="outline" className="w-full">
+                  Contatar Suporte
+                </Button>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
+
+        <TabsContent value="plans" className="space-y-6">
+          <PlanComparison
+            plans={availablePlans}
+            currentPlanId={subscription?.plan_id}
+            onSelectPlan={handlePlanSelect}
+            loading={upgrading}
+          />
+        </TabsContent>
+
+        <TabsContent value="billing" className="space-y-6">
+          <BillingHistoryTable organizationId={organizationId} />
+        </TabsContent>
+
+        <TabsContent value="payment" className="space-y-6">
+          <PaymentMethodForm 
+            organizationId={organizationId}
+            // paymentMethods would be fetched and managed here
+          />
+        </TabsContent>
+      </Tabs>
+
+      {/* Upgrade Prompt Dialog */}
+      <UpgradePrompt
+        open={showUpgradePrompt}
+        onOpenChange={setShowUpgradePrompt}
+        feature="subscription"
+        title="Escolher Plano"
+        description="Selecione o plano ideal para suas necessidades"
+      />
+
+      {/* Cancellation Dialog */}
+      <CancellationDialog
+        open={showCancellationDialog}
+        onOpenChange={setShowCancellationDialog}
+        onConfirm={handleCancelSubscription}
+        loading={canceling}
+      />
     </div>
   );
 }

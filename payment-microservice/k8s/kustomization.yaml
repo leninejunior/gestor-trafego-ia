@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: payment-microservice
+  labels:
+    app: payment-microservice
+
+resources:
+- namespace.yaml
+- configmap.yaml
+- secrets.yaml
+- deployment.yaml
+- service.yaml
+- ingress.yaml
+- hpa.yaml
+
+images:
+- name: ghcr.io/your-org/payment-microservice
+  newTag: latest
+
+commonLabels:
+  app: payment-microservice
+  managed-by: kustomize
+
+commonAnnotations:
+  app.kubernetes.io/name: payment-microservice
+  app.kubernetes.io/version: "1.0.0"
+  app.kubernetes.io/component: microservice
+  app.kubernetes.io/part-of: payment-system
+
+patchesStrategicMerge:
+- patches/resource-limits.yaml
+
+configMapGenerator:
+- name: payment-microservice-env
+  literals:
+  - NODE_ENV=production
+  - LOG_LEVEL=info
+
+secretGenerator:
+- name: payment-microservice-db
+  literals:
+  - username=payment_user
+  - password=secure_password
+  type: Opaque
+
+replicas:
+- name: payment-microservice
+  count: 3
+
+namespace: production

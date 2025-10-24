@@ -1,5 +1,6 @@
 /**
- * API para Saldos de Contas - Admin
+ * API: Buscar saldos das contas de anúncios
+ * GET /api/admin/balance/accounts
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -7,97 +8,150 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
-    const { data: { user }, error } = await supabase.auth.getUser()
+    const supabase = await createClient()
 
-    if (error || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Verificar autenticação
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    // Verificar se é super admin
-    const { data: userRole } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .single()
-
-    if (!userRole || userRole.role !== 'super_admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    // Buscar contas Meta Ads
-    const { data: accounts, error: accountsError } = await supabase
-      .from('meta_accounts')
+    // Buscar conexões Meta ativas do usuário
+    const { data: connections, error: connectionsError } = await supabase
+      .from('meta_ad_accounts')
       .select(`
-        id,
-        name,
-        currency,
-        account_status,
-        organization_id
+        *,
+        clients (
+          id,
+          name,
+          organization_id
+        )
       `)
+      .eq('is_active', true)
 
-    if (accountsError) {
-      console.error('Error fetching accounts:', accountsError)
-      return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 })
+    if (connectionsError) {
+      console.error('Error fetching connections:', connectionsError)
+      return NextResponse.json({ error: 'Erro ao buscar conexões' }, { status: 500 })
     }
 
-    if (!accounts || accounts.length === 0) {
+    if (!connections || connections.length === 0) {
       return NextResponse.json({ balances: [] })
     }
 
-    // Simular dados de saldo (em produção, viria da Meta API)
-    const balances = accounts.map(account => {
-      // Simular valores realistas
-      const accountSpendLimit = 10000 + Math.random() * 40000 // R$ 10k - 50k
-      const balance = accountSpendLimit * (0.1 + Math.random() * 0.8) // 10% - 90% do limite
-      const dailySpendLimit = accountSpendLimit * 0.1 // 10% do limite mensal
-      const dailySpend = dailySpendLimit * (0.3 + Math.random() * 0.6) // 30% - 90% do limite diário
-      const currentSpend = accountSpendLimit * (0.1 + Math.random() * 0.4) // Gasto atual do mês
-      
-      // Calcular projeção de dias restantes
-      const projectedDaysRemaining = dailySpend > 0 ? balance / dailySpend : 999
+    // Buscar saldo de cada conta via Meta API
+    const balances = await Promise.all(
+      connections.map(async (connection) => {
+        try {
+          // Buscar saldo atual da conta via Meta API
+          const accountId = connection.ad_account_id
+          const accessToken = connection.access_token
 
-      // Determinar status baseado no percentual de saldo
-      const balancePercentage = (balance / accountSpendLimit) * 100
-      let status: 'healthy' | 'warning' | 'critical'
-      
-      if (balancePercentage >= 50) {
-        status = 'healthy'
-      } else if (balancePercentage >= 20) {
-        status = 'warning'
-      } else {
-        status = 'critical'
-      }
+          const response = await fetch(
+            `https://graph.facebook.com/v18.0/${accountId}?fields=account_id,name,currency,balance,amount_spent,spend_cap,daily_spend_limit,account_status&access_token=${accessToken}`,
+            { next: { revalidate: 300 } } // Cache por 5 minutos
+          )
 
-      return {
-        account_id: account.id,
-        account_name: account.name,
-        currency: account.currency || 'BRL',
-        balance: Math.round(balance * 100) / 100,
-        daily_spend_limit: Math.round(dailySpendLimit * 100) / 100,
-        account_spend_limit: Math.round(accountSpendLimit * 100) / 100,
-        current_spend: Math.round(currentSpend * 100) / 100,
-        daily_spend: Math.round(dailySpend * 100) / 100,
-        projected_days_remaining: Math.round(projectedDaysRemaining * 10) / 10,
-        status,
-        last_updated: new Date().toISOString()
-      }
-    })
+          if (!response.ok) {
+            console.error(`Error fetching balance for ${accountId}:`, await response.text())
+            return null
+          }
 
-    return NextResponse.json({
-      balances,
-      summary: {
-        total_accounts: balances.length,
-        healthy_accounts: balances.filter(b => b.status === 'healthy').length,
-        warning_accounts: balances.filter(b => b.status === 'warning').length,
-        critical_accounts: balances.filter(b => b.status === 'critical').length,
-        total_balance: balances.reduce((sum, b) => sum + b.balance, 0),
-        total_daily_spend: balances.reduce((sum, b) => sum + b.daily_spend, 0)
+          const accountData = await response.json()
+
+          // Calcular métricas
+          const balance = parseFloat(accountData.balance) / 100 // Meta retorna em centavos
+          const amountSpent = parseFloat(accountData.amount_spent) / 100
+          const spendCap = accountData.spend_cap ? parseFloat(accountData.spend_cap) / 100 : 0
+          const dailySpendLimit = accountData.daily_spend_limit ? parseFloat(accountData.daily_spend_limit) / 100 : 0
+
+          // Buscar gasto dos últimos 7 dias para calcular média diária
+          const insightsResponse = await fetch(
+            `https://graph.facebook.com/v18.0/${accountId}/insights?fields=spend&time_range={"since":"${getDateDaysAgo(7)}","until":"${getDateDaysAgo(0)}"}&access_token=${accessToken}`
+          )
+
+          let dailySpend = 0
+          if (insightsResponse.ok) {
+            const insightsData = await insightsResponse.json()
+            if (insightsData.data && insightsData.data.length > 0) {
+              const totalSpend = insightsData.data.reduce((sum: number, day: any) => sum + parseFloat(day.spend || 0), 0)
+              dailySpend = totalSpend / 7
+            }
+          }
+
+          // Calcular dias restantes
+          const projectedDaysRemaining = dailySpend > 0 ? balance / dailySpend : 999
+
+          // Determinar status
+          let status: 'healthy' | 'warning' | 'critical' = 'healthy'
+          const balancePercentage = spendCap > 0 ? (balance / spendCap) * 100 : 100
+
+          if (balance <= 0 || balancePercentage < 10) {
+            status = 'critical'
+          } else if (balancePercentage < 20 || projectedDaysRemaining < 3) {
+            status = 'warning'
+          }
+
+          return {
+            account_id: accountData.account_id,
+            account_name: accountData.name,
+            currency: accountData.currency,
+            balance,
+            daily_spend_limit: dailySpendLimit,
+            account_spend_limit: spendCap || balance * 2, // Se não tem limite, usa 2x o saldo
+            current_spend: amountSpent,
+            daily_spend: dailySpend,
+            projected_days_remaining: projectedDaysRemaining,
+            status,
+            last_updated: new Date().toISOString(),
+            client_name: connection.clients?.name,
+            account_status: accountData.account_status
+          }
+        } catch (error) {
+          console.error(`Error processing account ${connection.ad_account_id}:`, error)
+          return null
+        }
+      })
+    )
+
+    // Filtrar contas com erro
+    const validBalances = balances.filter(b => b !== null)
+
+    // Atualizar balance_alerts com os valores atuais
+    for (const balance of validBalances) {
+      if (balance) {
+        await supabase
+          .from('balance_alerts')
+          .upsert({
+            ad_account_id: balance.account_id,
+            ad_account_name: balance.account_name,
+            current_balance: balance.balance,
+            last_checked_at: new Date().toISOString()
+          }, {
+            onConflict: 'ad_account_id',
+            ignoreDuplicates: false
+          })
       }
+    }
+
+    return NextResponse.json({ 
+      balances: validBalances,
+      total_accounts: validBalances.length,
+      critical_accounts: validBalances.filter(b => b?.status === 'critical').length,
+      warning_accounts: validBalances.filter(b => b?.status === 'warning').length
     })
 
   } catch (error) {
-    console.error('Error fetching balance data:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error in balance accounts API:', error)
+    return NextResponse.json(
+      { error: 'Erro ao buscar saldos das contas' },
+      { status: 500 }
+    )
   }
+}
+
+// Helper: Obter data X dias atrás no formato YYYY-MM-DD
+function getDateDaysAgo(days: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  return date.toISOString().split('T')[0]
 }

@@ -45,6 +45,8 @@ interface AccountBalance {
   projected_days_remaining: number
   status: 'healthy' | 'warning' | 'critical'
   last_updated: string
+  client_id?: string
+  client_name?: string
 }
 
 interface SpendHistory {
@@ -125,12 +127,20 @@ export default function BalancePage() {
     if (!selectedAccount) return
 
     try {
+      // Buscar client_id da conta selecionada
+      const selectedBalance = balances.find(b => b.account_id === selectedAccount)
+      if (!selectedBalance) return
+
       const response = await fetch('/api/admin/balance/alerts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           account_id: selectedAccount,
-          ...newAlert
+          client_id: selectedBalance.client_id, // Adicionar client_id
+          threshold_amount: newAlert.threshold_amount,
+          notification_email: newAlert.notification_email,
+          notification_push: newAlert.notification_push,
+          notification_sms: newAlert.notification_sms
         })
       })
 

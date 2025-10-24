@@ -17,29 +17,30 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verificar se é super admin
-    const { data: userRole } = await supabase
-      .from('memberships')
-      .select('role')
-      .eq('user_id', user.id)
-      .single()
-
-    if (!userRole || !userRole.role?.includes('super_admin')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
     const { alertId } = await params
     const body = await request.json()
 
-    // Simular atualização do alerta (em produção, atualizaria no banco)
-    console.log(`Updating alert ${alertId} with:`, body)
+    // Atualizar alerta no banco
+    const { data: updatedAlert, error: updateError } = await supabase
+      .from('balance_alerts')
+      .update({
+        is_active: body.is_active,
+        threshold_amount: body.threshold_amount,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', alertId)
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error('Error updating alert:', updateError)
+      return NextResponse.json({ error: 'Error updating alert' }, { status: 500 })
+    }
 
     return NextResponse.json({
       success: true,
       message: 'Alert updated successfully',
-      alertId,
-      updates: body,
-      updated_at: new Date().toISOString()
+      alert: updatedAlert
     })
 
   } catch (error) {
@@ -60,27 +61,23 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verificar se é super admin
-    const { data: userRole } = await supabase
-      .from('memberships')
-      .select('role')
-      .eq('user_id', user.id)
-      .single()
-
-    if (!userRole || !userRole.role?.includes('super_admin')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
     const { alertId } = await params
 
-    // Simular exclusão do alerta (em produção, removeria do banco)
-    console.log(`Deleting alert ${alertId}`)
+    // Deletar alerta do banco
+    const { error: deleteError } = await supabase
+      .from('balance_alerts')
+      .delete()
+      .eq('id', alertId)
+
+    if (deleteError) {
+      console.error('Error deleting alert:', deleteError)
+      return NextResponse.json({ error: 'Error deleting alert' }, { status: 500 })
+    }
 
     return NextResponse.json({
       success: true,
       message: 'Alert deleted successfully',
-      alertId,
-      deleted_at: new Date().toISOString()
+      alertId
     })
 
   } catch (error) {

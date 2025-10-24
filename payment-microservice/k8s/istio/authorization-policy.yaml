@@ -1,0 +1,75 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: payment-microservice-authz
+  labels:
+    app: payment-microservice
+spec:
+  selector:
+    matchLabels:
+      app: payment-microservice
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/default/sa/payment-microservice"]
+    to:
+    - operation:
+        methods: ["GET"]
+        paths: ["/health", "/ready", "/metrics"]
+  - from:
+    - source:
+        namespaces: ["istio-system"]
+    to:
+    - operation:
+        methods: ["GET"]
+        paths: ["/health", "/ready"]
+  - from:
+    - source:
+        requestPrincipals: ["*"]
+    to:
+    - operation:
+        methods: ["POST", "PUT", "DELETE"]
+        paths: ["/api/v1/*"]
+    when:
+    - key: request.headers[authorization]
+      values: ["Bearer *"]
+  - from:
+    - source:
+        notRequestPrincipals: ["*"]
+    to:
+    - operation:
+        methods: ["POST"]
+        paths: ["/webhooks/*"]
+    when:
+    - key: request.headers[x-webhook-signature]
+      values: ["*"]
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: payment-microservice-peer-auth
+  labels:
+    app: payment-microservice
+spec:
+  selector:
+    matchLabels:
+      app: payment-microservice
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: payment-microservice-jwt
+  labels:
+    app: payment-microservice
+spec:
+  selector:
+    matchLabels:
+      app: payment-microservice
+  jwtRules:
+  - issuer: "https://your-auth-provider.com"
+    jwksUri: "https://your-auth-provider.com/.well-known/jwks.json"
+    audiences:
+    - "payment-microservice"
+    forwardOriginalToken: true

@@ -1,0 +1,100 @@
+name: Security Monitoring
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  dependency-check:
+    name: Dependency Security Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: payment-microservice/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./payment-microservice
+      run: npm ci
+
+    - name: Run npm audit
+      working-directory: ./payment-microservice
+      run: npm audit --audit-level moderate
+
+    - name: Run Snyk security scan
+      uses: snyk/actions/node@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=medium --file=payment-microservice/package.json
+
+    - name: Create security report
+      if: failure()
+      run: |
+        echo "Security vulnerabilities found in dependencies" >> security-report.txt
+        npm audit --json > audit-report.json || true
+      working-directory: ./payment-microservice
+
+    - name: Upload security report
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-report
+        path: payment-microservice/security-report.txt
+
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Docker image
+      run: |
+        docker build -t payment-microservice:scan ./payment-microservice
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'payment-microservice:scan'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  license-check:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: payment-microservice/package-lock.json
+
+    - name: Install license checker
+      run: npm install -g license-checker
+
+    - name: Check licenses
+      working-directory: ./payment-microservice
+      run: |
+        npm ci
+        license-checker --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC' --excludePrivatePackages

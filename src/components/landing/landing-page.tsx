@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -26,9 +26,21 @@ import {
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 
+interface Plan {
+  id: string
+  name: string
+  description: string
+  price_monthly: number
+  price_yearly: number
+  features: Record<string, any>
+  is_popular?: boolean
+}
+
 export function LandingPage() {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [loadingPlans, setLoadingPlans] = useState(true)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -37,6 +49,26 @@ export function LandingPage() {
     lead_type: '',
     message: ''
   })
+
+  // Carregar planos do banco de dados
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        const response = await fetch('/api/subscriptions/plans')
+        const data = await response.json()
+        
+        if (data.success && data.data) {
+          setPlans(data.data)
+        }
+      } catch (error) {
+        console.error('Erro ao carregar planos:', error)
+      } finally {
+        setLoadingPlans(false)
+      }
+    }
+    
+    loadPlans()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -84,9 +116,20 @@ export function LandingPage() {
             <BarChart3 className="h-8 w-8 text-blue-600" />
             <span className="text-2xl font-bold text-slate-900">Ads Manager Pro</span>
           </div>
-          <Link href="/dashboard">
-            <Button variant="outline">Acessar Sistema</Button>
-          </Link>
+          <div className="flex items-center gap-4">
+            <a href="#planos" className="text-slate-700 hover:text-blue-600 font-medium">
+              Planos
+            </a>
+            <a href="#recursos" className="text-slate-700 hover:text-blue-600 font-medium">
+              Recursos
+            </a>
+            <a href="#contato" className="text-slate-700 hover:text-blue-600 font-medium">
+              Contato
+            </a>
+            <Link href="/dashboard">
+              <Button variant="outline">Acessar Sistema</Button>
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -241,6 +284,154 @@ export function LandingPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Pricing Plans */}
+      <section id="planos" className="container mx-auto px-4 py-20">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-bold mb-4">Escolha Seu Plano</h2>
+          <p className="text-slate-600 text-lg">
+            Planos flexíveis para agências de todos os tamanhos
+          </p>
+        </div>
+
+        {loadingPlans ? (
+          <div className="text-center py-12">
+            <p className="text-slate-600">Carregando planos...</p>
+          </div>
+        ) : plans.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-slate-600">Nenhum plano disponível no momento.</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {plans.map((plan) => {
+              const features = plan.features || {}
+              const isPopular = plan.is_popular || plan.name.toLowerCase() === 'pro'
+              
+              // Validar preços
+              const priceMonthly = plan.price_monthly || 0
+              const priceYearly = plan.price_yearly || 0
+              const yearlyDiscount = priceMonthly > 0 && priceYearly > 0 
+                ? Math.round((1 - (priceYearly / 12) / priceMonthly) * 100)
+                : 0
+
+              return (
+                <Card 
+                  key={plan.id} 
+                  className={`relative ${isPopular ? 'border-2 border-blue-600 shadow-xl' : ''}`}
+                >
+                  {isPopular && (
+                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600">
+                      Mais Popular
+                    </Badge>
+                  )}
+                  <CardContent className="pt-6">
+                    <div className="text-center mb-6">
+                      <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
+                      <p className="text-slate-600 mb-4">{plan.description}</p>
+                      <div className="mb-4">
+                        <span className="text-4xl font-bold">
+                          R$ {priceMonthly.toFixed(0)}
+                        </span>
+                        <span className="text-slate-600">/mês</span>
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        ou R$ {priceYearly.toFixed(0)}/ano 
+                        {yearlyDiscount > 0 && ` (economize ${yearlyDiscount}%)`}
+                      </p>
+                    </div>
+
+                    <ul className="space-y-3 mb-6">
+                      {features.max_clients && (
+                        <li className="flex items-start gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          <span>
+                            {features.max_clients === -1 
+                              ? 'Clientes ilimitados' 
+                              : `Até ${features.max_clients} clientes`}
+                          </span>
+                        </li>
+                      )}
+                      {features.max_campaigns && (
+                        <li className="flex items-start gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          <span>
+                            {features.max_campaigns === -1 
+                              ? 'Campanhas ilimitadas' 
+                              : `Até ${features.max_campaigns} campanhas`}
+                          </span>
+                        </li>
+                      )}
+                      {features.analytics && (
+                        <li className="flex items-start gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          <span>
+                            {features.analytics === 'advanced' 
+                              ? 'Analytics avançado' 
+                              : 'Dashboards básicos'}
+                          </span>
+                        </li>
+                      )}
+                      {features.reports && (
+                        <li className="flex items-start gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          <span>
+                            {features.reports === 'custom' 
+                              ? 'Relatórios personalizados' 
+                              : 'Relatórios padrão'}
+                          </span>
+                        </li>
+                      )}
+                      {features.api_access && (
+                        <li className="flex items-start gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          <span>API de integração</span>
+                        </li>
+                      )}
+                      {features.white_label && (
+                        <li className="flex items-start gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          <span>White label</span>
+                        </li>
+                      )}
+                      {features.support && (
+                        <li className="flex items-start gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          <span>
+                            {features.support === 'priority' 
+                              ? 'Suporte prioritário' 
+                              : features.support === '24/7'
+                              ? 'Suporte 24/7'
+                              : 'Suporte por email'}
+                          </span>
+                        </li>
+                      )}
+                      {features.dedicated_manager && (
+                        <li className="flex items-start gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          <span>Gerente de conta dedicado</span>
+                        </li>
+                      )}
+                    </ul>
+
+                    <Button 
+                      className={`w-full ${isPopular ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                      size="lg" 
+                      asChild
+                    >
+                      <Link href={`/checkout?plan=${plan.id}`}>Começar Agora</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+
+        <p className="text-center text-slate-600 mt-8">
+          Comece agora e transforme a gestão das suas campanhas
+        </p>
       </section>
 
       {/* Target Audience */}

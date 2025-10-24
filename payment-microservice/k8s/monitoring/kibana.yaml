@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kibana-config
+  namespace: monitoring
+data:
+  kibana.yml: |
+    server.name: kibana
+    server.host: 0.0.0.0
+    elasticsearch.hosts: ["http://elasticsearch:9200"]
+    
+    # Monitoring
+    monitoring.ui.container.elasticsearch.enabled: true
+    
+    # Security (disabled for simplicity)
+    xpack.security.enabled: false
+    
+    # Logging
+    logging.appenders:
+      file:
+        type: file
+        fileName: /usr/share/kibana/logs/kibana.log
+        layout:
+          type: json
+    logging.root:
+      appenders:
+        - default
+        - file
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+  namespace: monitoring
+  labels:
+    app: kibana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kibana
+  template:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      containers:
+      - name: kibana
+        image: docker.elastic.co/kibana/kibana:8.8.0
+        ports:
+        - containerPort: 5601
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+        - name: kibana-config-volume
+          mountPath: /usr/share/kibana/config/kibana.yml
+          subPath: kibana.yml
+        env:
+        - name: ELASTICSEARCH_HOSTS
+          value: "http://elasticsearch:9200"
+        livenessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: kibana-config-volume
+        configMap:
+          name: kibana-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  namespace: monitoring
+  labels:
+    app: kibana
+spec:
+  selector:
+    app: kibana
+  ports:
+  - name: web
+    port: 5601
+    targetPort: 5601

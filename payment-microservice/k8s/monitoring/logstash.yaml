@@ -1,0 +1,261 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config
+  namespace: monitoring
+data:
+  logstash.yml: |
+    http.host: "0.0.0.0"
+    path.config: /usr/share/logstash/pipeline
+    xpack.monitoring.elasticsearch.hosts: ["http://elasticsearch:9200"]
+    
+  pipelines.yml: |
+    - pipeline.id: payment-microservice
+      path.config: "/usr/share/logstash/pipeline/payment-microservice.conf"
+      
+  payment-microservice.conf: |
+    input {
+      beats {
+        port => 5044
+      }
+      
+      http {
+        port => 8080
+        codec => json
+      }
+    }
+    
+    filter {
+      if [kubernetes][container][name] == "payment-microservice" {
+        # Parse JSON logs
+        if [message] =~ /^\{.*\}$/ {
+          json {
+            source => "message"
+          }
+        }
+        
+        # Add custom fields
+        mutate {
+          add_field => { "service" => "payment-microservice" }
+          add_field => { "environment" => "%{[kubernetes][namespace]}" }
+        }
+        
+        # Parse timestamp
+        if [timestamp] {
+          date {
+            match => [ "timestamp", "ISO8601" ]
+          }
+        }
+        
+        # Categorize log levels
+        if [level] {
+          mutate {
+            lowercase => [ "level" ]
+          }
+        }
+        
+        # Extract payment provider from logs
+        if [provider] {
+          mutate {
+            add_field => { "payment_provider" => "%{provider}" }
+          }
+        }
+        
+        # Extract transaction ID
+        if [transactionId] {
+          mutate {
+            add_field => { "transaction_id" => "%{transactionId}" }
+          }
+        }
+        
+        # Parse error messages
+        if [error] {
+          mutate {
+            add_field => { "error_message" => "%{[error][message]}" }
+            add_field => { "error_stack" => "%{[error][stack]}" }
+          }
+        }
+        
+        # Geoip for client IPs
+        if [clientIp] {
+          geoip {
+            source => "clientIp"
+            target => "geoip"
+          }
+        }
+      }
+      
+      # Remove unnecessary fields
+      mutate {
+        remove_field => [ "host", "agent", "ecs", "input" ]
+      }
+    }
+    
+    output {
+      elasticsearch {
+        hosts => ["http://elasticsearch:9200"]
+        index => "payment-microservice-%{+YYYY.MM.dd}"
+        template_name => "payment-microservice"
+        template => "/usr/share/logstash/templates/payment-microservice.json"
+        template_overwrite => true
+      }
+      
+      # Debug output (remove in production)
+      stdout {
+        codec => rubydebug
+      }
+    }
+    
+  payment-microservice-template.json: |
+    {
+      "index_patterns": ["payment-microservice-*"],
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "index.refresh_interval": "5s"
+      },
+      "mappings": {
+        "properties": {
+          "@timestamp": {
+            "type": "date"
+          },
+          "level": {
+            "type": "keyword"
+          },
+          "message": {
+            "type": "text",
+            "analyzer": "standard"
+          },
+          "service": {
+            "type": "keyword"
+          },
+          "environment": {
+            "type": "keyword"
+          },
+          "payment_provider": {
+            "type": "keyword"
+          },
+          "transaction_id": {
+            "type": "keyword"
+          },
+          "error_message": {
+            "type": "text"
+          },
+          "clientIp": {
+            "type": "ip"
+          },
+          "geoip": {
+            "properties": {
+              "location": {
+                "type": "geo_point"
+              },
+              "country_name": {
+                "type": "keyword"
+              },
+              "city_name": {
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  namespace: monitoring
+  labels:
+    app: logstash
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: logstash
+  template:
+    metadata:
+      labels:
+        app: logstash
+    spec:
+      containers:
+      - name: logstash
+        image: docker.elastic.co/logstash/logstash:8.8.0
+        ports:
+        - containerPort: 5044
+          name: beats
+        - containerPort: 8080
+          name: http
+        - containerPort: 9600
+          name: monitoring
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: logstash-config-volume
+          mountPath: /usr/share/logstash/config
+        - name: logstash-pipeline-volume
+          mountPath: /usr/share/logstash/pipeline
+        - name: logstash-templates-volume
+          mountPath: /usr/share/logstash/templates
+        env:
+        - name: LS_JAVA_OPTS
+          value: "-Xms1g -Xmx1g"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9600
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 9600
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: logstash-config-volume
+        configMap:
+          name: logstash-config
+          items:
+          - key: logstash.yml
+            path: logstash.yml
+          - key: pipelines.yml
+            path: pipelines.yml
+      - name: logstash-pipeline-volume
+        configMap:
+          name: logstash-config
+          items:
+          - key: payment-microservice.conf
+            path: payment-microservice.conf
+      - name: logstash-templates-volume
+        configMap:
+          name: logstash-config
+          items:
+          - key: payment-microservice-template.json
+            path: payment-microservice.json
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  namespace: monitoring
+  labels:
+    app: logstash
+spec:
+  selector:
+    app: logstash
+  ports:
+  - name: beats
+    port: 5044
+    targetPort: 5044
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: monitoring
+    port: 9600
+    targetPort: 9600

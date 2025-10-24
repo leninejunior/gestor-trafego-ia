@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         const { count } = await supabase
           .from('memberships')
           .select('*', { count: 'exact', head: true })
-          .eq('organization_id', org.id)
+          .eq('org_id', org.id)
         
         return {
           ...org,
@@ -78,20 +78,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, slug } = body
+    const { name } = body
 
-    if (!name || !slug) {
-      return NextResponse.json({ error: 'Name and slug are required' }, { status: 400 })
+    if (!name) {
+      return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
     }
 
     // Criar organização
     const { data: organization, error } = await supabase
       .from('organizations')
-      .insert({
-        name,
-        slug,
-        created_at: new Date().toISOString()
-      })
+      .insert({ name })
       .select()
       .single()
 

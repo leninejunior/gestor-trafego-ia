@@ -7,73 +7,55 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
 
     if (error || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verificar se é super admin
-    const { data: userRole } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .single()
+    // Buscar alertas do banco de dados
+    const { data: alerts, error: alertsError } = await supabase
+      .from('balance_alerts')
+      .select(`
+        *,
+        clients (
+          id,
+          name,
+          organization_id
+        )
+      `)
+      .order('created_at', { ascending: false })
 
-    if (!userRole || userRole.role !== 'super_admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (alertsError) {
+      console.error('Error fetching alerts:', alertsError)
+      return NextResponse.json({ error: 'Error fetching alerts' }, { status: 500 })
     }
 
-    // Simular alertas configurados (em produção, viria do banco)
-    const alerts = [
-      {
-        id: 'alert_1',
-        account_id: 'act_123456789',
-        account_name: 'Conta Principal - Loja Online',
-        threshold_percentage: 20,
-        threshold_amount: 1000,
-        is_active: true,
-        notification_email: true,
-        notification_push: true,
-        notification_sms: false,
-        created_at: '2024-12-01T10:00:00Z',
-        last_triggered: '2024-12-15T14:30:00Z'
-      },
-      {
-        id: 'alert_2',
-        account_id: 'act_987654321',
-        account_name: 'Conta Secundária - App Mobile',
-        threshold_percentage: 15,
-        threshold_amount: 500,
-        is_active: true,
-        notification_email: true,
-        notification_push: false,
-        notification_sms: true,
-        created_at: '2024-11-15T09:00:00Z',
-        last_triggered: null
-      },
-      {
-        id: 'alert_3',
-        account_id: 'act_456789123',
-        account_name: 'Conta Teste - Campanhas Sazonais',
-        threshold_percentage: 25,
-        threshold_amount: 2000,
-        is_active: false,
-        notification_email: true,
-        notification_push: true,
-        notification_sms: false,
-        created_at: '2024-10-20T16:00:00Z',
-        last_triggered: '2024-11-30T11:15:00Z'
-      }
-    ]
+    // Formatar alertas para o frontend
+    const formattedAlerts = (alerts || []).map(alert => ({
+      id: alert.id,
+      account_id: alert.ad_account_id,
+      account_name: alert.ad_account_name,
+      threshold_percentage: 20, // Calcular baseado no threshold_amount
+      threshold_amount: alert.threshold_amount,
+      is_active: alert.is_active,
+      notification_email: true,
+      notification_push: true,
+      notification_sms: false,
+      created_at: alert.created_at,
+      last_triggered: alert.last_alert_sent_at,
+      current_balance: alert.current_balance,
+      alert_type: alert.alert_type,
+      client_name: alert.clients?.name
+    }))
 
     return NextResponse.json({
-      alerts,
+      alerts: formattedAlerts,
       summary: {
-        total_alerts: alerts.length,
-        active_alerts: alerts.filter(a => a.is_active).length,
-        inactive_alerts: alerts.filter(a => !a.is_active).length
+        total_alerts: formattedAlerts.length,
+        active_alerts: formattedAlerts.filter(a => a.is_active).length,
+        inactive_alerts: formattedAlerts.filter(a => !a.is_active).length
       }
     })
 
@@ -85,27 +67,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
 
     if (error || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verificar se é super admin
-    const { data: userRole } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .single()
-
-    if (!userRole || userRole.role !== 'super_admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
     const body = await request.json()
     const {
       account_id,
+      client_id,
       threshold_percentage,
       threshold_amount,
       notification_email,
@@ -114,25 +86,40 @@ export async function POST(request: NextRequest) {
     } = body
 
     // Validação
-    if (!account_id || (!threshold_percentage && !threshold_amount)) {
+    if (!account_id || !client_id || !threshold_amount) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: account_id, client_id, threshold_amount' },
         { status: 400 }
       )
     }
 
-    // Simular criação do alerta (em produção, salvaria no banco)
-    const newAlert = {
-      id: `alert_${Date.now()}`,
-      account_id,
-      threshold_percentage: threshold_percentage || 0,
-      threshold_amount: threshold_amount || 0,
-      is_active: true,
-      notification_email: notification_email || false,
-      notification_push: notification_push || false,
-      notification_sms: notification_sms || false,
-      created_at: new Date().toISOString(),
-      created_by: user.id
+    // Buscar informações da conta
+    const { data: metaAccount } = await supabase
+      .from('meta_ad_accounts')
+      .select('ad_account_name')
+      .eq('ad_account_id', account_id)
+      .single()
+
+    // Criar alerta no banco
+    const { data: newAlert, error: insertError } = await supabase
+      .from('balance_alerts')
+      .insert({
+        client_id,
+        ad_account_id: account_id,
+        ad_account_name: metaAccount?.ad_account_name || 'Conta sem nome',
+        threshold_amount,
+        alert_type: 'low_balance',
+        is_active: true
+      })
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error('Error creating alert:', insertError)
+      return NextResponse.json(
+        { error: 'Error creating alert' },
+        { status: 500 }
+      )
     }
 
     console.log('Created balance alert:', newAlert)

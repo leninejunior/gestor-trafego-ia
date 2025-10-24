@@ -34,7 +34,8 @@ import {
   Building2,
   Search,
   Power,
-  Loader2
+  Loader2,
+  Crown
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
@@ -42,6 +43,8 @@ import Link from 'next/link'
 import { ClientSearch } from '@/components/clients/client-search'
 import { CampaignSearch } from '@/components/campaigns/campaign-search'
 import { DateRangePicker } from '@/components/campaigns/date-range-picker'
+import { useFeatureGate } from '@/hooks/use-feature-gate'
+import { UpgradePrompt } from '@/components/subscription/upgrade-prompt'
 
 interface Client {
   id: string
@@ -94,7 +97,11 @@ export default function CampaignsPage() {
   const [loading, setLoading] = useState(true)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [togglingCampaign, setTogglingCampaign] = useState<string | null>(null)
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
   const { toast } = useToast()
+  
+  // Feature gating for campaigns
+  const { withinLimit, currentUsage, limit, loading: featureLoading } = useFeatureGate('maxCampaigns')
   
   // Filtros
   const [selectedClient, setSelectedClient] = useState<string>('all')
@@ -105,6 +112,34 @@ export default function CampaignsPage() {
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [sortBy, setSortBy] = useState<string>('spend')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+
+  // Mapeamento de objetivos para português
+  const objectiveLabels: Record<string, string> = {
+    'APP_INSTALLS': 'Instalações de App',
+    'BRAND_AWARENESS': 'Reconhecimento de Marca',
+    'CONVERSIONS': 'Conversões',
+    'EVENT_RESPONSES': 'Respostas a Eventos',
+    'LEAD_GENERATION': 'Geração de Leads',
+    'LINK_CLICKS': 'Cliques no Link',
+    'LOCAL_AWARENESS': 'Reconhecimento Local',
+    'MESSAGES': 'Mensagens',
+    'OFFER_CLAIMS': 'Reivindicações de Ofertas',
+    'OUTCOME_APP_PROMOTION': 'Promoção de App',
+    'OUTCOME_AWARENESS': 'Reconhecimento',
+    'OUTCOME_ENGAGEMENT': 'Engajamento',
+    'OUTCOME_LEADS': 'Leads',
+    'OUTCOME_SALES': 'Vendas',
+    'OUTCOME_TRAFFIC': 'Tráfego',
+    'PAGE_LIKES': 'Curtidas na Página',
+    'POST_ENGAGEMENT': 'Engajamento com Publicação',
+    'PRODUCT_CATALOG_SALES': 'Vendas do Catálogo',
+    'REACH': 'Alcance',
+    'STORE_VISITS': 'Visitas à Loja',
+    'VIDEO_VIEWS': 'Visualizações de Vídeo'
+  }
+
+  // Extrair objetivos únicos das campanhas carregadas
+  const availableObjectives = Array.from(new Set(campaigns.map(c => c.objective))).sort()
 
   useEffect(() => {
     loadInitialData()
@@ -400,6 +435,24 @@ export default function CampaignsPage() {
           <p className="text-muted-foreground">
             Análise completa de performance - {selectedClientName}
           </p>
+          {!featureLoading && (
+            <div className="flex items-center space-x-2 mt-2">
+              <Badge variant={withinLimit ? "default" : "destructive"}>
+                {currentUsage} / {limit} campanhas
+              </Badge>
+              {!withinLimit && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setUpgradeOpen(true)}
+                  className="text-orange-600 border-orange-600 hover:bg-orange-50"
+                >
+                  <Crown className="w-3 h-3 mr-1" />
+                  Upgrade
+                </Button>
+              )}
+            </div>
+          )}
         </div>
         <Button onClick={loadCampaignData} variant="outline" disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -503,14 +556,24 @@ export default function CampaignsPage() {
               <label className="text-sm font-medium mb-2 block">Objetivo</label>
               <Select value={objectiveFilter} onValueChange={setObjectiveFilter}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Todos os objetivos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="CONVERSIONS">Conversões</SelectItem>
-                  <SelectItem value="TRAFFIC">Tráfego</SelectItem>
-                  <SelectItem value="REACH">Alcance</SelectItem>
-                  <SelectItem value="BRAND_AWARENESS">Brand Awareness</SelectItem>
+                  <SelectItem value="all">Todos ({campaigns.length})</SelectItem>
+                  {availableObjectives.length > 0 ? (
+                    availableObjectives.map(objective => {
+                      const count = campaigns.filter(c => c.objective === objective).length
+                      return (
+                        <SelectItem key={objective} value={objective}>
+                          {objectiveLabels[objective] || objective} ({count})
+                        </SelectItem>
+                      )
+                    })
+                  ) : (
+                    <SelectItem value="none" disabled>
+                      Nenhum objetivo disponível
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -1058,6 +1121,16 @@ export default function CampaignsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <UpgradePrompt
+        open={upgradeOpen}
+        onOpenChange={setUpgradeOpen}
+        feature="maxCampaigns"
+        currentUsage={currentUsage}
+        limit={limit}
+        title="Limite de Campanhas Atingido"
+        description="Você atingiu o limite de campanhas do seu plano atual. Faça upgrade para gerenciar mais campanhas."
+      />
     </div>
   )
 }

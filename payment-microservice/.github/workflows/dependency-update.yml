@@ -1,0 +1,60 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: payment-microservice/package-lock.json
+
+    - name: Install npm-check-updates
+      run: npm install -g npm-check-updates
+
+    - name: Update dependencies
+      working-directory: ./payment-microservice
+      run: |
+        # Update patch and minor versions only
+        ncu -u --target minor
+        npm install
+
+    - name: Run tests after update
+      working-directory: ./payment-microservice
+      run: |
+        npm run test
+        npm run lint
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: 'chore: update dependencies'
+        title: 'Automated dependency updates'
+        body: |
+          This PR contains automated dependency updates.
+          
+          **Changes:**
+          - Updated patch and minor versions of dependencies
+          - All tests pass
+          - No breaking changes expected
+          
+          Please review the changes before merging.
+        branch: dependency-updates
+        delete-branch: true
+        base: develop

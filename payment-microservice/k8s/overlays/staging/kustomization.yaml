@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: payment-microservice-staging
+
+namespace: staging
+
+resources:
+- ../../
+
+patchesStrategicMerge:
+- deployment-patch.yaml
+- ingress-patch.yaml
+
+images:
+- name: ghcr.io/your-org/payment-microservice
+  newTag: staging
+
+commonLabels:
+  environment: staging
+
+replicas:
+- name: payment-microservice
+  count: 2
+
+configMapGenerator:
+- name: payment-microservice-env
+  behavior: merge
+  literals:
+  - NODE_ENV=staging
+  - LOG_LEVEL=debug
+  - RATE_LIMIT_MAX=50
