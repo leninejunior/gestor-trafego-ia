@@ -148,7 +148,15 @@ export function AdminPlanManagement() {
       
       const data = await response.json();
       console.log('📡 API response data:', data);
-      setPlans(data.plans || []);
+      
+      // Convert price strings to numbers
+      const plansWithNumbers = (data.plans || []).map((plan: any) => ({
+        ...plan,
+        monthly_price: parseFloat(plan.monthly_price) || 0,
+        annual_price: parseFloat(plan.annual_price) || 0,
+      }));
+      
+      setPlans(plansWithNumbers);
     } catch (err) {
       console.error('❌ Error fetching plans:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch plans');
@@ -506,15 +514,15 @@ export function AdminPlanManagement() {
               <div>
                 <h4 className="text-sm font-medium text-gray-900 mb-2">Features</h4>
                 <div className="space-y-1">
-                  {plan.features.slice(0, 3).map((feature, index) => (
+                  {Object.entries(plan.features || {}).slice(0, 3).map(([key, value], index) => (
                     <div key={index} className="flex items-center text-sm text-gray-600">
                       <CheckCircle className="w-3 h-3 text-green-500 mr-2 flex-shrink-0" />
-                      {feature}
+                      {key}: {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value}
                     </div>
                   ))}
-                  {plan.features.length > 3 && (
+                  {Object.keys(plan.features || {}).length > 3 && (
                     <div className="text-sm text-gray-500">
-                      +{plan.features.length - 3} more features
+                      +{Object.keys(plan.features).length - 3} more features
                     </div>
                   )}
                 </div>

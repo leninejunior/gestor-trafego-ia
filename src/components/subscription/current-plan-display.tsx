@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { SubscriptionWithPlan, BillingCycleInfo } from "@/lib/types/subscription";
 import { formatCurrency } from "@/lib/utils/currency";
-import { formatDate } from "@/lib/utils/date-formatter";
+import { formatters } from "@/lib/utils/date-formatter";
 
 interface CurrentPlanDisplayProps {
   subscription: SubscriptionWithPlan;
@@ -195,7 +195,7 @@ export function CurrentPlanDisplay({
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">
-              Próxima cobrança: {formatDate(billingInfo.next_billing_date)}
+              Próxima cobrança: {formatters.short(billingInfo.next_billing_date)}
             </span>
           </div>
           <div className="text-sm text-muted-foreground">
@@ -230,7 +230,7 @@ export function CurrentPlanDisplay({
               <span className="font-medium">Período de Teste</span>
             </div>
             <p className="text-sm text-blue-700 mt-1">
-              Seu período de teste termina em {formatDate(subscription.trial_end)}. 
+              Seu período de teste termina em {formatters.short(subscription.trial_end)}. 
               Configure um método de pagamento para continuar usando todos os recursos.
             </p>
           </div>

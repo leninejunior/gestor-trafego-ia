@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { SubscriptionInvoice } from "@/lib/types/subscription";
 import { formatCurrency } from "@/lib/utils/currency";
-import { formatDate } from "@/lib/utils/date-formatter";
+import { formatters } from "@/lib/utils/date-formatter";
 
 interface BillingHistoryTableProps {
   organizationId: string;
@@ -255,7 +255,7 @@ export function BillingHistoryTable({ organizationId }: BillingHistoryTableProps
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
-                          {formatDate(invoice.created_at)}
+                          {formatters.short(invoice.created_at)}
                         </div>
                       </TableCell>
                       <TableCell className="font-medium">
