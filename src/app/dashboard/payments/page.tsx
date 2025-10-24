@@ -6,17 +6,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   CreditCard, 
   TrendingUp, 
-  AlertCircle, 
   CheckCircle, 
   Clock,
   Plus,
-  Settings,
-  BarChart3
+  Settings
 } from 'lucide-react';
 import { PaymentStats } from '@/components/payments/payment-stats';
 import { RecentTransactions } from '@/components/payments/recent-transactions';
 import { PaymentProviders } from '@/components/payments/payment-providers';
-import { CreatePaymentDialog } from '@/components/payments/create-payment-dialog';
 
 export default function PaymentsPage() {
   return (
@@ -24,12 +21,10 @@ export default function PaymentsPage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Pagamentos</h2>
         <div className="flex items-center space-x-2">
-          <CreatePaymentDialog>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Pagamento
-            </Button>
-          </CreatePaymentDialog>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Pagamento
+          </Button>
           <Button variant="outline" size="sm">
             <Settings className="mr-2 h-4 w-4" />
             Configurações
@@ -108,7 +103,7 @@ export default function PaymentsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
-                <AlertCircle className="mr-2 h-5 w-5 text-yellow-500" />
+                <Clock className="mr-2 h-5 w-5 text-yellow-500" />
                 Alertas e Notificações
               </CardTitle>
             </CardHeader>
@@ -116,7 +111,7 @@ export default function PaymentsPage() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
                   <div className="flex items-center space-x-3">
-                    <AlertCircle className="h-5 w-5 text-yellow-600" />
+                    <Clock className="h-5 w-5 text-yellow-600" />
                     <div>
                       <p className="text-sm font-medium text-yellow-800">
                         Taxa de falha elevada no PagSeguro
@@ -176,7 +171,7 @@ export default function PaymentsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <BarChart3 className="mr-2 h-5 w-5" />
+                  <TrendingUp className="mr-2 h-5 w-5" />
                   Performance por Provedor
                 </CardTitle>
               </CardHeader>

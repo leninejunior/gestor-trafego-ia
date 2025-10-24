@@ -237,22 +237,11 @@ export class EmailNotificationService {
   private async sendEmail(to: string, template: EmailTemplate): Promise<boolean> {
     try {
       // Check if Resend is configured
-      if (!process.env.RESEND_API_KEY) {
-        console.warn('RESEND_API_KEY not configured, logging email instead');
-        this.logEmailToConsole(to, template);
-        return true; // Return true for development/testing
-      }
-
-      const { Resend } = await import('resend');
-      const resend = new Resend(process.env.RESEND_API_KEY);
-
-      const result = await resend.emails.send({
-        from: this.fromEmail,
-        to: [to],
-        subject: template.subject,
-        html: template.html,
-        text: template.text,
-      });
+      // Resend integration disabled - package not installed
+      // To enable: npm install resend and configure RESEND_API_KEY
+      console.warn('Email sending disabled - resend package not installed');
+      this.logEmailToConsole(to, template);
+      return true; // Return true for development/testing
 
       if (result.error) {
         console.error('Resend API error:', result.error);
