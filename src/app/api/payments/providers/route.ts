@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { PaymentProvider, PaymentProviderConfig } from '@/lib/types/payments';
 
 // GET /api/payments/providers - Listar provedores da organização
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerClient();
+    const supabase = await createClient();
     
     // Verificar autenticação
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 // POST /api/payments/providers - Criar/atualizar provedor
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createServerClient();
+    const supabase = await createClient();
     
     // Verificar autenticação
     const { data: { user }, error: authError } = await supabase.auth.getUser();

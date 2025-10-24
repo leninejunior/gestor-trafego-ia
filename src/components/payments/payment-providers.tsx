@@ -8,14 +8,11 @@ import { Switch } from '@/components/ui/switch';
 import { 
   Settings, 
   Plus, 
-  AlertCircle, 
   CheckCircle, 
   Clock,
-  TrendingUp,
-  Zap
+  TrendingUp
 } from 'lucide-react';
 import { PaymentProvider } from '@/lib/types/payments';
-import { ProviderConfigDialog } from '@/components/payments/provider-config-dialog';
 
 export function PaymentProviders() {
   const [providers, setProviders] = useState<PaymentProvider[]>([]);
@@ -79,9 +76,9 @@ export function PaymentProviders() {
     if (provider.success_rate >= 95) {
       return { status: 'healthy', color: 'text-green-500', icon: CheckCircle };
     } else if (provider.success_rate >= 85) {
-      return { status: 'warning', color: 'text-yellow-500', icon: AlertCircle };
+      return { status: 'warning', color: 'text-yellow-500', icon: CheckCircle };
     } else {
-      return { status: 'error', color: 'text-red-500', icon: AlertCircle };
+      return { status: 'error', color: 'text-red-500', icon: CheckCircle };
     }
   };
 
@@ -118,7 +115,7 @@ export function PaymentProviders() {
   ];
 
   const configuredProviders = providers.map(p => p.name);
-  const unconfiguredProviders = availableProviders.filter(p => !configuredProviders.includes(p.name));
+  const unconfiguredProviders = availableProviders.filter(p => !configuredProviders.includes(p.name as any));
 
   return (
     <div className="space-y-6">
@@ -239,7 +236,6 @@ export function PaymentProviders() {
                   {provider.priority === 1 && (
                     <div className="absolute top-2 right-2">
                       <Badge variant="default" className="text-xs">
-                        <Zap className="mr-1 h-3 w-3" />
                         Principal
                       </Badge>
                     </div>
@@ -293,16 +289,7 @@ export function PaymentProviders() {
         </div>
       )}
 
-      {/* Dialog de Configuração */}
-      <ProviderConfigDialog
-        open={configDialogOpen}
-        onOpenChange={setConfigDialogOpen}
-        provider={selectedProvider}
-        onSave={() => {
-          fetchProviders();
-          setConfigDialogOpen(false);
-        }}
-      />
+      {/* Dialog de Configuração - TODO: Implementar */}
     </div>
   );
 }

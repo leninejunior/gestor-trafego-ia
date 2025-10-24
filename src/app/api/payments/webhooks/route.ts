@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 
 // POST /api/payments/webhooks - Receber webhooks dos provedores
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createServerClient();
+    const supabase = await createClient();
     
     // Obter dados do webhook
     const body = await request.json();
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
 // Função para processar webhook (seria movida para um worker/queue)
 async function processWebhook(webhookId: string, provider: string, payload: any) {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   
   try {
     // Identificar transação relacionada
@@ -156,7 +156,7 @@ async function processWebhook(webhookId: string, provider: string, payload: any)
 // GET /api/payments/webhooks - Listar webhooks (para debug/admin)
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerClient();
+    const supabase = await createClient();
     
     // Verificar autenticação
     const { data: { user }, error: authError } = await supabase.auth.getUser();

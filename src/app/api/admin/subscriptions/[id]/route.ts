@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { adminAuthMiddleware } from '@/lib/middleware/admin-auth';
+import { requireAdminAuth } from '@/lib/middleware/admin-auth';
 import { SubscriptionService } from '@/lib/services/subscription-service';
 
 const subscriptionService = new SubscriptionService();
@@ -11,9 +11,9 @@ export async function GET(
 ) {
   try {
     // Check admin authentication
-    const authResult = await adminAuthMiddleware(request);
-    if (!authResult.isAuthorized) {
-      return NextResponse.json({ error: authResult.error }, { status: 401 });
+    const authResult = await requireAdminAuth(request);
+    if (authResult.error) {
+      return authResult.error;
     }
 
     const supabase = await createClient();
@@ -100,9 +100,9 @@ export async function PATCH(
 ) {
   try {
     // Check admin authentication
-    const authResult = await adminAuthMiddleware(request);
-    if (!authResult.isAuthorized) {
-      return NextResponse.json({ error: authResult.error }, { status: 401 });
+    const authResult = await requireAdminAuth(request);
+    if (authResult.error) {
+      return authResult.error;
     }
 
     const subscriptionId = params.id;
@@ -197,7 +197,7 @@ export async function PATCH(
     await supabase
       .from('admin_audit_log')
       .insert({
-        admin_user_id: authResult.user.id,
+        admin_user_id: authResult.user?.id,
         action: 'subscription_updated',
         resource_type: 'subscription',
         resource_id: subscriptionId,
