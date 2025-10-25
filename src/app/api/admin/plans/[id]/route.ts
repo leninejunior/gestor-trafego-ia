@@ -63,8 +63,22 @@ export async function PUT(
     const body = await request.json();
     console.log('🔍 Request body:', JSON.stringify(body, null, 2));
     
-    const validatedData = UpdatePlanRequestSchema.parse(body);
-    console.log('✅ Data validated successfully');
+    // Validate the data
+    const validationResult = UpdatePlanRequestSchema.safeParse(body);
+    if (!validationResult.success) {
+      console.error('❌ Validation failed:', validationResult.error);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Validation error',
+          details: validationResult.error.errors,
+        },
+        { status: 400 }
+      );
+    }
+    
+    const validatedData = validationResult.data;
+    console.log('✅ Data validated successfully:', JSON.stringify(validatedData, null, 2));
 
     // Update the plan
     const planManager = new PlanManager();
@@ -78,17 +92,7 @@ export async function PUT(
     });
   } catch (error) {
     console.error('❌ Error updating subscription plan:', error);
-
-    if (error instanceof Error && error.name === 'ZodError') {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Validation error',
-          details: error.message,
-        },
-        { status: 400 }
-      );
-    }
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
 
     return NextResponse.json(
       {

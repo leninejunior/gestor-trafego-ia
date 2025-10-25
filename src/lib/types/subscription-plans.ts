@@ -96,14 +96,23 @@ export const CreatePlanRequestSchema = z.object({
   description: z.string().min(1).max(500),
   monthly_price: z.number().min(0),
   annual_price: z.number().min(0),
-  features: z.array(z.string()),
-  limits: z.record(z.number()),
+  features: z.array(z.string()).default([]),
+  limits: z.record(z.number().optional()).optional(),
   is_active: z.boolean().default(true),
-  is_popular: z.boolean().default(false),
+  is_popular: z.boolean().default(false).optional(),
 });
 
 // Update Plan Request Schema (for admin interface)
-export const UpdatePlanRequestSchema = CreatePlanRequestSchema.partial();
+export const UpdatePlanRequestSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().min(1).max(500).optional(),
+  monthly_price: z.number().min(0).optional(),
+  annual_price: z.number().min(0).optional(),
+  features: z.array(z.string()).optional(),
+  limits: z.record(z.number().optional()).optional(),
+  is_active: z.boolean().optional(),
+  is_popular: z.boolean().optional(),
+});
 
 // Subscription Schema
 export const SubscriptionSchema = z.object({

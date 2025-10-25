@@ -304,12 +304,24 @@ export function AdminPlanManagement() {
 
   const openEditDialog = (plan: SubscriptionPlan) => {
     setEditingPlan(plan);
+    
+    // Normalize features to array
+    let featuresArray: string[] = [];
+    if (Array.isArray(plan.features)) {
+      featuresArray = [...plan.features];
+    } else if (plan.features && typeof plan.features === 'object') {
+      // If features is an object, convert to array of strings
+      featuresArray = Object.entries(plan.features).map(([key, value]) => 
+        typeof value === 'boolean' ? key : `${key}: ${value}`
+      );
+    }
+    
     setFormData({
       name: plan.name,
       description: plan.description,
       monthly_price: plan.monthly_price,
       annual_price: plan.annual_price,
-      features: [...plan.features],
+      features: featuresArray,
       limits: { ...plan.limits },
       is_active: plan.is_active,
       is_popular: plan.is_popular
@@ -514,17 +526,33 @@ export function AdminPlanManagement() {
               <div>
                 <h4 className="text-sm font-medium text-gray-900 mb-2">Features</h4>
                 <div className="space-y-1">
-                  {Object.entries(plan.features || {}).slice(0, 3).map(([key, value], index) => (
-                    <div key={index} className="flex items-center text-sm text-gray-600">
-                      <CheckCircle className="w-3 h-3 text-green-500 mr-2 flex-shrink-0" />
-                      {key}: {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value}
-                    </div>
-                  ))}
-                  {Object.keys(plan.features || {}).length > 3 && (
-                    <div className="text-sm text-gray-500">
-                      +{Object.keys(plan.features).length - 3} more features
-                    </div>
-                  )}
+                  {(() => {
+                    // Normalize features to array for display
+                    let featuresToDisplay: string[] = [];
+                    if (Array.isArray(plan.features)) {
+                      featuresToDisplay = plan.features;
+                    } else if (plan.features && typeof plan.features === 'object') {
+                      featuresToDisplay = Object.entries(plan.features).map(([key, value]) => 
+                        typeof value === 'boolean' ? key : `${key}: ${value}`
+                      );
+                    }
+                    
+                    return (
+                      <>
+                        {featuresToDisplay.slice(0, 3).map((feature, index) => (
+                          <div key={index} className="flex items-center text-sm text-gray-600">
+                            <CheckCircle className="w-3 h-3 text-green-500 mr-2 flex-shrink-0" />
+                            {feature}
+                          </div>
+                        ))}
+                        {featuresToDisplay.length > 3 && (
+                          <div className="text-sm text-gray-500">
+                            +{featuresToDisplay.length - 3} more features
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </CardContent>

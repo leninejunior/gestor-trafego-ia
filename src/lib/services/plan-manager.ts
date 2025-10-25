@@ -35,6 +35,35 @@ export class PlanManager {
   }
 
   /**
+   * Normalize features to always be an array
+   */
+  private normalizePlanFeatures(plan: any): any {
+    let featuresArray: string[] = [];
+    
+    if (Array.isArray(plan.features)) {
+      featuresArray = plan.features;
+    } else if (plan.features && typeof plan.features === 'object') {
+      // If features is an object, convert to array of strings
+      featuresArray = Object.entries(plan.features).map(([key, value]) => 
+        typeof value === 'boolean' ? key : `${key}: ${value}`
+      );
+    } else if (typeof plan.features === 'string') {
+      // If features is a string, try to parse it
+      try {
+        const parsed = JSON.parse(plan.features);
+        featuresArray = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        featuresArray = [plan.features];
+      }
+    }
+    
+    return {
+      ...plan,
+      features: featuresArray
+    };
+  }
+
+  /**
    * Get a specific plan by ID
    */
   async getPlanById(planId: string): Promise<any | null> {
@@ -52,7 +81,7 @@ export class PlanManager {
       return null; // Not found
     }
 
-    return data[0];
+    return this.normalizePlanFeatures(data[0]);
   }
 
   /**
@@ -64,9 +93,9 @@ export class PlanManager {
     const insertData: any = {
       name: planData.name,
       description: planData.description,
-      // Map to the correct column names in the database
-      price_monthly: planData.monthly_price,
-      price_yearly: planData.annual_price,
+      // Database columns are already named monthly_price and annual_price
+      monthly_price: planData.monthly_price,
+      annual_price: planData.annual_price,
       features: planData.features,
       is_active: planData.is_active,
     };
@@ -118,12 +147,17 @@ export class PlanManager {
     console.log('✅ Plan found, proceeding with update');
 
     const updateData: any = {};
-    if (updates.name) updateData.name = updates.name;
-    if (updates.description) updateData.description = updates.description;
-    // Map to the correct column names in the database
-    if (updates.monthly_price !== undefined) updateData.price_monthly = updates.monthly_price;
-    if (updates.annual_price !== undefined) updateData.price_yearly = updates.annual_price;
-    if (updates.features) updateData.features = updates.features;
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.description !== undefined) updateData.description = updates.description;
+    // Database columns are already named monthly_price and annual_price
+    if (updates.monthly_price !== undefined) updateData.monthly_price = updates.monthly_price;
+    if (updates.annual_price !== undefined) updateData.annual_price = updates.annual_price;
+    
+    // Ensure features is always a valid array for JSONB
+    if (updates.features !== undefined) {
+      updateData.features = Array.isArray(updates.features) ? updates.features : [];
+    }
+    
     if (updates.limits) {
       // Map limits to the correct column names that exist in the database
       if (updates.limits.clients !== undefined) updateData.max_clients = updates.limits.clients;
@@ -135,6 +169,8 @@ export class PlanManager {
     // Note: is_popular is not in the current schema, so we skip it for now
 
     updateData.updated_at = new Date().toISOString();
+    
+    console.log('🔄 Final update data to be sent to database:', JSON.stringify(updateData, null, 2));
 
     console.log('🔄 Updating plan with data:', JSON.stringify(updateData, null, 2));
 
@@ -145,7 +181,13 @@ export class PlanManager {
       .select();
 
     if (error) {
-      console.error('❌ Update error:', error);
+      console.error('❌ Supabase update error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
       throw new Error(`Failed to update plan: ${error.message}`);
     }
 
@@ -160,15 +202,15 @@ export class PlanManager {
       
       if (updatedPlan && updatedPlan.length > 0) {
         console.log('⚠️ No data returned from update, but plan exists. Returning current state.');
-        return updatedPlan[0];
+        return this.normalizePlanFeatures(updatedPlan[0]);
       }
       
       throw new Error('Plan not found after update attempt');
     }
 
     console.log('✅ Plan updated successfully');
-    // Return the first (and should be only) updated record
-    return data[0];
+    // Return the first (and should be only) updated record with normalized features
+    return this.normalizePlanFeatures(data[0]);
   }
 
   /**

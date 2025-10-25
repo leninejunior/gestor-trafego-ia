@@ -49,18 +49,40 @@ export async function GET(request: NextRequest) {
     console.log('🔄 Transforming plans data...');
     const transformedPlans = (data || []).map(plan => {
       console.log('📝 Transforming plan:', plan.name, {
-        price_monthly: plan.price_monthly,
-        price_yearly: plan.price_yearly,
-        max_clients: plan.max_clients
+        monthly_price: plan.monthly_price,
+        annual_price: plan.annual_price,
+        max_clients: plan.max_clients,
+        features_type: typeof plan.features,
+        features_is_array: Array.isArray(plan.features)
       });
+      
+      // Normalize features to array
+      let featuresArray: string[] = [];
+      if (Array.isArray(plan.features)) {
+        featuresArray = plan.features;
+      } else if (plan.features && typeof plan.features === 'object') {
+        // If features is an object, convert to array of strings
+        featuresArray = Object.entries(plan.features).map(([key, value]) => 
+          typeof value === 'boolean' ? key : `${key}: ${value}`
+        );
+      } else if (typeof plan.features === 'string') {
+        // If features is a string, try to parse it
+        try {
+          const parsed = JSON.parse(plan.features);
+          featuresArray = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          featuresArray = [plan.features];
+        }
+      }
       
       return {
         ...plan,
-        // Map database column names to frontend expected names
-        monthly_price: plan.price_monthly,
-        annual_price: plan.price_yearly,
+        // Ensure prices are numbers (they're already correctly named in DB)
+        monthly_price: parseFloat(plan.monthly_price) || 0,
+        annual_price: parseFloat(plan.annual_price) || 0,
+        features: featuresArray, // Ensure features is always an array
         limits: {
-          clients: plan.max_clients,
+          clients: plan.max_clients || 0,
           campaigns: plan.max_campaigns || 0,
           users: plan.max_users || 1,
           ad_accounts: plan.max_ad_accounts || 1,
@@ -122,8 +144,8 @@ export async function POST(request: NextRequest) {
       .insert({
         name: body.name,
         description: body.description,
-        price_monthly: body.monthly_price || body.price_monthly || 0,
-        price_yearly: body.annual_price || body.price_yearly || 0,
+        monthly_price: body.monthly_price || 0,
+        annual_price: body.annual_price || 0,
         max_ad_accounts: body.limits?.ad_accounts || 1,
         max_users: body.limits?.users || 1,
         max_clients: body.limits?.clients || 5,
