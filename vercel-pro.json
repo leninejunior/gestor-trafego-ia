@@ -10,6 +10,14 @@
       "schedule": "0 2 * * *"
     },
     {
+      "path": "/api/cron/sync-scheduler",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-executor",
+      "schedule": "*/10 * * * *"
+    },
+    {
       "path": "/api/cron/data-cleanup",
       "schedule": "0 3 * * *"
     },
@@ -19,11 +27,31 @@
     },
     {
       "path": "/api/cron/cleanup",
-      "schedule": "0 5 * * *"
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/cron/google-sync",
-      "schedule": "0 6 * * *"
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/health-checks",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/alert-checker",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/subscription-intent-expiration",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/webhook-dlq-processor",
+      "schedule": "*/20 * * * *"
+    },
+    {
+      "path": "/api/cron/google-monitoring",
+      "schedule": "*/10 * * * *"
     }
   ],
   "headers": [
