@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     if (!organizationId) {
       // Fallback to user's default organization
       const { data: membership, error: membershipError } = await supabase
-        .from('memberships')
+        .from('organization_memberships')
         .select('organization_id')
         .eq('user_id', user.id)
         .single();
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     } else {
       // Verify user has access to the specified organization
       const { data: membership, error: membershipError } = await supabase
-        .from('memberships')
+        .from('organization_memberships')
         .select('role')
         .eq('user_id', user.id)
         .eq('organization_id', organizationId)

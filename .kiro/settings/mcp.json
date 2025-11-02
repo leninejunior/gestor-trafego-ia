@@ -6,7 +6,7 @@
         "mcp-server-fetch"
       ],
       "env": {},
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [],
       "disabledTools": [
         "fetch"
@@ -40,7 +40,7 @@
         "SUPABASE_URL": "https://doiogabdzybqxnyhktbv.supabase.co",
         "SUPABASE_ACCESS_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvaW9nYWJkenlicXhueWhrdGJ2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTg1ODcyOSwiZXhwIjoyMDc1NDM0NzI5fQ.HlJgXvaOLcAOvJa9iV2jNpAqx1du5Ge9-oBD9oYkXuw"
       },
-      "disabled": false,
+      "disabled": true,
       "autoApprove": []
     }
   }

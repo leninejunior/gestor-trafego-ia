@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
   });
 
   // Store state in a temporary cookie
-  cookies().set('meta_oauth_state', state, {
+  const cookieStore = await cookies();
+  cookieStore.set('meta_oauth_state', state, {
     httpOnly: true,
     secure: process.env.NODE_ENV !== 'development',
     maxAge: 60 * 10, // 10 minutes

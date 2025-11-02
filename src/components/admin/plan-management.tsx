@@ -43,6 +43,12 @@ interface SubscriptionPlan {
     campaigns?: number;
     api_calls?: number;
     storage_gb?: number;
+    max_clients?: number;
+    max_campaigns_per_client?: number;
+    data_retention_days?: number;
+    sync_interval_hours?: number;
+    allow_csv_export?: number | boolean;
+    allow_json_export?: number | boolean;
   };
   is_active: boolean;
   is_popular: boolean;
@@ -56,7 +62,19 @@ interface PlanFormData {
   monthly_price: number;
   annual_price: number;
   features: string[];
-  limits: Record<string, number>;
+  limits: {
+    clients?: number;
+    users?: number;
+    campaigns?: number;
+    api_calls?: number;
+    storage_gb?: number;
+    max_clients?: number;
+    max_campaigns_per_client?: number;
+    data_retention_days?: number;
+    sync_interval_hours?: number;
+    allow_csv_export?: number | boolean;
+    allow_json_export?: number | boolean;
+  };
   is_active: boolean;
   is_popular: boolean;
 }
@@ -66,7 +84,13 @@ const defaultLimits = {
   users: 5,
   campaigns: 50,
   api_calls: 10000,
-  storage_gb: 10
+  storage_gb: 10,
+  max_clients: 5,
+  max_campaigns_per_client: 25,
+  data_retention_days: 90,
+  sync_interval_hours: 24,
+  allow_csv_export: 0,
+  allow_json_export: 0
 };
 
 const featureTemplates = {
@@ -143,11 +167,42 @@ export function AdminPlanManagement() {
       console.log('📡 API response status:', response.status);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch plans');
+        console.log('❌ Response not OK. Status:', response.status, 'StatusText:', response.statusText);
+        
+        // Try to get error details
+        let errorData: any = {};
+        try {
+          const text = await response.text();
+          console.log('📄 Response text:', text);
+          if (text) {
+            errorData = JSON.parse(text);
+          }
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+        }
+        
+        console.error('❌ API error response:', errorData);
+        
+        if (response.status === 401) {
+          // Redirecionar para login após 2 segundos
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
+          throw new Error('Você não está autenticado. Redirecionando para login...');
+        } else if (response.status === 403) {
+          throw new Error('Você não tem permissões de administrador para acessar esta página.');
+        } else {
+          const errorMsg = errorData.message || errorData.error || response.statusText || 'Falha ao carregar planos';
+          throw new Error(errorMsg);
+        }
       }
       
       const data = await response.json();
       console.log('📡 API response data:', data);
+      
+      if (!data.success) {
+        throw new Error(data.message || data.error || 'Falha ao carregar planos');
+      }
       
       // Convert price strings to numbers
       const plansWithNumbers = (data.plans || []).map((plan: any) => ({
@@ -159,7 +214,7 @@ export function AdminPlanManagement() {
       setPlans(plansWithNumbers);
     } catch (err) {
       console.error('❌ Error fetching plans:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch plans');
+      setError(err instanceof Error ? err.message : 'Falha ao carregar planos');
     } finally {
       setLoading(false);
     }
@@ -244,24 +299,74 @@ export function AdminPlanManagement() {
       setError(null);
       setSuccessMessage(null);
 
+      // Debug: Log current formData state
+      console.log('🔍 Current formData state:', JSON.stringify(formData, null, 2));
+      console.log('🔍 Features type:', typeof formData.features, 'isArray:', Array.isArray(formData.features));
+
+      // Extra validation to catch edge cases
+      if (!formData) {
+        console.error('❌ FormData is null or undefined');
+        setError('Form data is invalid');
+        return;
+      }
+
+      // Ensure features is always an array
+      if (!Array.isArray(formData.features)) {
+        console.error('❌ Features is not an array:', typeof formData.features, formData.features);
+        setError('Features must be an array');
+        return;
+      }
+
+      // Ensure prices are numbers
+      if (typeof formData.monthly_price !== 'number' || isNaN(formData.monthly_price)) {
+        console.error('❌ Monthly price is not a valid number:', formData.monthly_price);
+        setError('Monthly price must be a valid number');
+        return;
+      }
+
+      if (typeof formData.annual_price !== 'number' || isNaN(formData.annual_price)) {
+        console.error('❌ Annual price is not a valid number:', formData.annual_price);
+        setError('Annual price must be a valid number');
+        return;
+      }
+
       const errors = validatePlan(formData);
       if (errors.length > 0) {
+        console.error('❌ Local validation errors:', errors);
         setError(errors.join(', '));
         return;
       }
 
+      console.log('✅ Local validation passed');
       console.log('📝 Updating plan:', editingPlan.id, formData);
+      
+      const requestBody = JSON.stringify(formData);
+      console.log('📤 Request body:', requestBody);
+      
       const response = await fetch(`/api/admin/plans/${editingPlan.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: requestBody,
       });
 
+      console.log('📡 Response status:', response.status);
+      
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update plan');
+        console.error('❌ API error response:', errorData);
+        
+        // More detailed error handling
+        if (errorData.details) {
+          console.error('❌ Validation details:', errorData.details);
+          const detailsMessage = Array.isArray(errorData.details) 
+            ? errorData.details.map(d => d.message || d).join(', ')
+            : JSON.stringify(errorData.details);
+          throw new Error(`Validation error: ${detailsMessage}`);
+        }
+        
+        throw new Error(errorData.error || errorData.message || 'Failed to update plan');
       }
 
       const result = await response.json();
@@ -275,7 +380,7 @@ export function AdminPlanManagement() {
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      console.error('Error updating plan:', err);
+      console.error('❌ Error updating plan:', err);
       setError(err instanceof Error ? err.message : 'Failed to update plan');
     } finally {
       setSaving(false);
@@ -303,29 +408,51 @@ export function AdminPlanManagement() {
   };
 
   const openEditDialog = (plan: SubscriptionPlan) => {
+    console.log('🔍 Opening edit dialog for plan:', plan.name);
+    console.log('🔍 Plan data:', JSON.stringify(plan, null, 2));
+    
     setEditingPlan(plan);
     
     // Normalize features to array
     let featuresArray: string[] = [];
     if (Array.isArray(plan.features)) {
       featuresArray = [...plan.features];
+      console.log('✅ Features already array:', featuresArray.length, 'items');
     } else if (plan.features && typeof plan.features === 'object') {
       // If features is an object, convert to array of strings
       featuresArray = Object.entries(plan.features).map(([key, value]) => 
         typeof value === 'boolean' ? key : `${key}: ${value}`
       );
+      console.log('🔄 Converted features from object to array:', featuresArray.length, 'items');
+    } else {
+      console.warn('⚠️ Features is not array or object:', typeof plan.features, plan.features);
+      featuresArray = [];
     }
     
-    setFormData({
-      name: plan.name,
-      description: plan.description,
-      monthly_price: plan.monthly_price,
-      annual_price: plan.annual_price,
+    // Ensure all required fields have valid values
+    const safeFormData = {
+      name: plan.name || '',
+      description: plan.description || '',
+      monthly_price: typeof plan.monthly_price === 'number' ? plan.monthly_price : parseFloat(plan.monthly_price) || 0,
+      annual_price: typeof plan.annual_price === 'number' ? plan.annual_price : parseFloat(plan.annual_price) || 0,
       features: featuresArray,
-      limits: { ...plan.limits },
-      is_active: plan.is_active,
-      is_popular: plan.is_popular
-    });
+      limits: plan.limits ? { ...plan.limits } : { ...defaultLimits },
+      is_active: typeof plan.is_active === 'boolean' ? plan.is_active : true,
+      is_popular: typeof plan.is_popular === 'boolean' ? plan.is_popular : false
+    };
+    
+    console.log('📝 Setting form data:', JSON.stringify(safeFormData, null, 2));
+    console.log('🔍 Form data validation check:');
+    console.log('  - name:', typeof safeFormData.name, safeFormData.name.length, 'chars');
+    console.log('  - description:', typeof safeFormData.description, safeFormData.description.length, 'chars');
+    console.log('  - monthly_price:', typeof safeFormData.monthly_price, safeFormData.monthly_price);
+    console.log('  - annual_price:', typeof safeFormData.annual_price, safeFormData.annual_price);
+    console.log('  - features:', typeof safeFormData.features, Array.isArray(safeFormData.features), safeFormData.features.length, 'items');
+    console.log('  - limits:', typeof safeFormData.limits, Object.keys(safeFormData.limits).length, 'keys');
+    console.log('  - is_active:', typeof safeFormData.is_active, safeFormData.is_active);
+    console.log('  - is_popular:', typeof safeFormData.is_popular, safeFormData.is_popular);
+    
+    setFormData(safeFormData);
     setIsEditDialogOpen(true);
   };
 
@@ -368,17 +495,29 @@ export function AdminPlanManagement() {
   }
 
   if (error) {
+    const isAuthError = error.includes('autenticado') || error.includes('Redirecionando');
+    
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
             <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Plans</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {isAuthError ? 'Autenticação Necessária' : 'Erro ao Carregar Planos'}
+            </h3>
             <p className="text-gray-600 mb-4">{error}</p>
-            <Button onClick={fetchPlans} variant="outline">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Retry
-            </Button>
+            <div className="flex gap-2 justify-center">
+              {isAuthError ? (
+                <Button onClick={() => window.location.href = '/login'} variant="default">
+                  Ir para Login
+                </Button>
+              ) : (
+                <Button onClick={fetchPlans} variant="outline">
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Tentar Novamente
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -522,6 +661,49 @@ export function AdminPlanManagement() {
                 </Badge>
               </div>
 
+              {/* Limits Summary */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-900 mb-2">Plan Limits</h4>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Clients:</span>
+                    <span className="font-medium">
+                      {plan.limits?.max_clients === -1 ? 'Unlimited' : plan.limits?.max_clients || 5}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Campaigns/Client:</span>
+                    <span className="font-medium">
+                      {plan.limits?.max_campaigns_per_client === -1 ? 'Unlimited' : plan.limits?.max_campaigns_per_client || 25}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Data Retention:</span>
+                    <span className="font-medium">
+                      {plan.limits?.data_retention_days || 90} days
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Sync Interval:</span>
+                    <span className="font-medium">
+                      {plan.limits?.sync_interval_hours || 24}h
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">CSV Export:</span>
+                    <span className="font-medium">
+                      {plan.limits?.allow_csv_export ? '✓' : '✗'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">JSON Export:</span>
+                    <span className="font-medium">
+                      {plan.limits?.allow_json_export ? '✓' : '✗'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {/* Features */}
               <div>
                 <h4 className="text-sm font-medium text-gray-900 mb-2">Features</h4>
@@ -539,15 +721,15 @@ export function AdminPlanManagement() {
                     
                     return (
                       <>
-                        {featuresToDisplay.slice(0, 3).map((feature, index) => (
+                        {featuresToDisplay.slice(0, 2).map((feature, index) => (
                           <div key={index} className="flex items-center text-sm text-gray-600">
                             <CheckCircle className="w-3 h-3 text-green-500 mr-2 flex-shrink-0" />
                             {feature}
                           </div>
                         ))}
-                        {featuresToDisplay.length > 3 && (
+                        {featuresToDisplay.length > 2 && (
                           <div className="text-sm text-gray-500">
-                            +{featuresToDisplay.length - 3} more features
+                            +{featuresToDisplay.length - 2} more features
                           </div>
                         )}
                       </>
@@ -756,6 +938,128 @@ function PlanForm({
               </Button>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Plan Limits - Cache & Resources */}
+      <div className="space-y-4 border-t pt-4">
+        <h3 className="text-lg font-medium">Plan Limits (Cache & Resources)</h3>
+        <p className="text-sm text-gray-600">
+          Configure resource limits and data retention for this plan. Use -1 for unlimited.
+        </p>
+        
+        <div className="grid grid-cols-2 gap-4">
+          {/* Resource Limits */}
+          <div>
+            <Label htmlFor="max_clients">Max Clients</Label>
+            <Input
+              id="max_clients"
+              type="number"
+              value={formData.limits.max_clients || 5}
+              onChange={(e) => updateLimit('max_clients', parseInt(e.target.value) || 0)}
+              placeholder="5"
+            />
+            <p className="text-xs text-gray-500 mt-1">-1 = unlimited</p>
+          </div>
+          
+          <div>
+            <Label htmlFor="max_campaigns_per_client">Max Campaigns per Client</Label>
+            <Input
+              id="max_campaigns_per_client"
+              type="number"
+              value={formData.limits.max_campaigns_per_client || 25}
+              onChange={(e) => updateLimit('max_campaigns_per_client', parseInt(e.target.value) || 0)}
+              placeholder="25"
+            />
+            <p className="text-xs text-gray-500 mt-1">-1 = unlimited</p>
+          </div>
+          
+          {/* Cache & Sync Settings */}
+          <div>
+            <Label htmlFor="data_retention_days">Data Retention (days)</Label>
+            <Input
+              id="data_retention_days"
+              type="number"
+              value={formData.limits.data_retention_days || 90}
+              onChange={(e) => updateLimit('data_retention_days', parseInt(e.target.value) || 90)}
+              placeholder="90"
+              min="30"
+              max="3650"
+            />
+            <p className="text-xs text-gray-500 mt-1">30-3650 days</p>
+          </div>
+          
+          <div>
+            <Label htmlFor="sync_interval_hours">Sync Interval (hours)</Label>
+            <Input
+              id="sync_interval_hours"
+              type="number"
+              value={formData.limits.sync_interval_hours || 24}
+              onChange={(e) => updateLimit('sync_interval_hours', parseInt(e.target.value) || 24)}
+              placeholder="24"
+              min="1"
+              max="168"
+            />
+            <p className="text-xs text-gray-500 mt-1">1-168 hours</p>
+          </div>
+          
+          {/* Export Permissions */}
+          <div className="col-span-2 space-y-3 border-t pt-3">
+            <h4 className="text-sm font-medium">Export Permissions</h4>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="allow_csv_export"
+                  checked={formData.limits.allow_csv_export !== false}
+                  onCheckedChange={(checked) => updateLimit('allow_csv_export', checked ? 1 : 0)}
+                />
+                <Label htmlFor="allow_csv_export">Allow CSV Export</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="allow_json_export"
+                  checked={formData.limits.allow_json_export !== false}
+                  onCheckedChange={(checked) => updateLimit('allow_json_export', checked ? 1 : 0)}
+                />
+                <Label htmlFor="allow_json_export">Allow JSON Export</Label>
+              </div>
+            </div>
+          </div>
+          
+          {/* Legacy Limits (optional) */}
+          <div>
+            <Label htmlFor="users">Max Users</Label>
+            <Input
+              id="users"
+              type="number"
+              value={formData.limits.users || 5}
+              onChange={(e) => updateLimit('users', parseInt(e.target.value) || 0)}
+              placeholder="5"
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="api_calls">API Calls/month</Label>
+            <Input
+              id="api_calls"
+              type="number"
+              value={formData.limits.api_calls || 10000}
+              onChange={(e) => updateLimit('api_calls', parseInt(e.target.value) || 0)}
+              placeholder="10000"
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="storage_gb">Storage (GB)</Label>
+            <Input
+              id="storage_gb"
+              type="number"
+              value={formData.limits.storage_gb || 10}
+              onChange={(e) => updateLimit('storage_gb', parseInt(e.target.value) || 0)}
+              placeholder="10"
+            />
+          </div>
         </div>
       </div>
     </div>

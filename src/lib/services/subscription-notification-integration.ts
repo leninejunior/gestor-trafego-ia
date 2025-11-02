@@ -54,7 +54,7 @@ export class SubscriptionNotificationIntegration {
       
       // Get primary user for the organization
       const { data: membership } = await supabase
-        .from('memberships')
+        .from('organization_memberships')
         .select('user_id')
         .eq('organization_id', organizationId)
         .eq('role', 'owner')
@@ -562,7 +562,7 @@ export class SubscriptionNotificationIntegration {
       
       // Get super admin users
       const { data: superAdmins } = await supabase
-        .from('memberships')
+        .from('organization_memberships')
         .select('user_id')
         .eq('role', 'super_admin');
 

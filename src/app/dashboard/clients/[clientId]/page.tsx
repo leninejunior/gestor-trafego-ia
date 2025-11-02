@@ -11,9 +11,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Trash2, Calendar, RefreshCw, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+const Loader2 = RefreshCw;
+const Building2 = Users;
 import { ConnectMetaButton } from "./connect-meta-button";
 import { CampaignsList } from "@/components/meta/campaigns-list";
 import { ManageConnections } from "@/components/meta/manage-connections";
+import { GoogleAdsCard } from "@/components/google/google-ads-card";
 
 interface Client {
   id: string;
@@ -21,6 +31,10 @@ interface Client {
   org_id: string;
   created_at: string;
   updated_at: string;
+  organization?: {
+    id: string;
+    name: string;
+  };
 }
 
 interface MetaConnection {
@@ -43,6 +57,9 @@ export default function ClientDetailPage() {
   const [metaConnections, setMetaConnections] = useState<MetaConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+  const router = useRouter();
 
   // Verificar se há mensagens de erro ou sucesso na URL
   useEffect(() => {
@@ -50,19 +67,24 @@ export default function ClientDetailPage() {
     const successParam = searchParams.get('success');
     
     if (errorParam === 'user_cancelled') {
-      toast.info('Conexão cancelada', {
+      toast({
+        title: 'Conexão cancelada',
         description: 'Você cancelou a conexão com o Meta Ads. Tente novamente quando quiser.'
       });
     } else if (errorParam === 'authorization_failed') {
-      toast.error('Falha na autorização', {
-        description: 'Não foi possível autorizar a conexão com o Meta Ads.'
+      toast({
+        title: 'Falha na autorização',
+        description: 'Não foi possível autorizar a conexão com o Meta Ads.',
+        variant: 'destructive'
       });
     } else if (errorParam === 'no_ad_accounts') {
-      toast.warning('Nenhuma conta encontrada', {
+      toast({
+        title: 'Nenhuma conta encontrada',
         description: 'Não encontramos contas de anúncios vinculadas à sua conta Meta.'
       });
     } else if (successParam === 'meta_connected') {
-      toast.success('Conectado com sucesso!', {
+      toast({
+        title: 'Conectado com sucesso!',
         description: 'Sua conta Meta Ads foi conectada. As campanhas serão sincronizadas em breve.'
       });
     }
@@ -90,12 +112,14 @@ export default function ClientDetailPage() {
       }
       console.log('✅ [CLIENT PAGE] Usuário autenticado:', user.id);
 
-      // Buscar dados do cliente
+      // Buscar dados do cliente com informações da organização
       const { data: clientData, error: clientError } = await supabase
         .from("clients")
-        .select("*")
-        .eq("id", clientId)
-        .single();
+        .select(`
+          *,
+          organization:organizations(id, name)
+        `)
+        .eq("id", clientId);
 
       if (clientError) {
         console.error('❌ [CLIENT PAGE] Erro ao buscar cliente:', {
@@ -109,14 +133,15 @@ export default function ClientDetailPage() {
         return;
       }
 
-      if (!clientData) {
-        console.error('❌ [CLIENT PAGE] Cliente não encontrado');
-        setError('Cliente não encontrado');
+      const client = clientData?.[0];
+      if (!client) {
+        console.error('❌ [CLIENT PAGE] Cliente não encontrado ou sem permissão');
+        setError('Cliente não encontrado ou você não tem permissão para acessá-lo');
         return;
       }
 
-      console.log('✅ [CLIENT PAGE] Cliente encontrado:', clientData.name);
-      setClient(clientData);
+      console.log('✅ [CLIENT PAGE] Cliente encontrado:', client.name);
+      setClient(client);
 
       // Buscar conexões Meta
       const { data: connections, error: connectionsError } = await supabase
@@ -138,6 +163,48 @@ export default function ClientDetailPage() {
       setError(`Erro ao carregar dados do cliente: ${errorMessage}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteClient = async () => {
+    if (!client) return;
+    
+    setDeleting(true);
+    
+    try {
+      const response = await fetch(`/api/clients?id=${client.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast({
+          title: "Cliente excluído",
+          description: `${data.clientName || client.name} foi excluído com sucesso.`,
+        });
+        // Redirecionar para a lista de clientes
+        router.push('/dashboard/clients');
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Erro ao excluir cliente",
+          description: errorData.error || "Ocorreu um erro inesperado.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao excluir cliente:', error);
+      toast({
+        title: "Erro ao excluir cliente",
+        description: "Ocorreu um erro inesperado.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -165,15 +232,95 @@ export default function ClientDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">{client.name}</h1>
-        <button
-          onClick={loadClientData}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          disabled={loading}
-        >
-          {loading ? 'Carregando...' : 'Recarregar'}
-        </button>
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">{client.name}</h1>
+          <div className="flex items-center space-x-4 text-sm text-gray-600">
+            <div className="flex items-center space-x-1">
+              <Building2 className="h-4 w-4" />
+              <span>
+                {client.organization?.name || 'Organização não encontrada'}
+              </span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <Calendar className="h-4 w-4" />
+              <span>
+                Criado em {new Date(client.created_at).toLocaleDateString('pt-BR')}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Badge variant="secondary">
+              ID: {client.id.slice(0, 8)}...
+            </Badge>
+            {hasMetaConnection && (
+              <Badge variant="default">
+                {metaConnections.length} conexão(ões) Meta
+              </Badge>
+            )}
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Button
+            onClick={loadClientData}
+            variant="outline"
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Carregando...
+              </>
+            ) : (
+              'Recarregar'
+            )}
+          </Button>
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="default">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir Cliente
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir cliente</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div>
+                    <p>
+                      Tem certeza que deseja excluir o cliente <strong>{client.name}</strong>? 
+                      Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos permanentemente, incluindo:
+                    </p>
+                    <ul className="list-disc list-inside mt-2 space-y-1">
+                      <li>Todas as campanhas e métricas</li>
+                      <li>Conexões com Meta Ads e Google Ads</li>
+                      <li>Histórico de dados e relatórios</li>
+                    </ul>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteClient}
+                  disabled={deleting}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {deleting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Excluindo...
+                    </>
+                  ) : (
+                    'Excluir Permanentemente'
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -202,20 +349,8 @@ export default function ClientDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Card do Google Ads - Temporariamente desabilitado */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Google Ads</CardTitle>
-            <CardDescription>
-              Integração com Google Ads em desenvolvimento.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-6 text-gray-500">
-              <p>Google Ads em breve...</p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Card do Google Ads */}
+        <GoogleAdsCard clientId={clientId} />
       </div>
 
       {/* Lista de Campanhas Meta */}

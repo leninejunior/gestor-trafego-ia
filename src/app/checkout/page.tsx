@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle2, Loader2, ArrowLeft } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { CheckCircle2, Loader2, ArrowLeft, Shield, CreditCard, User, Building, AlertCircle, Check } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import Link from 'next/link'
 
@@ -21,6 +23,22 @@ interface Plan {
   max_campaigns: number
 }
 
+interface FormErrors {
+  name?: string
+  email?: string
+  organization_name?: string
+  cpf_cnpj?: string
+  phone?: string
+}
+
+interface CheckoutStep {
+  id: number
+  title: string
+  description: string
+  icon: React.ComponentType<any>
+  completed: boolean
+}
+
 function CheckoutContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -30,6 +48,9 @@ function CheckoutContent() {
   const [processing, setProcessing] = useState(false)
   const [plan, setPlan] = useState<Plan | null>(null)
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
+  const [currentStep, setCurrentStep] = useState(1)
+  const [errors, setErrors] = useState<FormErrors>({})
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
   
   const [formData, setFormData] = useState({
     name: '',
@@ -40,6 +61,167 @@ function CheckoutContent() {
   })
 
   const planId = searchParams.get('plan')
+
+  const steps: CheckoutStep[] = [
+    {
+      id: 1,
+      title: 'Informações Pessoais',
+      description: 'Dados básicos da conta',
+      icon: User,
+      completed: currentStep > 1
+    },
+    {
+      id: 2,
+      title: 'Dados da Empresa',
+      description: 'Informações organizacionais',
+      icon: Building,
+      completed: currentStep > 2
+    },
+    {
+      id: 3,
+      title: 'Pagamento',
+      description: 'Finalizar assinatura',
+      icon: CreditCard,
+      completed: false
+    }
+  ]
+
+  // Validation functions
+  const validateEmail = (email: string): string | undefined => {
+    if (!email) return 'Email é obrigatório'
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) return 'Email inválido'
+    return undefined
+  }
+
+  const validateName = (name: string): string | undefined => {
+    if (!name) return 'Nome é obrigatório'
+    if (name.length < 2) return 'Nome deve ter pelo menos 2 caracteres'
+    return undefined
+  }
+
+  const validateOrganization = (org: string): string | undefined => {
+    if (!org) return 'Nome da empresa é obrigatório'
+    if (org.length < 2) return 'Nome da empresa deve ter pelo menos 2 caracteres'
+    return undefined
+  }
+
+  const validateCpfCnpj = (doc: string): string | undefined => {
+    if (!doc) return undefined // Optional field
+    const cleanDoc = doc.replace(/\D/g, '')
+    if (cleanDoc.length !== 11 && cleanDoc.length !== 14) {
+      return 'CPF deve ter 11 dígitos ou CNPJ deve ter 14 dígitos'
+    }
+    return undefined
+  }
+
+  const validatePhone = (phone: string): string | undefined => {
+    if (!phone) return undefined // Optional field
+    const cleanPhone = phone.replace(/\D/g, '')
+    if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+      return 'Telefone deve ter 10 ou 11 dígitos'
+    }
+    return undefined
+  }
+
+  const validateForm = (): FormErrors => {
+    const newErrors: FormErrors = {}
+    
+    const nameError = validateName(formData.name)
+    if (nameError) newErrors.name = nameError
+
+    const emailError = validateEmail(formData.email)
+    if (emailError) newErrors.email = emailError
+
+    const orgError = validateOrganization(formData.organization_name)
+    if (orgError) newErrors.organization_name = orgError
+
+    const cpfError = validateCpfCnpj(formData.cpf_cnpj)
+    if (cpfError) newErrors.cpf_cnpj = cpfError
+
+    const phoneError = validatePhone(formData.phone)
+    if (phoneError) newErrors.phone = phoneError
+
+    return newErrors
+  }
+
+  const handleFieldChange = (field: keyof typeof formData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    
+    // Real-time validation
+    if (touched[field]) {
+      const newErrors = { ...errors }
+      
+      switch (field) {
+        case 'name':
+          const nameError = validateName(value)
+          if (nameError) newErrors.name = nameError
+          else delete newErrors.name
+          break
+        case 'email':
+          const emailError = validateEmail(value)
+          if (emailError) newErrors.email = emailError
+          else delete newErrors.email
+          break
+        case 'organization_name':
+          const orgError = validateOrganization(value)
+          if (orgError) newErrors.organization_name = orgError
+          else delete newErrors.organization_name
+          break
+        case 'cpf_cnpj':
+          const cpfError = validateCpfCnpj(value)
+          if (cpfError) newErrors.cpf_cnpj = cpfError
+          else delete newErrors.cpf_cnpj
+          break
+        case 'phone':
+          const phoneError = validatePhone(value)
+          if (phoneError) newErrors.phone = phoneError
+          else delete newErrors.phone
+          break
+      }
+      
+      setErrors(newErrors)
+    }
+  }
+
+  const handleFieldBlur = (field: string) => {
+    setTouched(prev => ({ ...prev, [field]: true }))
+    
+    // Trigger validation on blur
+    const newErrors = validateForm()
+    setErrors(newErrors)
+  }
+
+  const canProceedToNextStep = (): boolean => {
+    if (currentStep === 1) {
+      return !!(formData.name && formData.email && !errors.name && !errors.email)
+    }
+    if (currentStep === 2) {
+      return !!(formData.organization_name && !errors.organization_name && !errors.cpf_cnpj && !errors.phone)
+    }
+    return false
+  }
+
+  const handleNextStep = () => {
+    const formErrors = validateForm()
+    setErrors(formErrors)
+    
+    if (Object.keys(formErrors).length === 0 && canProceedToNextStep()) {
+      setCurrentStep(prev => prev + 1)
+    } else {
+      // Mark all fields as touched to show errors
+      const allFields = ['name', 'email', 'organization_name', 'cpf_cnpj', 'phone']
+      const newTouched: Record<string, boolean> = {}
+      allFields.forEach(field => {
+        newTouched[field] = true
+      })
+      setTouched(newTouched)
+    }
+  }
+
+  const handlePrevStep = () => {
+    setCurrentStep(prev => Math.max(1, prev - 1))
+  }
 
   useEffect(() => {
     if (planId) {
@@ -80,21 +262,37 @@ function CheckoutContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Final validation
+    const formErrors = validateForm()
+    if (Object.keys(formErrors).length > 0) {
+      setErrors(formErrors)
+      const allFields = ['name', 'email', 'organization_name', 'cpf_cnpj', 'phone']
+      const newTouched: Record<string, boolean> = {}
+      allFields.forEach(field => {
+        newTouched[field] = true
+      })
+      setTouched(newTouched)
+      return
+    }
+
     setProcessing(true)
 
     try {
-      // Criar checkout no Iugu (sem criar conta ainda)
+      // Criar subscription intent
       const checkoutResponse = await fetch('/api/subscriptions/checkout-iugu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           plan_id: planId,
           billing_cycle: billingCycle,
-          user_email: formData.email,
-          user_name: formData.name,
-          organization_name: formData.organization_name,
-          cpf_cnpj: formData.cpf_cnpj,
-          phone: formData.phone,
+          user_data: {
+            name: formData.name,
+            email: formData.email,
+            organization_name: formData.organization_name,
+            cpf_cnpj: formData.cpf_cnpj || undefined,
+            phone: formData.phone || undefined,
+          }
         })
       })
 
@@ -104,10 +302,17 @@ function CheckoutContent() {
         throw new Error(checkoutError.details || checkoutError.error || 'Erro ao criar checkout')
       }
 
-      const { data } = await checkoutResponse.json()
+      const response = await checkoutResponse.json()
 
-      // Redirecionar para página de pagamento do Iugu
-      window.location.href = data.checkout_url
+      // Redirecionar para página de status com o intent_id
+      if (response.success && response.intent_id) {
+        router.push(`/checkout/status/${response.intent_id}`)
+      } else if (response.checkout_url) {
+        // Fallback para redirecionamento direto
+        window.location.href = response.checkout_url
+      } else {
+        throw new Error('Resposta inválida do servidor')
+      }
 
     } catch (error) {
       console.error('Checkout error:', error)

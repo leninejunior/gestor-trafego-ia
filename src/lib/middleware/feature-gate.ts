@@ -35,7 +35,7 @@ export function withFeatureGate(options: FeatureGateOptions) {
 
         // Get user's organization
         const { data: membership, error: membershipError } = await supabase
-          .from('memberships')
+          .from('organization_memberships')
           .select('organization_id')
           .eq('user_id', user.id)
           .eq('status', 'active')
@@ -198,6 +198,50 @@ export const createFeatureGate = {
       feature: 'prioritySupport',
       requireAccess: true,
       errorMessage: 'Priority support requires a Pro or Enterprise plan',
+      ...options
+    }),
+
+  /**
+   * Require data retention access
+   */
+  dataRetention: (options?: Partial<FeatureGateOptions>) =>
+    withFeatureGate({
+      feature: 'dataRetention',
+      requireAccess: true,
+      errorMessage: 'Extended data retention requires a higher plan',
+      ...options
+    }),
+
+  /**
+   * Require CSV export access
+   */
+  csvExport: (options?: Partial<FeatureGateOptions>) =>
+    withFeatureGate({
+      feature: 'csvExport',
+      requireAccess: true,
+      errorMessage: 'CSV export requires a Pro or Enterprise plan',
+      ...options
+    }),
+
+  /**
+   * Require JSON export access
+   */
+  jsonExport: (options?: Partial<FeatureGateOptions>) =>
+    withFeatureGate({
+      feature: 'jsonExport',
+      requireAccess: true,
+      errorMessage: 'JSON export requires a Pro or Enterprise plan',
+      ...options
+    }),
+
+  /**
+   * Require historical data cache access
+   */
+  historicalDataCache: (options?: Partial<FeatureGateOptions>) =>
+    withFeatureGate({
+      feature: 'historicalDataCache',
+      requireAccess: true,
+      errorMessage: 'Historical data cache requires a Pro or Enterprise plan',
       ...options
     })
 };

@@ -88,7 +88,18 @@ export class PlanManager {
    * Create a new subscription plan (admin only)
    */
   async createPlan(planData: CreatePlanRequest): Promise<any> {
-    const supabase = await this.getSupabaseClient();
+    // Use service role to bypass RLS for admin operations
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
     
     const insertData: any = {
       name: planData.name,
@@ -103,9 +114,8 @@ export class PlanManager {
     // Map limits to the correct column names that exist in the database
     if (planData.limits) {
       if (planData.limits.clients !== undefined) insertData.max_clients = planData.limits.clients;
-      if (planData.limits.users !== undefined) insertData.max_users = planData.limits.users;
-      if (planData.limits.ad_accounts !== undefined) insertData.max_ad_accounts = planData.limits.ad_accounts;
-      // Note: max_campaigns doesn't exist in the current schema, so we skip it
+      if (planData.limits.campaigns !== undefined) insertData.max_campaigns = planData.limits.campaigns;
+      // Note: max_users and max_ad_accounts don't exist in the current schema
     }
 
     const { data, error } = await supabase
@@ -121,14 +131,47 @@ export class PlanManager {
       throw new Error('Failed to create plan - no data returned');
     }
 
-    return data[0];
+    const newPlan = data[0];
+
+    // Create plan_limits record
+    const limitsData = {
+      plan_id: newPlan.id,
+      max_clients: planData.limits?.max_clients || planData.limits?.clients || 5,
+      max_campaigns_per_client: planData.limits?.max_campaigns_per_client || planData.limits?.campaigns || 25,
+      data_retention_days: planData.limits?.data_retention_days || 90,
+      sync_interval_hours: planData.limits?.sync_interval_hours || 24,
+      allow_csv_export: planData.limits?.allow_csv_export ? true : false,
+      allow_json_export: planData.limits?.allow_json_export ? true : false
+    };
+
+    const { error: limitsError } = await supabase
+      .from('plan_limits')
+      .insert(limitsData);
+
+    if (limitsError) {
+      console.error('Warning: Failed to create plan_limits:', limitsError);
+      // Don't fail the whole operation, just log the warning
+    }
+
+    return newPlan;
   }
 
   /**
    * Update an existing subscription plan
    */
   async updatePlan(planId: string, updates: UpdatePlanRequest): Promise<any> {
-    const supabase = await this.getSupabaseClient();
+    // Use service role to bypass RLS for admin operations
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
     
     // First, check if the plan exists
     const { data: existingPlan, error: fetchError } = await supabase
@@ -161,9 +204,8 @@ export class PlanManager {
     if (updates.limits) {
       // Map limits to the correct column names that exist in the database
       if (updates.limits.clients !== undefined) updateData.max_clients = updates.limits.clients;
-      if (updates.limits.users !== undefined) updateData.max_users = updates.limits.users;
-      if (updates.limits.ad_accounts !== undefined) updateData.max_ad_accounts = updates.limits.ad_accounts;
-      // Note: max_campaigns doesn't exist in the current schema, so we skip it
+      if (updates.limits.campaigns !== undefined) updateData.max_campaigns = updates.limits.campaigns;
+      // Note: max_users and max_ad_accounts don't exist in the current schema
     }
     if (updates.is_active !== undefined) updateData.is_active = updates.is_active;
     // Note: is_popular is not in the current schema, so we skip it for now
@@ -209,6 +251,36 @@ export class PlanManager {
     }
 
     console.log('✅ Plan updated successfully');
+    
+    // Update plan_limits if limits are provided
+    if (updates.limits) {
+      const limitsData: any = {};
+      
+      if (updates.limits.max_clients !== undefined) limitsData.max_clients = updates.limits.max_clients;
+      if (updates.limits.max_campaigns_per_client !== undefined) limitsData.max_campaigns_per_client = updates.limits.max_campaigns_per_client;
+      if (updates.limits.data_retention_days !== undefined) limitsData.data_retention_days = updates.limits.data_retention_days;
+      if (updates.limits.sync_interval_hours !== undefined) limitsData.sync_interval_hours = updates.limits.sync_interval_hours;
+      if (updates.limits.allow_csv_export !== undefined) limitsData.allow_csv_export = updates.limits.allow_csv_export ? true : false;
+      if (updates.limits.allow_json_export !== undefined) limitsData.allow_json_export = updates.limits.allow_json_export ? true : false;
+      
+      limitsData.updated_at = new Date().toISOString();
+
+      // Try to update existing plan_limits, or insert if doesn't exist
+      const { error: limitsError } = await supabase
+        .from('plan_limits')
+        .upsert({
+          plan_id: planId,
+          ...limitsData
+        }, {
+          onConflict: 'plan_id'
+        });
+
+      if (limitsError) {
+        console.error('Warning: Failed to update plan_limits:', limitsError);
+        // Don't fail the whole operation, just log the warning
+      }
+    }
+    
     // Return the first (and should be only) updated record with normalized features
     return this.normalizePlanFeatures(data[0]);
   }

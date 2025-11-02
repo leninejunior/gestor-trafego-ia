@@ -112,7 +112,7 @@ export class EmailNotificationService {
   async sendSubscriptionConfirmation(data: SubscriptionConfirmationData): Promise<boolean> {
     try {
       const template = this.getSubscriptionConfirmationTemplate(data);
-      const success = await this.sendEmail(data.user.email, template);
+      const success = await this.sendEmailInternal(data.user.email, template);
       
       if (success) {
         await this.logEmailNotification(
@@ -137,7 +137,7 @@ export class EmailNotificationService {
   async sendPaymentFailureNotification(data: PaymentFailureData): Promise<boolean> {
     try {
       const template = this.getPaymentFailureTemplate(data);
-      const success = await this.sendEmail(data.user.email, template);
+      const success = await this.sendEmailInternal(data.user.email, template);
       
       if (success) {
         await this.logEmailNotification(
@@ -162,7 +162,7 @@ export class EmailNotificationService {
   async sendRenewalReminder(data: RenewalReminderData): Promise<boolean> {
     try {
       const template = this.getRenewalReminderTemplate(data);
-      const success = await this.sendEmail(data.user.email, template);
+      const success = await this.sendEmailInternal(data.user.email, template);
       
       if (success) {
         await this.logEmailNotification(
@@ -187,7 +187,7 @@ export class EmailNotificationService {
   async sendSubscriptionCancelled(data: SubscriptionCancelledData): Promise<boolean> {
     try {
       const template = this.getSubscriptionCancelledTemplate(data);
-      const success = await this.sendEmail(data.user.email, template);
+      const success = await this.sendEmailInternal(data.user.email, template);
       
       if (success) {
         await this.logEmailNotification(
@@ -212,7 +212,7 @@ export class EmailNotificationService {
   async sendPlanUpgradeNotification(data: PlanUpgradeData): Promise<boolean> {
     try {
       const template = this.getPlanUpgradeTemplate(data);
-      const success = await this.sendEmail(data.user.email, template);
+      const success = await this.sendEmailInternal(data.user.email, template);
       
       if (success) {
         await this.logEmailNotification(
@@ -232,9 +232,16 @@ export class EmailNotificationService {
   }
 
   /**
-   * Send email using Resend service
+   * Send email using Resend service (public method for external use)
    */
-  private async sendEmail(to: string, template: EmailTemplate): Promise<boolean> {
+  async sendEmail(to: string, template: EmailTemplate): Promise<boolean> {
+    return this.sendEmailInternal(to, template);
+  }
+
+  /**
+   * Send email using Resend service (internal implementation)
+   */
+  private async sendEmailInternal(to: string, template: EmailTemplate): Promise<boolean> {
     try {
       // Check if Resend is configured
       // Resend integration disabled - package not installed

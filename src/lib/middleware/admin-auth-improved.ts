@@ -9,8 +9,7 @@ export interface AdminAuthResult {
 }
 
 /**
- * Improved admin authentication middleware that checks multiple sources
- * for admin permissions to handle different system configurations
+ * Simplified admin authentication middleware that uses super_admins table
  */
 export async function checkAdminAuth(): Promise<AdminAuthResult> {
   try {
@@ -40,96 +39,68 @@ export async function checkAdminAuth(): Promise<AdminAuthResult> {
     }
 
     console.log('🔐 checkAdminAuth: User found:', user.id);
-    let isAdmin = false;
     
-    // Method 1: Check profiles table
+    // Check super_admins table (primary method)
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
+      const { data: superAdmin, error: superError } = await supabase
+        .from('super_admins')
+        .select('id, is_active')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
         .single();
       
-      if (profile?.role === 'admin' || profile?.role === 'super_admin') {
-        isAdmin = true;
+      if (superAdmin && !superError) {
+        console.log('🔐 checkAdminAuth: User IS super admin - access granted');
+        return {
+          success: true,
+          user
+        };
       }
+      
+      console.log('🔐 checkAdminAuth: Super admin check failed:', superError?.message);
     } catch (error) {
-      console.log('Profiles table check failed:', error);
+      console.log('🔐 checkAdminAuth: Super admin table check failed:', error);
     }
     
-    // Method 2: Check memberships table for admin roles
-    if (!isAdmin) {
-      try {
-        const { data: membership } = await supabase
-          .from('memberships')
-          .select('role')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .single();
-        
-        if (membership?.role === 'admin' || membership?.role === 'super_admin' || membership?.role === 'owner') {
-          isAdmin = true;
-        }
-      } catch (error) {
-        console.log('Memberships table check failed:', error);
+    // Fallback: Check memberships table for admin roles
+    try {
+      const { data: membership, error: memberError } = await supabase
+        .from('memberships')
+        .select('role')
+        .eq('user_id', user.id)
+        .in('role', ['admin', 'super_admin', 'owner'])
+        .single();
+      
+      if (membership && !memberError) {
+        console.log('🔐 checkAdminAuth: User IS admin via membership - access granted');
+        return {
+          success: true,
+          user
+        };
       }
+      
+      console.log('🔐 checkAdminAuth: Membership check failed:', memberError?.message);
+    } catch (error) {
+      console.log('🔐 checkAdminAuth: Membership table check failed:', error);
     }
-    
-    // Method 3: Check admin_users table
-    if (!isAdmin) {
-      try {
-        const { data: adminUser } = await supabase
-          .from('admin_users')
-          .select('is_admin')
-          .eq('user_id', user.id)
-          .eq('is_admin', true)
-          .single();
-        
-        if (adminUser?.is_admin) {
-          isAdmin = true;
-        }
-      } catch (error) {
-        console.log('Admin users table check failed:', error);
-      }
-    }
-    
-    // Method 4: Check user metadata for admin flag
-    if (!isAdmin && user.user_metadata?.role) {
-      if (user.user_metadata.role === 'admin' || user.user_metadata.role === 'super_admin') {
-        isAdmin = true;
-      }
-    }
-    
-    // Method 5: Development fallback - check if user is first user
-    if (!isAdmin && process.env.NODE_ENV === 'development') {
-      try {
-        // In development, allow the first user to be admin
-        // Note: This requires service_role key which may not be available
-        if (supabase.auth.admin) {
-          const { data: allUsers } = await supabase.auth.admin.listUsers();
-          if (allUsers?.users && allUsers.users.length > 0 && allUsers.users[0].id === user.id) {
-            isAdmin = true;
-            console.log('Development mode: First user granted admin access');
-          }
-        }
-      } catch (error) {
-        console.log('Development fallback check failed (this is normal):', error instanceof Error ? error.message : 'Unknown error');
+
+    // Development fallback - allow specific user
+    if (process.env.NODE_ENV === 'development') {
+      const allowedEmails = ['lenine.engrene@gmail.com', 'admin@sistema.com'];
+      if (user.email && allowedEmails.includes(user.email)) {
+        console.log('🔐 checkAdminAuth: Development mode - allowed user access granted');
+        return {
+          success: true,
+          user
+        };
       }
     }
 
-    if (!isAdmin) {
-      console.log('🔐 checkAdminAuth: User is NOT admin');
-      return {
-        success: false,
-        error: 'Admin access required',
-        status: 403
-      };
-    }
-
-    console.log('🔐 checkAdminAuth: User IS admin - access granted');
+    console.log('🔐 checkAdminAuth: User is NOT admin');
     return {
-      success: true,
-      user
+      success: false,
+      error: 'Admin access required',
+      status: 403
     };
 
   } catch (error) {

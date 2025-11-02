@@ -47,8 +47,8 @@ export default async function ClientsPage() {
   try {
     // Buscar organização do usuário
     const { data: membership } = await supabase
-      .from('memberships')
-      .select('org_id')
+      .from('organization_memberships')
+      .select('organization_id')
       .eq('user_id', user.id)
       .single();
 
@@ -106,7 +106,7 @@ export default async function ClientsPage() {
     const { data: clientsData, error: clientsError } = await supabase
       .from("clients")
       .select("*")
-      .eq("org_id", membership.org_id)
+      .eq("org_id", membership.organization_id)
       .order("created_at", { ascending: false });
 
     if (clientsError) {
@@ -123,7 +123,7 @@ export default async function ClientsPage() {
           org_id
         )
       `)
-      .eq("clients.org_id", membership.org_id)
+      .eq("clients.org_id", membership.organization_id)
       .eq("is_active", true);
     metaConnections = metaData;
 
@@ -131,7 +131,7 @@ export default async function ClientsPage() {
     const { data: googleData } = await supabase
       .from("ad_accounts")
       .select("*")
-      .eq("org_id", membership.org_id)
+      .eq("org_id", membership.organization_id)
       .eq("provider", "google");
     googleAccounts = googleData;
 

@@ -15,6 +15,10 @@ export interface PlanFeatures {
   apiAccess: boolean;
   whiteLabel: boolean;
   prioritySupport: boolean;
+  dataRetention?: number;
+  csvExport?: boolean;
+  jsonExport?: boolean;
+  historicalDataCache?: boolean;
 }
 
 export interface SubscriptionPlan {

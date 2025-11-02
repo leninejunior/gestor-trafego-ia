@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { isSuperAdmin } from '@/lib/auth/super-admin'
 
-// GET - Listar organizações
+// GET - Listar organizações (apenas super admins podem ver todas)
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -12,20 +13,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Verificar se é super admin
-    const { data: membership } = await supabase
-      .from('memberships')
-      .select('role')
-      .eq('user_id', user.id)
-      .single()
+    const isSuper = await isSuperAdmin(user.id)
 
-    const isSuperAdmin = membership?.role === 'super_admin' || user.email === 'lenine.engrene@gmail.com'
-
-    if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!isSuper) {
+      return NextResponse.json({ error: 'Acesso negado: apenas super administradores podem listar todas as organizações' }, { status: 403 })
     }
 
-    // Buscar todas as organizações
-    const { data: organizations, error } = await supabase
+    // Usar service client para garantir acesso total às organizações
+    const serviceSupabase = createServiceClient()
+    
+    const { data: organizations, error } = await serviceSupabase
       .from('organizations')
       .select('*')
       .order('name')
@@ -35,7 +32,7 @@ export async function GET(request: NextRequest) {
     // Buscar contagem de membros para cada organização
     const orgsWithCounts = await Promise.all(
       (organizations || []).map(async (org) => {
-        const { count } = await supabase
+        const { count } = await serviceSupabase
           .from('memberships')
           .select('*', { count: 'exact', head: true })
           .eq('org_id', org.id)
@@ -54,7 +51,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Criar nova organização
+// POST - Criar nova organização (apenas super admins)
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -65,16 +62,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se é super admin
-    const { data: membership } = await supabase
-      .from('memberships')
-      .select('role')
-      .eq('user_id', user.id)
-      .single()
+    const isSuper = await isSuperAdmin(user.id)
 
-    const isSuperAdmin = membership?.role === 'super_admin' || user.email === 'lenine.engrene@gmail.com'
-
-    if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!isSuper) {
+      return NextResponse.json({ error: 'Acesso negado: apenas super administradores podem criar organizações' }, { status: 403 })
     }
 
     const body = await request.json()

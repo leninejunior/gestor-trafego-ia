@@ -9,23 +9,27 @@ import {
   Users, 
   BarChart3, 
   Settings, 
-  Home,
-  FileText,
-  MessageSquare,
   CreditCard,
-  UserPlus,
-  Shield,
-  Building2,
-  Activity,
   Target,
-  ChevronLeft,
-  ChevronRight,
   Crown,
-  Lock
+  Lock,
+  TrendingUp,
+  AlertCircle,
+  Database,
+  Search,
+  Calendar,
+  DollarSign,
+  Eye,
+  Zap,
+  CheckCircle,
+  XCircle,
+  Plus,
+  Edit
 } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { useFeatureMatrix } from "@/hooks/use-feature-gate";
 import { Button } from "../ui/button";
+import { usePlatformConnections } from "@/hooks/use-platform-connections";
 
 interface NavigationItem {
   name: string;
@@ -33,6 +37,7 @@ interface NavigationItem {
   icon: any;
   adminOnly?: boolean;
   requiresFeature?: string; // Feature key required to access this item
+  platform?: 'meta' | 'google'; // Platform connection indicator
 }
 
 interface NavigationSection {
@@ -47,12 +52,13 @@ const navigationSections: NavigationSection[] = [
       {
         name: "Dashboard",
         href: "/dashboard",
-        icon: Home,
+        icon: BarChart3,
       },
       {
         name: "Campanhas",
         href: "/dashboard/campaigns",
-        icon: BarChart3,
+        icon: Target,
+        platform: 'meta',
       },
       {
         name: "Clientes",
@@ -62,12 +68,13 @@ const navigationSections: NavigationSection[] = [
       {
         name: "Relatórios",
         href: "/dashboard/reports",
-        icon: FileText,
+        icon: Database,
       },
       {
         name: "Analytics",
         href: "/dashboard/analytics",
-        icon: Activity,
+        icon: TrendingUp,
+        platform: 'meta',
       },
     ]
   },
@@ -77,17 +84,25 @@ const navigationSections: NavigationSection[] = [
       {
         name: "Meta Ads",
         href: "/dashboard/meta",
-        icon: Building2,
+        icon: Target,
+        platform: 'meta',
       },
       {
         name: "Google Ads",
         href: "/dashboard/google",
-        icon: BarChart3,
+        icon: Search,
+        platform: 'google',
+      },
+      {
+        name: "Insights Google",
+        href: "/dashboard/analytics/google",
+        icon: TrendingUp,
+        platform: 'google',
       },
       {
         name: "WhatsApp",
         href: "/dashboard/whatsapp",
-        icon: MessageSquare,
+        icon: Zap,
       },
     ]
   },
@@ -98,19 +113,22 @@ const navigationSections: NavigationSection[] = [
         name: "Métricas Personalizadas",
         href: "/dashboard/metrics",
         icon: BarChart3,
-        requiresFeature: "customReports",
       },
       {
         name: "Dashboard Personalizável",
         href: "/dashboard/custom-views",
         icon: Settings,
-        requiresFeature: "advancedAnalytics",
+      },
+      {
+        name: "Monitoring Google Ads",
+        href: "/dashboard/google/monitoring",
+        icon: AlertCircle,
+        platform: 'google',
       },
       {
         name: "Objetivos Inteligentes",
         href: "/dashboard/objectives",
         icon: Target,
-        requiresFeature: "advancedAnalytics",
       },
     ]
   },
@@ -120,7 +138,7 @@ const navigationSections: NavigationSection[] = [
       {
         name: "Equipe",
         href: "/dashboard/team",
-        icon: UserPlus,
+        icon: Users,
       },
       {
         name: "Planos & Cobrança",
@@ -140,13 +158,13 @@ const navigationSections: NavigationSection[] = [
       {
         name: "Painel Admin",
         href: "/admin",
-        icon: Shield,
+        icon: Lock,
         adminOnly: true,
       },
       {
         name: "Organizações",
         href: "/admin/organizations",
-        icon: Building2,
+        icon: Database,
         adminOnly: true,
       },
       {
@@ -170,19 +188,19 @@ const navigationSections: NavigationSection[] = [
       {
         name: "Gestão de Cobrança",
         href: "/admin/billing-management",
-        icon: CreditCard,
+        icon: DollarSign,
         adminOnly: true,
       },
       {
         name: "Leads",
         href: "/admin/leads",
-        icon: UserPlus,
+        icon: Plus,
         adminOnly: true,
       },
       {
         name: "Monitoramento",
         href: "/admin/monitoring",
-        icon: Activity,
+        icon: Eye,
         adminOnly: true,
       },
     ]
@@ -198,6 +216,28 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { matrix, loading: featureLoading } = useFeatureMatrix();
+  const { meta, google, loading: connectionsLoading } = usePlatformConnections();
+
+  // Function to get connection indicator for platform items
+  const getConnectionIndicator = (platform?: 'meta' | 'google') => {
+    if (!platform || connectionsLoading) return null;
+    
+    const connection = platform === 'meta' ? meta : google;
+    
+    if (connection.isConnected) {
+      return (
+        <div title={`${connection.connectionCount} conexão(ões) ativa(s)`}>
+          <CheckCircle className="w-3 h-3 text-green-500 ml-1" />
+        </div>
+      );
+    } else {
+      return (
+        <div title="Não conectado">
+          <XCircle className="w-3 h-3 text-gray-400 ml-1" />
+        </div>
+      );
+    }
+  };
 
   return (
     <>
@@ -235,9 +275,9 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
             title={isCollapsed ? "Expandir sidebar" : "Recolher sidebar"}
           >
             {isCollapsed ? (
-              <ChevronRight className="w-4 h-4" />
+              <Plus className="w-4 h-4" />
             ) : (
-              <ChevronLeft className="w-4 h-4" />
+              <Edit className="w-4 h-4" />
             )}
           </button>
           
@@ -316,17 +356,20 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
                         {!isCollapsed && (
                           <>
                             <span className="flex-1">{item.name}</span>
-                            {item.adminOnly && (
-                              <Badge 
-                                variant="destructive" 
-                                className="ml-2 text-xs px-1.5 py-0.5 bg-red-100 text-red-700 border-red-200"
-                              >
-                                ADMIN
-                              </Badge>
-                            )}
-                            {item.requiresFeature && !hasFeatureAccess && (
-                              <Crown className="w-4 h-4 text-orange-500 ml-2" />
-                            )}
+                            <div className="flex items-center space-x-1">
+                              {item.platform && getConnectionIndicator(item.platform)}
+                              {item.adminOnly && (
+                                <Badge 
+                                  variant="destructive" 
+                                  className="text-xs px-1.5 py-0.5 bg-red-100 text-red-700 border-red-200"
+                                >
+                                  ADMIN
+                                </Badge>
+                              )}
+                              {item.requiresFeature && !hasFeatureAccess && (
+                                <Crown className="w-4 h-4 text-orange-500" />
+                              )}
+                            </div>
                           </>
                         )}
                         
@@ -334,6 +377,15 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
                         {isCollapsed && (
                           <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
                             {item.name}
+                            {item.platform && (
+                              <>
+                                {" • "}
+                                {item.platform === 'meta' 
+                                  ? (meta.isConnected ? `${meta.connectionCount} Meta` : "Meta desconectado")
+                                  : (google.isConnected ? `${google.connectionCount} Google` : "Google desconectado")
+                                }
+                              </>
+                            )}
                             {item.adminOnly && " (ADMIN)"}
                             {item.requiresFeature && !hasFeatureAccess && " (UPGRADE)"}
                           </div>

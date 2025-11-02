@@ -108,7 +108,7 @@ export class SubscriptionService {
       .from('subscriptions')
       .select(`
         *,
-        plan:subscription_plans(*)
+        subscription_plans(*)
       `)
       .eq('organization_id', organizationId)
       .eq('status', 'active')
@@ -121,7 +121,7 @@ export class SubscriptionService {
 
     return {
       ...this.mapDatabaseSubscriptionToInterface(data),
-      plan: data.plan
+      plan: data.subscription_plans
     };
   }
 

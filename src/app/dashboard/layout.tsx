@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { DashboardSidebar } from '@/components/dashboard/sidebar';
 import { DashboardHeader } from '@/components/dashboard/header';
+import { ExportNotificationsWrapper } from '@/components/exports/export-notifications-wrapper';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -12,6 +13,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+      <ExportNotificationsWrapper />
     </div>
   );
 }

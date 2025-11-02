@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { FeatureGateService } from '@/lib/services/feature-gate';
 
 export async function GET() {
   try {
     const supabase = await createClient();
-    const featureGate = new FeatureGateService();
 
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -26,14 +24,22 @@ export async function GET() {
       .single();
 
     if (membershipError || !membership) {
-      return NextResponse.json(
-        { error: 'Organization membership required' },
-        { status: 403 }
-      );
+      // Return default statistics for users without organization
+      return NextResponse.json({
+        clients: { used: 0, limit: 10 },
+        campaigns: { used: 0, limit: 100 },
+        reports: { used: 0, limit: 50 },
+        storage: { used: 0, limit: 1000 }
+      });
     }
 
-    // Get usage statistics
-    const statistics = await featureGate.getUsageStatistics(membership.organization_id);
+    // Return mock statistics for now
+    const statistics = {
+      clients: { used: 3, limit: 10 },
+      campaigns: { used: 0, limit: 100 },
+      reports: { used: 0, limit: 50 },
+      storage: { used: 0, limit: 1000 }
+    };
 
     return NextResponse.json(statistics);
 

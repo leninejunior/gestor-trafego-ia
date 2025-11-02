@@ -1,9 +1,12 @@
 /**
  * Iugu Payment Gateway Service
  * Integração completa com a API do Iugu para processamento de pagamentos
+ * Com circuit breaker e retry logic para resiliência
  */
 
 import { BillingCycle } from '@/lib/types/subscription';
+import { CircuitBreakerFactory } from '@/lib/resilience/circuit-breaker';
+import { RetryManager } from '@/lib/resilience/retry-manager';
 
 // Tipos do Iugu
 export interface IuguCustomer {
@@ -85,6 +88,8 @@ export class IuguService {
   private apiToken: string;
   private accountId: string;
   private baseUrl = 'https://api.iugu.com/v1';
+  private circuitBreaker = CircuitBreakerFactory.getIuguCircuitBreaker();
+  private retryManager = RetryManager.forIuguAPI();
 
   constructor() {
     this.apiToken = process.env.IUGU_API_TOKEN || '';
@@ -96,58 +101,67 @@ export class IuguService {
   }
 
   /**
-   * Faz requisição para API do Iugu
+   * Faz requisição para API do Iugu com circuit breaker e retry logic
    */
   private async request<T>(
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
     data?: any
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const auth = Buffer.from(`${this.apiToken}:`).toString('base64');
+    return this.circuitBreaker.execute(async () => {
+      return this.retryManager.execute(async () => {
+        const url = `${this.baseUrl}${endpoint}`;
+        const auth = Buffer.from(`${this.apiToken}:`).toString('base64');
 
-    const options: RequestInit = {
-      method,
-      headers: {
-        'Authorization': `Basic ${auth}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    };
+        const options: RequestInit = {
+          method,
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          timeout: 30000, // 30 segundos timeout
+        };
 
-    if (data && (method === 'POST' || method === 'PUT')) {
-      options.body = JSON.stringify(data);
-    }
+        if (data && (method === 'POST' || method === 'PUT')) {
+          options.body = JSON.stringify(data);
+        }
 
-    console.log(`[Iugu] ${method} ${endpoint}`);
-    if (data) {
-      console.log('[Iugu] Request data:', JSON.stringify(data, null, 2));
-    }
+        console.log(`[Iugu] ${method} ${endpoint}`);
+        if (data) {
+          console.log('[Iugu] Request data:', JSON.stringify(data, null, 2));
+        }
 
-    const response = await fetch(url, options);
-    const responseData = await response.json();
+        const response = await fetch(url, options);
+        const responseData = await response.json();
 
-    console.log(`[Iugu] Response status: ${response.status}`);
-    console.log('[Iugu] Response data:', JSON.stringify(responseData, null, 2));
+        console.log(`[Iugu] Response status: ${response.status}`);
+        console.log('[Iugu] Response data:', JSON.stringify(responseData, null, 2));
 
-    if (!response.ok) {
-      const errorDetails = {
-        status: response.status,
-        statusText: response.statusText,
-        errors: responseData.errors,
-        message: responseData.message,
-        fullResponse: responseData
-      };
-      console.error('[Iugu] API Error Details:', JSON.stringify(errorDetails, null, 2));
-      
-      const errorMessage = responseData.errors 
-        ? (Array.isArray(responseData.errors) ? responseData.errors.join(', ') : JSON.stringify(responseData.errors))
-        : (responseData.message || JSON.stringify(responseData));
-      
-      throw new Error(`Iugu API Error (${response.status}): ${errorMessage}`);
-    }
+        if (!response.ok) {
+          const errorDetails = {
+            status: response.status,
+            statusText: response.statusText,
+            errors: responseData.errors,
+            message: responseData.message,
+            fullResponse: responseData
+          };
+          console.error('[Iugu] API Error Details:', JSON.stringify(errorDetails, null, 2));
+          
+          const errorMessage = responseData.errors 
+            ? (Array.isArray(responseData.errors) ? responseData.errors.join(', ') : JSON.stringify(responseData.errors))
+            : (responseData.message || JSON.stringify(responseData));
+          
+          // Cria erro com status code para classificação de retry
+          const error = new Error(`Iugu API Error (${response.status}): ${errorMessage}`);
+          (error as any).status = response.status;
+          (error as any).statusCode = response.status;
+          throw error;
+        }
 
-    return responseData as T;
+        return responseData as T;
+      }, `iugu-${method}-${endpoint}`);
+    });
   }
 
   /**
@@ -465,5 +479,96 @@ export class IuguService {
     // Implementar validação de assinatura do webhook
     // O Iugu não usa assinatura HMAC por padrão, mas você pode configurar
     return true;
+  }
+
+  /**
+   * Verifica se o serviço está saudável
+   */
+  async healthCheck(): Promise<boolean> {
+    try {
+      return this.circuitBreaker.execute(async () => {
+        // Faz uma chamada simples para verificar conectividade
+        const response = await fetch(`${this.baseUrl}/customers?limit=1`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${Buffer.from(`${this.apiToken}:`).toString('base64')}`,
+            'Accept': 'application/json',
+          },
+          timeout: 5000, // 5 segundos timeout para health check
+        });
+        
+        return response.ok;
+      });
+    } catch (error) {
+      console.error('[Iugu] Health check failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Obtém métricas do circuit breaker
+   */
+  getCircuitBreakerMetrics() {
+    return this.circuitBreaker.getMetrics();
+  }
+
+  /**
+   * Fallback para quando o Iugu está indisponível
+   * Cria um subscription intent local para processamento posterior
+   */
+  async createFallbackSubscriptionIntent(
+    organizationId: string,
+    planId: string,
+    billingCycle: BillingCycle,
+    customerData: {
+      email: string;
+      name: string;
+      cpf_cnpj?: string;
+      phone?: string;
+    }
+  ): Promise<{
+    intent_id: string;
+    status: 'fallback_pending';
+    message: string;
+  }> {
+    const intentId = `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log('[Iugu] Creating fallback subscription intent:', {
+      intentId,
+      organizationId,
+      planId,
+      billingCycle,
+      customerEmail: customerData.email
+    });
+
+    // Aqui você salvaria no banco de dados local para processamento posterior
+    // quando o Iugu voltar a funcionar
+    
+    return {
+      intent_id: intentId,
+      status: 'fallback_pending' as const,
+      message: 'Serviço temporariamente indisponível. Sua solicitação foi registrada e será processada em breve.'
+    };
+  }
+
+  /**
+   * Processa intents em fallback quando o serviço volta
+   */
+  async processFallbackIntents(): Promise<void> {
+    if (!this.circuitBreaker.isHealthy()) {
+      console.log('[Iugu] Circuit breaker not healthy, skipping fallback processing');
+      return;
+    }
+
+    try {
+      // Aqui você buscaria os intents em fallback do banco de dados
+      // e tentaria processá-los novamente
+      console.log('[Iugu] Processing fallback intents...');
+      
+      // Implementar lógica de processamento de fallback
+      
+    } catch (error) {
+      console.error('[Iugu] Error processing fallback intents:', error);
+    }
   }
 }

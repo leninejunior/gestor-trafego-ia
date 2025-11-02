@@ -399,7 +399,7 @@ export class MetaAdsSyncService {
   // Função helper para buscar organização do usuário
   private async getUserOrganizationId(userId: string): Promise<string> {
     const { data: membership } = await this.supabase
-      .from('memberships')
+      .from('organization_memberships')
       .select('organization_id')
       .eq('user_id', userId)
       .eq('status', 'active')

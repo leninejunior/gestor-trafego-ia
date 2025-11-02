@@ -9,6 +9,10 @@ export interface PlanFeatures {
   apiAccess: boolean;
   whiteLabel: boolean;
   prioritySupport: boolean;
+  dataRetention?: number;
+  csvExport?: boolean;
+  jsonExport?: boolean;
+  historicalDataCache?: boolean;
 }
 
 // Subscription Plan Interface
@@ -75,6 +79,10 @@ export const PlanFeaturesSchema = z.object({
   apiAccess: z.boolean(),
   whiteLabel: z.boolean(),
   prioritySupport: z.boolean(),
+  dataRetention: z.number().min(30).max(3650).optional(),
+  csvExport: z.boolean().optional(),
+  jsonExport: z.boolean().optional(),
+  historicalDataCache: z.boolean().optional(),
 });
 
 // Subscription Plan Schema
@@ -109,7 +117,19 @@ export const UpdatePlanRequestSchema = z.object({
   monthly_price: z.number().min(0).optional(),
   annual_price: z.number().min(0).optional(),
   features: z.array(z.string()).optional(),
-  limits: z.record(z.number().optional()).optional(),
+  limits: z.object({
+    clients: z.number().optional(),
+    users: z.number().optional(),
+    campaigns: z.number().optional(),
+    api_calls: z.number().optional(),
+    storage_gb: z.number().optional(),
+    max_clients: z.number().optional(),
+    max_campaigns_per_client: z.number().optional(),
+    data_retention_days: z.number().optional(),
+    sync_interval_hours: z.number().optional(),
+    allow_csv_export: z.union([z.number(), z.boolean()]).optional(),
+    allow_json_export: z.union([z.number(), z.boolean()]).optional(),
+  }).optional(),
   is_active: z.boolean().optional(),
   is_popular: z.boolean().optional(),
 });

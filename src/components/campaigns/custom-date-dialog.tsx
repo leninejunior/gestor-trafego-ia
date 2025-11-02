@@ -22,6 +22,7 @@ interface CustomDateDialogProps {
   onConfirm: (startDate: Date, endDate: Date) => void
   initialStartDate?: Date
   initialEndDate?: Date
+  minDate?: Date
 }
 
 export function CustomDateDialog({
@@ -29,7 +30,8 @@ export function CustomDateDialog({
   onOpenChange,
   onConfirm,
   initialStartDate,
-  initialEndDate
+  initialEndDate,
+  minDate
 }: CustomDateDialogProps) {
   const [startDate, setStartDate] = useState<Date | undefined>(initialStartDate)
   const [endDate, setEndDate] = useState<Date | undefined>(initialEndDate)
@@ -81,6 +83,11 @@ export function CustomDateDialog({
           <DialogTitle>Selecionar Período Personalizado</DialogTitle>
           <DialogDescription>
             Escolha a data inicial e final para análise. Período máximo de 1 ano.
+            {minDate && (
+              <span className="block mt-1 text-orange-600">
+                ⚠️ Seu plano permite dados a partir de {formatDateRange(minDate, minDate)}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -96,7 +103,11 @@ export function CustomDateDialog({
               selected={startDate}
               onSelect={handleStartDateSelect}
               locale={ptBR}
-              disabled={(date) => date > new Date()}
+              disabled={(date) => {
+                if (date > new Date()) return true
+                if (minDate && date < minDate) return true
+                return false
+              }}
               className="rounded-md border"
             />
             {startDate && (
@@ -120,6 +131,8 @@ export function CustomDateDialog({
               disabled={(date) => {
                 // Não pode ser depois de hoje
                 if (date > new Date()) return true
+                // Não pode ser antes do minDate
+                if (minDate && date < minDate) return true
                 // Não pode ser antes da data inicial
                 if (startDate && date < startDate) return true
                 // Não pode ser mais de 1 ano depois da data inicial

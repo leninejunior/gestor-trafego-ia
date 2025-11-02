@@ -285,7 +285,7 @@ export default function BalancePage() {
           <CardContent>
             <div className="text-2xl font-bold text-red-600">{criticalAccounts}</div>
             <p className="text-xs text-muted-foreground">
-              Saldo < 20% do limite
+              Saldo &lt; 20% do limite
             </p>
           </CardContent>
         </Card>

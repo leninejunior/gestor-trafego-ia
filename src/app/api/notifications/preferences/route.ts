@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
     // Get user's organization
     const { data: membership } = await supabase
-      .from('memberships')
+      .from('organization_memberships')
       .select('organization_id')
       .eq('user_id', user.id)
       .eq('status', 'active')
@@ -81,7 +81,7 @@ export async function PUT(request: NextRequest) {
 
     // Get user's organization
     const { data: membership } = await supabase
-      .from('memberships')
+      .from('organization_memberships')
       .select('organization_id')
       .eq('user_id', user.id)
       .eq('status', 'active')

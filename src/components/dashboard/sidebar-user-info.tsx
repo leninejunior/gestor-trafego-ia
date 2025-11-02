@@ -7,6 +7,7 @@ import { Building2, Crown, Shield, User } from "lucide-react";
 
 interface UserInfo {
   email: string;
+  displayName: string;
   orgName: string;
   role: string;
   planName: string;
@@ -27,7 +28,8 @@ export function SidebarUserInfo() {
           console.error('Erro ao carregar info do usuário:', response.status);
           // Definir valores padrão em caso de erro
           setUserInfo({
-            email: 'Usuário',
+            email: 'usuario@exemplo.com',
+            displayName: 'Usuário',
             orgName: 'Organização',
             role: 'viewer',
             planName: 'Free'
@@ -37,7 +39,8 @@ export function SidebarUserInfo() {
         console.error('Erro ao carregar info do usuário:', error);
         // Definir valores padrão em caso de erro
         setUserInfo({
-          email: 'Usuário',
+          email: 'usuario@exemplo.com',
+          displayName: 'Usuário',
           orgName: 'Organização',
           role: 'viewer',
           planName: 'Free'
@@ -52,6 +55,8 @@ export function SidebarUserInfo() {
 
   const getRoleIcon = (role: string) => {
     switch (role) {
+      case 'super_admin':
+        return <Crown className="h-3 w-3 text-purple-500" />;
       case 'owner':
         return <Crown className="h-3 w-3 text-yellow-500" />;
       case 'admin':
@@ -63,12 +68,33 @@ export function SidebarUserInfo() {
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
+      case 'super_admin':
+        return 'destructive';
       case 'owner':
         return 'default';
       case 'admin':
         return 'secondary';
       default:
         return 'outline';
+    }
+  };
+
+  const formatRoleName = (role: string) => {
+    switch (role) {
+      case 'super_admin':
+        return 'Super Admin';
+      case 'owner':
+        return 'Owner';
+      case 'admin':
+        return 'Admin';
+      case 'manager':
+        return 'Manager';
+      case 'analyst':
+        return 'Analyst';
+      case 'viewer':
+        return 'Viewer';
+      default:
+        return role;
     }
   };
 
@@ -92,9 +118,8 @@ export function SidebarUserInfo() {
     return null;
   }
 
-  const initials = userInfo.email
-    .split('@')[0]
-    .split('.')
+  const initials = userInfo.displayName
+    .split(' ')
     .map(part => part.charAt(0))
     .join('')
     .toUpperCase()
@@ -112,7 +137,7 @@ export function SidebarUserInfo() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1 mb-1">
             <p className="text-xs font-medium text-gray-900 truncate">
-              {userInfo.email.split('@')[0]}
+              {userInfo.displayName}
             </p>
             {getRoleIcon(userInfo.role)}
           </div>
@@ -129,7 +154,7 @@ export function SidebarUserInfo() {
               variant={getRoleBadgeVariant(userInfo.role)} 
               className="text-xs px-1 py-0"
             >
-              {userInfo.role}
+              {formatRoleName(userInfo.role)}
             </Badge>
             <Badge variant="outline" className="text-xs px-1 py-0">
               {userInfo.planName}

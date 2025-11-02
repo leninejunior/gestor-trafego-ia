@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
 
     // Buscar organização do usuário
     const { data: membership } = await supabase
-      .from('memberships')
-      .select('org_id')
+      .from('organization_memberships')
+      .select('organization_id')
       .eq('user_id', user.id)
       .single();
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
         provider:payment_providers(id, name, display_name),
         client:clients(id, name)
       `)
-      .eq('org_id', membership.org_id)
+      .eq('org_id', membership.organization_id)
       .order('created_at', { ascending: false });
 
     // Aplicar filtros
@@ -95,8 +95,8 @@ export async function POST(request: NextRequest) {
 
     // Buscar organização do usuário
     const { data: membership } = await supabase
-      .from('memberships')
-      .select('org_id')
+      .from('organization_memberships')
+      .select('organization_id')
       .eq('user_id', user.id)
       .single();
 
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     let providerQuery = supabase
       .from('payment_providers')
       .select('*')
-      .eq('org_id', membership.org_id)
+      .eq('org_id', membership.organization_id)
       .eq('is_active', true);
 
     if (provider_name) {
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
     const { data: transaction, error: transactionError } = await supabase
       .from('payment_transactions')
       .insert({
-        org_id: membership.org_id,
+        organization_id: membership.organization_id,
         client_id,
         provider_id: provider.id,
         reference_id,
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
     await supabase
       .from('payment_audit_logs')
       .insert({
-        org_id: membership.org_id,
+        organization_id: membership.organization_id,
         user_id: user.id,
         action: 'create_payment',
         entity_type: 'transaction',

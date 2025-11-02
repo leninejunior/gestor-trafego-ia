@@ -419,11 +419,11 @@ export function ObjectiveBuilder({ onSave, onCancel, initialData, customMetrics 
                     </div>
                     <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <div className="font-medium text-yellow-800">⚠ Atenção Necessária</div>
-                      <div className="text-yellow-700">Valores fora do range ideal (< {formatValue(rangeValues[0])} ou > {formatValue(rangeValues[1])})</div>
+                      <div className="text-yellow-700">Valores fora do range ideal (&lt; {formatValue(rangeValues[0])} ou &gt; {formatValue(rangeValues[1])})</div>
                     </div>
                     <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                       <div className="font-medium text-red-800">🚨 Performance Crítica</div>
-                      <div className="text-red-700">Valores muito distantes da meta (diferença > 50%)</div>
+                      <div className="text-red-700">Valores muito distantes da meta (diferença &gt; 50%)</div>
                     </div>
                   </div>
                 </div>

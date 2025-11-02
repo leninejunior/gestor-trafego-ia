@@ -1,15 +1,60 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 async function checkSuperAdmin(supabase: any, userId: string) {
-  const { data: userRole } = await supabase
+  // Verificar memberships do usuário
+  const { data: memberships } = await supabase
     .from("memberships")
-    .select("role")
+    .select(`
+      role,
+      role_id,
+      user_roles (
+        name
+      )
+    `)
     .eq("user_id", userId)
-    .eq("status", "active")
-    .single();
+    .eq("status", "active");
 
-  return userRole?.role?.includes('super_admin');
+  if (!memberships || memberships.length === 0) {
+    return false;
+  }
+
+  // Verificar se alguma membership tem super_admin
+  return memberships.some(membership => 
+    membership.role === 'super_admin' || 
+    membership.user_roles?.name === 'super_admin'
+  );
+}
+
+async function getAuthenticatedUser(request: NextRequest, supabase: any) {
+  // Tentar via cookies primeiro
+  const { data: { user: cookieUser } } = await supabase.auth.getUser();
+  if (cookieUser) {
+    return cookieUser;
+  }
+  
+  // Tentar via header Authorization
+  const authHeader = request.headers.get('authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
+    const authSupabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      }
+    );
+    
+    const { data: { user: headerUser } } = await authSupabase.auth.getUser();
+    return headerUser;
+  }
+  
+  return null;
 }
 
 export async function GET(
@@ -21,19 +66,20 @@ export async function GET(
     const { userId } = await params;
     
     // Verificar autenticação
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthenticatedUser(request, supabase);
     if (!user) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    // Verificar se é super admin
-    const isSuperAdmin = await checkSuperAdmin(supabase, user.id);
+    // Verificar se é super admin (usar service client para bypass RLS)
+    const serviceSupabase = createServiceClient();
+    const isSuperAdmin = await checkSuperAdmin(serviceSupabase, user.id);
     if (!isSuperAdmin) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
 
     // Buscar dados completos do usuário
-    const { data: userData, error } = await supabase
+    const { data: userData, error } = await serviceSupabase
       .from("user_profiles")
       .select(`
         user_id,
@@ -55,7 +101,7 @@ export async function GET(
     }
 
     // Buscar memberships separadamente
-    const { data: memberships } = await supabase
+    const { data: memberships } = await serviceSupabase
       .from("memberships")
       .select(`
         id,
@@ -102,13 +148,14 @@ export async function PATCH(
     const body = await request.json();
     
     // Verificar autenticação
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthenticatedUser(request, supabase);
     if (!user) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    // Verificar se é super admin
-    const isSuperAdmin = await checkSuperAdmin(supabase, user.id);
+    // Verificar se é super admin (usar service client para bypass RLS)
+    const serviceSupabase = createServiceClient();
+    const isSuperAdmin = await checkSuperAdmin(serviceSupabase, user.id);
     if (!isSuperAdmin) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
@@ -119,7 +166,7 @@ export async function PATCH(
       case 'update_profile':
         const { firstName, lastName, email } = updateData;
         
-        const { error: profileError } = await supabase
+        const { error: profileError } = await serviceSupabase
           .from("user_profiles")
           .update({
             first_name: firstName,
@@ -136,7 +183,7 @@ export async function PATCH(
       case 'suspend':
         const { reason } = updateData;
         
-        const { error: suspendError } = await supabase
+        const { error: suspendError } = await serviceSupabase
           .from("user_profiles")
           .update({
             is_suspended: true,
@@ -152,7 +199,7 @@ export async function PATCH(
         break;
 
       case 'unsuspend':
-        const { error: unsuspendError } = await supabase
+        const { error: unsuspendError } = await serviceSupabase
           .from("user_profiles")
           .update({
             is_suspended: false,
@@ -170,7 +217,7 @@ export async function PATCH(
       case 'update_role':
         const { membershipId, newRole } = updateData;
         
-        const { error: roleError } = await supabase
+        const { error: roleError } = await serviceSupabase
           .from("memberships")
           .update({
             role: newRole
@@ -186,7 +233,7 @@ export async function PATCH(
       case 'remove_from_organization':
         const { membershipId: removeMembershipId } = updateData;
         
-        const { error: removeError } = await supabase
+        const { error: removeError } = await serviceSupabase
           .from("memberships")
           .update({
             status: "removed",
@@ -214,7 +261,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
@@ -222,13 +269,14 @@ export async function DELETE(
     const { userId } = await params;
     
     // Verificar autenticação
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthenticatedUser(request, supabase);
     if (!user) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    // Verificar se é super admin
-    const isSuperAdmin = await checkSuperAdmin(supabase, user.id);
+    // Verificar se é super admin (usar service client para bypass RLS)
+    const serviceSupabase = createServiceClient();
+    const isSuperAdmin = await checkSuperAdmin(serviceSupabase, user.id);
     if (!isSuperAdmin) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
@@ -241,7 +289,7 @@ export async function DELETE(
     }
 
     // Verificar se o usuário existe
-    const { data: userData } = await supabase
+    const { data: userData } = await serviceSupabase
       .from("user_profiles")
       .select("user_id, email")
       .eq("user_id", userId)
@@ -252,7 +300,7 @@ export async function DELETE(
     }
 
     // Marcar todas as memberships como removidas
-    await supabase
+    await serviceSupabase
       .from("memberships")
       .update({
         status: "removed",
@@ -262,7 +310,7 @@ export async function DELETE(
       .eq("user_id", userId);
 
     // Marcar o usuário como deletado (soft delete)
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await serviceSupabase
       .from("user_profiles")
       .update({
         is_deleted: true,

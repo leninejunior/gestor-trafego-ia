@@ -3,8 +3,15 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { Eye, Loader2, AlertCircle } from "lucide-react";
+import { Eye, AlertCircle, Trash2, RefreshCw, Settings } from "lucide-react";
+
+// Usar ícones alternativos que existem
+const Loader2 = RefreshCw;
+const MoreHorizontal = Settings;
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface Client {
   id: string;
@@ -16,6 +23,8 @@ export function ClientsListDynamic() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     async function loadClients() {
@@ -40,6 +49,46 @@ export function ClientsListDynamic() {
 
     loadClients();
   }, []);
+
+  const handleDeleteClient = async (clientId: string, clientName: string) => {
+    setDeletingId(clientId);
+    
+    try {
+      const response = await fetch(`/api/clients?id=${clientId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Remover cliente da lista local
+        setClients(clients.filter(client => client.id !== clientId));
+        toast({
+          title: "Cliente excluído",
+          description: `${data.clientName || clientName} foi excluído com sucesso.`,
+        });
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Erro ao excluir cliente",
+          description: errorData.error || "Ocorreu um erro inesperado.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao excluir cliente:', error);
+      toast({
+        title: "Erro ao excluir cliente",
+        description: "Ocorreu um erro inesperado.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -134,6 +183,59 @@ export function ClientsListDynamic() {
                       Ver Detalhes
                     </Link>
                   </Button>
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
+                        <Link href={`/dashboard/clients/${client.id}`}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Ver detalhes
+                        </Link>
+                      </DropdownMenuItem>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <DropdownMenuItem 
+                            className="text-red-600 focus:text-red-600"
+                            onSelect={(e) => e.preventDefault()}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir cliente
+                          </DropdownMenuItem>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir cliente</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja excluir o cliente <strong>{client.name}</strong>? 
+                              Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos permanentemente.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteClient(client.id, client.name)}
+                              disabled={deletingId === client.id}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              {deletingId === client.id ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Excluindo...
+                                </>
+                              ) : (
+                                'Excluir'
+                              )}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             </div>

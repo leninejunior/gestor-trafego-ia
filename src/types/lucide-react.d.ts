@@ -26,6 +26,16 @@ declare module 'lucide-react' {
   export const AlertTriangle: Icon;
   export const Clock: Icon;
   export const Search: Icon;
+  export const Target: Icon;
+  export const Database: Icon;
+  export const Crown: Icon;
+  export const AlertCircle: Icon;
+  export const Lock: Icon;
+  export const Eye: Icon;
+  export const BarChart3: Icon;
+  export const Zap: Icon;
+  export const Facebook: Icon;
+  export const Chrome: Icon;
   
   // Add more icons as needed
   const lucideReact: {

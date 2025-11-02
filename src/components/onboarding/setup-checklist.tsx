@@ -63,7 +63,7 @@ export default function SetupChecklist({ onComplete, onDismiss, compact = false 
 
       // Buscar dados da organização
       const { data: membership } = await supabase
-        .from('memberships')
+        .from('organization_memberships')
         .select(`
           id,
           role,
@@ -102,7 +102,7 @@ export default function SetupChecklist({ onComplete, onDismiss, compact = false 
 
       // Buscar outros membros
       const { data: otherMembers } = await supabase
-        .from('memberships')
+        .from('organization_memberships')
         .select('id')
         .eq('organization_id', org.id as string)
         .neq('user_id', user.id);

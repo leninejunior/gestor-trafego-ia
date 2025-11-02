@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
 
     // Buscar organização do usuário
     const { data: membership } = await supabase
-      .from('memberships')
-      .select('org_id')
+      .from('organization_memberships')
+      .select('organization_id')
       .eq('user_id', user.id)
       .single();
 
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const { data: providers, error } = await supabase
       .from('payment_providers')
       .select('*')
-      .eq('org_id', membership.org_id)
+      .eq('org_id', membership.organization_id)
       .order('priority', { ascending: true });
 
     if (error) {
@@ -57,8 +57,8 @@ export async function POST(request: NextRequest) {
 
     // Buscar organização do usuário
     const { data: membership } = await supabase
-      .from('memberships')
-      .select('org_id')
+      .from('organization_memberships')
+      .select('organization_id')
       .eq('user_id', user.id)
       .single();
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     const { data: provider, error } = await supabase
       .from('payment_providers')
       .upsert({
-        org_id: membership.org_id,
+        organization_id: membership.organization_id,
         name,
         display_name,
         is_active: is_active ?? true,
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     await supabase
       .from('payment_audit_logs')
       .insert({
-        org_id: membership.org_id,
+        organization_id: membership.organization_id,
         user_id: user.id,
         action: 'create_provider',
         entity_type: 'provider',

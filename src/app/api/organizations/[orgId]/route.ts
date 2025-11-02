@@ -56,7 +56,7 @@ export async function PUT(
 
     // Verificar se o usuário tem permissão (super_admin ou admin da organização)
     const { data: membership } = await supabase
-      .from('memberships')
+      .from('organization_memberships')
       .select('role')
       .eq('user_id', user.id)
       .eq('org_id', orgId)
@@ -165,7 +165,7 @@ export async function DELETE(
 
     // Verificar se é super_admin da organização
     const { data: membership } = await supabase
-      .from('memberships')
+      .from('organization_memberships')
       .select('role')
       .eq('user_id', user.id)
       .eq('org_id', orgId)
@@ -193,7 +193,7 @@ export async function DELETE(
 
     // Deletar membros primeiro
     await supabase
-      .from('memberships')
+      .from('organization_memberships')
       .delete()
       .eq('org_id', orgId)
 

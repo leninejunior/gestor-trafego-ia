@@ -47,7 +47,7 @@ export async function DELETE(
 
     // Verificar se o usuário tem acesso à organização do cliente
     const { data: membership, error: membershipError } = await supabase
-      .from('memberships')
+      .from('organization_memberships')
       .select('*')
       .eq('user_id', user.id)
       .eq('org_id', connection.clients.org_id)
@@ -133,7 +133,7 @@ export async function PATCH(
 
     // Verificar se o usuário tem acesso à organização do cliente
     const { data: membership, error: membershipError } = await supabase
-      .from('memberships')
+      .from('organization_memberships')
       .select('*')
       .eq('user_id', user.id)
       .eq('org_id', connection.clients.org_id)

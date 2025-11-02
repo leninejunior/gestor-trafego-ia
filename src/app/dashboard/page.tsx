@@ -3,6 +3,10 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RealTimeInsights } from "@/components/dashboard/real-time-insights";
+import { PlanLimitsIndicator } from "@/components/dashboard/plan-limits-indicator";
+import { UnifiedMetricsCards } from "@/components/unified";
+import { PlatformComparisonChart } from "@/components/unified";
+import { ExportButton } from "@/components/exports/export-button";
 import SetupChecklist from "@/components/onboarding/setup-checklist";
 import Link from "next/link";
 import { 
@@ -12,7 +16,9 @@ import {
   TrendingUp,
   Eye,
   Zap,
-  Target
+  Target,
+
+  Zap as ActivityIcon
 } from "lucide-react";
 
 export const dynamic = 'force-dynamic';
@@ -28,25 +34,44 @@ export default async function DashboardPage() {
     return redirect("/login");
   }
 
-  // Buscar estatísticas
+  // Buscar organizações do usuário primeiro
+  const { data: userMemberships } = await supabase
+    .from("organization_memberships")
+    .select("organization_id")
+    .eq("user_id", user.id);
+
+  const orgIds = userMemberships?.map(m => m.organization_id) || [];
+
+  // Buscar clientes das organizações do usuário
   const { data: clients } = await supabase
     .from("clients")
-    .select("*");
+    .select("*")
+    .in("org_id", orgIds.length > 0 ? orgIds : ['']);
 
+  // Buscar conexões apenas para clientes acessíveis pelo usuário
+  const clientIds = clients?.map(client => client.id) || [];
+  
   const { data: metaConnections } = await supabase
     .from("client_meta_connections")
     .select("*")
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .in("client_id", clientIds.length > 0 ? clientIds : ['']);
 
-  const { data: googleAccounts } = await supabase
-    .from("ad_accounts")
+  const { data: googleConnections } = await supabase
+    .from("google_ads_connections")
     .select("*")
-    .eq("provider", "google");
+    .eq("status", "active")
+    .in("client_id", clientIds.length > 0 ? clientIds : ['']);
 
   const totalClients = clients?.length || 0;
   const totalMetaConnections = metaConnections?.length || 0;
-  const totalGoogleConnections = googleAccounts?.length || 0;
+  const totalGoogleConnections = googleConnections?.length || 0;
   const totalConnections = totalMetaConnections + totalGoogleConnections;
+
+  // Verificar status das conexões
+  const hasMetaConnections = totalMetaConnections > 0;
+  const hasGoogleConnections = totalGoogleConnections > 0;
+  const hasBothPlatforms = hasMetaConnections && hasGoogleConnections;
 
   // Verificar se precisa mostrar onboarding
   const needsOnboarding = totalClients === 0 || totalConnections === 0;
@@ -70,7 +95,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Quick Stats */}
+      {/* Connection Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -88,14 +113,19 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Meta Ads</CardTitle>
-            <div className="w-4 h-4 bg-blue-600 rounded flex items-center justify-center">
-              <span className="text-white text-xs font-bold">f</span>
+            <div className="flex items-center space-x-2">
+              {hasMetaConnections && (
+                <div className="w-2 h-2 bg-green-500 rounded-full" />
+              )}
+              <div className="w-4 h-4 bg-blue-600 rounded flex items-center justify-center">
+                <span className="text-white text-xs font-bold">f</span>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalMetaConnections}</div>
             <p className="text-xs text-muted-foreground">
-              contas conectadas
+              {hasMetaConnections ? "contas conectadas" : "não conectado"}
             </p>
           </CardContent>
         </Card>
@@ -103,65 +133,173 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Google Ads</CardTitle>
-            <div className="w-4 h-4 bg-green-600 rounded flex items-center justify-center">
-              <span className="text-white text-xs font-bold">G</span>
+            <div className="flex items-center space-x-2">
+              {hasGoogleConnections && (
+                <div className="w-2 h-2 bg-green-500 rounded-full" />
+              )}
+              <div className="w-4 h-4 bg-green-600 rounded flex items-center justify-center">
+                <span className="text-white text-xs font-bold">G</span>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalGoogleConnections}</div>
             <p className="text-xs text-muted-foreground">
-              contas conectadas
+              {hasGoogleConnections ? "contas conectadas" : "não conectado"}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Conexões</CardTitle>
-            <TrendingUp className="h-4 w-4 text-purple-600" />
+            <CardTitle className="text-sm font-medium">Status Geral</CardTitle>
+            <ActivityIcon className={`h-4 w-4 ${totalConnections > 0 ? 'text-green-600' : 'text-gray-400'}`} />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalConnections}</div>
             <p className="text-xs text-muted-foreground">
-              plataformas ativas
+              {hasBothPlatforms ? "multi-plataforma" : totalConnections > 0 ? "plataforma única" : "sem conexões"}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+      {/* Unified Metrics - Only show if there are connections and valid client */}
+      {totalConnections > 0 && totalClients > 0 && clients?.[0]?.id && (
+        <div>
+          <p className="text-sm text-gray-500 mb-4">
+            Debug v2: totalConnections={totalConnections}, totalClients={totalClients}, clientId={clients[0].id}, timestamp={Date.now()}
+          </p>
+          <UnifiedMetricsCards 
+            clientId={clients[0].id} 
+            hasMetaConnections={hasMetaConnections}
+            hasGoogleConnections={hasGoogleConnections}
+          />
+        </div>
+      )}
+
+      {/* Platform Comparison - Only show if both platforms are connected */}
+      {hasBothPlatforms && totalClients > 0 && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Comparação de Plataformas
+            </h2>
+            <p className="text-gray-600">
+              Análise comparativa entre Meta Ads e Google Ads
+            </p>
+          </div>
+          <PlatformComparisonChart clientId={clients?.[0]?.id} />
+        </div>
+      )}
+
+      {/* Plan Limits and Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Plan Limits Indicator */}
+        <div className="lg:col-span-1">
+          <PlanLimitsIndicator />
+        </div>
+
+        {/* Quick Actions */}
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Ações Rápidas</CardTitle>
             <CardDescription>
-              Comece rapidamente com as tarefas mais comuns
+              Acesse rapidamente os dashboards e funcionalidades
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button asChild className="w-full justify-start">
-              <Link href="/dashboard/clients">
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar Novo Cliente
-              </Link>
-            </Button>
-            
-            <Button asChild variant="outline" className="w-full justify-start">
-              <Link href="/dashboard/clients">
-                <Eye className="mr-2 h-4 w-4" />
-                Ver Todos os Clientes
-              </Link>
-            </Button>
-            
-            <Button asChild variant="outline" className="w-full justify-start">
-              <Link href="/dashboard/reports">
-                <BarChart3 className="mr-2 h-4 w-4" />
-                Gerar Relatório
-              </Link>
-            </Button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Button asChild className="justify-start">
+                <Link href="/dashboard/clients">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Adicionar Cliente
+                </Link>
+              </Button>
+              
+              <Button asChild variant="outline" className="justify-start">
+                <Link href="/dashboard/reports">
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Relatórios
+                </Link>
+              </Button>
+
+              <ExportButton
+                clientId={clients?.[0]?.id || ""}
+                platform="unified"
+                variant="outline"
+                className="justify-start"
+                disabled={totalConnections === 0 || !clients?.[0]?.id}
+              />
+            </div>
+
+            {/* Platform-specific quick links */}
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium text-gray-700 mb-3">Dashboards por Plataforma</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Button 
+                  asChild 
+                  variant={hasMetaConnections ? "default" : "secondary"} 
+                  className="justify-start"
+                  disabled={!hasMetaConnections}
+                >
+                  <Link href="/dashboard/meta">
+                    <div className="w-4 h-4 bg-blue-600 rounded flex items-center justify-center mr-2">
+                      <span className="text-white text-xs font-bold">f</span>
+                    </div>
+                    Meta Ads
+                    <div className="ml-auto h-3 w-3">↗</div>
+                  </Link>
+                </Button>
+                
+                <Button 
+                  asChild 
+                  variant={hasGoogleConnections ? "default" : "secondary"} 
+                  className="justify-start"
+                  disabled={!hasGoogleConnections}
+                >
+                  <Link href="/dashboard/google">
+                    <div className="w-4 h-4 bg-green-600 rounded flex items-center justify-center mr-2">
+                      <span className="text-white text-xs font-bold">G</span>
+                    </div>
+                    Google Ads
+                    <div className="ml-auto h-3 w-3">↗</div>
+                  </Link>
+                </Button>
+              </div>
+            </div>
+
+            {/* Analytics quick links */}
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium text-gray-700 mb-3">Analytics Avançados</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Button asChild variant="outline" className="justify-start" size="sm">
+                  <Link href="/dashboard/analytics">
+                    <TrendingUp className="mr-2 h-4 w-4" />
+                    Insights Meta
+                  </Link>
+                </Button>
+                
+                <Button 
+                  asChild 
+                  variant="outline" 
+                  className="justify-start" 
+                  size="sm"
+                  disabled={!hasGoogleConnections}
+                >
+                  <Link href="/dashboard/analytics/google">
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    Insights Google
+                  </Link>
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
+      </div>
 
+      {/* Getting Started */}
+      <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Primeiros Passos</CardTitle>

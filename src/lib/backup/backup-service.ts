@@ -1,588 +1,672 @@
 /**
- * Serviço de Backup Automático
- * - Backup completo e incremental
- * - Compressão e armazenamento
- * - Agendamento automático
- * - Recuperação de dados
- * - Monitoramento de integridade
+ * Backup and Recovery Service
+ * 
+ * Implementa sistema de backup automático para dados críticos
+ * e procedures de recovery documentados
  */
 
-import { createClient } from '@/lib/supabase/server'
-import { promises as fs } from 'fs'
-import path from 'path'
-import { createGzip } from 'zlib'
-import { pipeline } from 'stream/promises'
+import { resilientDb } from '@/lib/resilience/database-resilience';
 
-interface BackupConfig {
-  organizationId: string
-  tables: string[]
-  type: 'full' | 'incremental' | 'manual'
-  compression: boolean
-  retention: {
-    daily: number    // dias
-    weekly: number   // semanas
-    monthly: number  // meses
-  }
+export interface BackupConfig {
+  enabled: boolean;
+  schedule: string; // Cron expression
+  retentionDays: number;
+  compressionEnabled: boolean;
+  encryptionEnabled: boolean;
+  destinations: BackupDestination[];
 }
 
-interface BackupResult {
-  success: boolean
-  backupId: string
-  filePath?: string
-  fileSize?: number
-  duration: number
-  tablesBackedUp: string[]
-  error?: string
+export interface BackupDestination {
+  type: 'local' | 's3' | 'gcs' | 'azure';
+  config: Record<string, any>;
+  priority: number;
 }
 
+export interface BackupMetadata {
+  id: string;
+  timestamp: Date;
+  type: 'full' | 'incremental' | 'critical_data';
+  size: number;
+  checksum: string;
+  tables: string[];
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  destination: string;
+  error?: string;
+}
+
+export interface RecoveryProcedure {
+  name: string;
+  description: string;
+  steps: RecoveryStep[];
+  estimatedTime: string;
+  prerequisites: string[];
+  rollbackSteps?: RecoveryStep[];
+}
+
+export interface RecoveryStep {
+  order: number;
+  description: string;
+  command?: string;
+  verification?: string;
+  critical: boolean;
+}
+
+/**
+ * Serviço de backup e recovery
+ */
 export class BackupService {
-  private supabase = createClient()
-  private backupDir = process.env.BACKUP_DIR || './backups'
-
-  /**
-   * Executa backup completo de uma organização
-   */
-  async createFullBackup(organizationId: string): Promise<BackupResult> {
-    const startTime = Date.now()
-    const backupId = this.generateBackupId('full')
-
-    console.log(`Starting full backup for organization ${organizationId}`)
-
-    try {
-      // Registrar início do backup
-      await this.logBackupStart(backupId, organizationId, 'full')
-
-      const config: BackupConfig = {
-        organizationId,
-        tables: [
-          'organizations',
-          'organization_members',
-          'clients',
-          'meta_connections',
-          'meta_accounts',
-          'meta_campaigns',
-          'meta_insights',
-          'notifications',
-          'notification_rules',
-          'workflows',
-          'workflow_executions'
-        ],
-        type: 'full',
-        compression: true,
-        retention: { daily: 7, weekly: 4, monthly: 12 }
+  private config: BackupConfig = {
+    enabled: true,
+    schedule: '0 2 * * *', // Diariamente às 2h
+    retentionDays: 30,
+    compressionEnabled: true,
+    encryptionEnabled: true,
+    destinations: [
+      {
+        type: 'local',
+        config: { path: '/backups' },
+        priority: 1
       }
+    ]
+  };
 
-      const result = await this.executeBackup(backupId, config)
-      
-      // Registrar conclusão
-      await this.logBackupComplete(backupId, result)
-      
-      return result
-    } catch (error) {
-      const result: BackupResult = {
-        success: false,
-        backupId,
-        duration: Date.now() - startTime,
-        tablesBackedUp: [],
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }
+  private backupHistory: BackupMetadata[] = [];
 
-      await this.logBackupComplete(backupId, result)
-      return result
-    }
+  constructor(config?: Partial<BackupConfig>) {
+    this.config = { ...this.config, ...config };
   }
 
   /**
-   * Executa backup incremental (apenas dados modificados)
+   * Executa backup completo dos dados críticos
    */
-  async createIncrementalBackup(organizationId: string, since?: Date): Promise<BackupResult> {
-    const startTime = Date.now()
-    const backupId = this.generateBackupId('incremental')
-
-    console.log(`Starting incremental backup for organization ${organizationId}`)
+  async createFullBackup(): Promise<BackupMetadata> {
+    const backupId = this.generateBackupId();
+    const metadata: BackupMetadata = {
+      id: backupId,
+      timestamp: new Date(),
+      type: 'full',
+      size: 0,
+      checksum: '',
+      tables: [
+        'subscription_intents',
+        'subscriptions',
+        'webhook_logs',
+        'payment_analytics',
+        'organizations',
+        'users'
+      ],
+      status: 'pending',
+      destination: 'local'
+    };
 
     try {
-      // Se não especificado, usar último backup como referência
-      if (!since) {
-        const { data: lastBackup } = await this.supabase
-          .from('backup_logs')
-          .select('completed_at')
-          .eq('organization_id', organizationId)
-          .eq('status', 'completed')
-          .order('completed_at', { ascending: false })
-          .limit(1)
-          .single()
-
-        since = lastBackup?.completed_at ? new Date(lastBackup.completed_at) : new Date(Date.now() - 24 * 60 * 60 * 1000)
-      }
-
-      await this.logBackupStart(backupId, organizationId, 'incremental')
-
-      const config: BackupConfig = {
-        organizationId,
-        tables: [
-          'meta_campaigns',
-          'meta_insights',
-          'notifications',
-          'workflow_executions'
-        ],
-        type: 'incremental',
-        compression: true,
-        retention: { daily: 30, weekly: 12, monthly: 6 }
-      }
-
-      const result = await this.executeIncrementalBackup(backupId, config, since)
+      console.log(`[Backup] Starting full backup ${backupId}`);
+      metadata.status = 'in_progress';
       
-      await this.logBackupComplete(backupId, result)
-      return result
-    } catch (error) {
-      const result: BackupResult = {
-        success: false,
-        backupId,
-        duration: Date.now() - startTime,
-        tablesBackedUp: [],
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }
-
-      await this.logBackupComplete(backupId, result)
-      return result
-    }
-  }
-
-  /**
-   * Executa o backup propriamente dito
-   */
-  private async executeBackup(backupId: string, config: BackupConfig): Promise<BackupResult> {
-    const startTime = Date.now()
-    const fileName = `${backupId}.sql${config.compression ? '.gz' : ''}`
-    const filePath = path.join(this.backupDir, fileName)
-
-    // Garantir que o diretório existe
-    await fs.mkdir(this.backupDir, { recursive: true })
-
-    let sqlContent = ''
-    const backedUpTables: string[] = []
-
-    // Gerar SQL para cada tabela
-    for (const table of config.tables) {
-      try {
-        const tableBackup = await this.backupTable(table, config.organizationId)
-        if (tableBackup) {
-          sqlContent += tableBackup + '\n\n'
-          backedUpTables.push(table)
+      // Backup de subscription_intents críticos
+      const criticalIntents = await this.backupCriticalSubscriptionIntents();
+      
+      // Backup de webhook logs recentes
+      const webhookLogs = await this.backupRecentWebhookLogs();
+      
+      // Backup de configurações de organizações
+      const organizations = await this.backupOrganizations();
+      
+      // Backup de planos de assinatura
+      const subscriptionPlans = await this.backupSubscriptionPlans();
+      
+      const backupData = {
+        metadata,
+        data: {
+          subscription_intents: criticalIntents,
+          webhook_logs: webhookLogs,
+          organizations: organizations,
+          subscription_plans: subscriptionPlans
         }
-      } catch (error) {
-        console.error(`Error backing up table ${table}:`, error)
-      }
-    }
+      };
 
-    // Salvar arquivo
-    if (config.compression) {
-      await this.writeCompressedFile(filePath, sqlContent)
-    } else {
-      await fs.writeFile(filePath, sqlContent, 'utf8')
-    }
-
-    const stats = await fs.stat(filePath)
-
-    return {
-      success: true,
-      backupId,
-      filePath,
-      fileSize: stats.size,
-      duration: Date.now() - startTime,
-      tablesBackedUp: backedUpTables
-    }
-  }
-
-  /**
-   * Executa backup incremental
-   */
-  private async executeIncrementalBackup(
-    backupId: string,
-    config: BackupConfig,
-    since: Date
-  ): Promise<BackupResult> {
-    const startTime = Date.now()
-    const fileName = `${backupId}.sql${config.compression ? '.gz' : ''}`
-    const filePath = path.join(this.backupDir, fileName)
-
-    await fs.mkdir(this.backupDir, { recursive: true })
-
-    let sqlContent = `-- Incremental backup since ${since.toISOString()}\n\n`
-    const backedUpTables: string[] = []
-
-    // Backup apenas dados modificados
-    for (const table of config.tables) {
-      try {
-        const tableBackup = await this.backupTableIncremental(table, config.organizationId, since)
-        if (tableBackup) {
-          sqlContent += tableBackup + '\n\n'
-          backedUpTables.push(table)
-        }
-      } catch (error) {
-        console.error(`Error backing up table ${table} incrementally:`, error)
-      }
-    }
-
-    if (config.compression) {
-      await this.writeCompressedFile(filePath, sqlContent)
-    } else {
-      await fs.writeFile(filePath, sqlContent, 'utf8')
-    }
-
-    const stats = await fs.stat(filePath)
-
-    return {
-      success: true,
-      backupId,
-      filePath,
-      fileSize: stats.size,
-      duration: Date.now() - startTime,
-      tablesBackedUp: backedUpTables
-    }
-  }
-
-  /**
-   * Faz backup de uma tabela específica
-   */
-  private async backupTable(tableName: string, organizationId: string): Promise<string | null> {
-    try {
-      const { data, error } = await this.supabase
-        .from(tableName)
-        .select('*')
-        .eq('organization_id', organizationId)
-
-      if (error || !data || data.length === 0) {
-        return null
-      }
-
-      let sql = `-- Backup of table ${tableName}\n`
-      sql += `DELETE FROM ${tableName} WHERE organization_id = '${organizationId}';\n`
-
-      for (const row of data) {
-        const columns = Object.keys(row).join(', ')
-        const values = Object.values(row)
-          .map(value => {
-            if (value === null) return 'NULL'
-            if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`
-            if (typeof value === 'object') return `'${JSON.stringify(value).replace(/'/g, "''")}'`
-            return String(value)
-          })
-          .join(', ')
-
-        sql += `INSERT INTO ${tableName} (${columns}) VALUES (${values});\n`
-      }
-
-      return sql
+      // Salva backup
+      const backupPath = await this.saveBackup(backupId, backupData);
+      
+      // Calcula checksum
+      metadata.checksum = await this.calculateChecksum(backupPath);
+      metadata.size = await this.getFileSize(backupPath);
+      metadata.status = 'completed';
+      
+      this.backupHistory.push(metadata);
+      
+      console.log(`[Backup] Full backup ${backupId} completed successfully`);
+      
+      // Limpa backups antigos
+      await this.cleanupOldBackups();
+      
+      return metadata;
+      
     } catch (error) {
-      console.error(`Error backing up table ${tableName}:`, error)
-      return null
+      console.error(`[Backup] Full backup ${backupId} failed:`, error);
+      metadata.status = 'failed';
+      metadata.error = (error as Error).message;
+      
+      this.backupHistory.push(metadata);
+      throw error;
     }
   }
 
   /**
-   * Faz backup incremental de uma tabela
+   * Backup incremental apenas de dados modificados
    */
-  private async backupTableIncremental(
-    tableName: string,
-    organizationId: string,
-    since: Date
-  ): Promise<string | null> {
-    try {
-      // Verificar se a tabela tem campo updated_at
-      const { data, error } = await this.supabase
-        .from(tableName)
-        .select('*')
-        .eq('organization_id', organizationId)
-        .gte('updated_at', since.toISOString())
-
-      if (error || !data || data.length === 0) {
-        return null
-      }
-
-      let sql = `-- Incremental backup of table ${tableName}\n`
-
-      for (const row of data) {
-        const columns = Object.keys(row).join(', ')
-        const values = Object.values(row)
-          .map(value => {
-            if (value === null) return 'NULL'
-            if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`
-            if (typeof value === 'object') return `'${JSON.stringify(value).replace(/'/g, "''")}'`
-            return String(value)
-          })
-          .join(', ')
-
-        // Usar UPSERT para dados incrementais
-        sql += `INSERT INTO ${tableName} (${columns}) VALUES (${values}) ON CONFLICT (id) DO UPDATE SET `
-        sql += Object.keys(row)
-          .filter(key => key !== 'id')
-          .map(key => `${key} = EXCLUDED.${key}`)
-          .join(', ')
-        sql += ';\n'
-      }
-
-      return sql
-    } catch (error) {
-      console.error(`Error backing up table ${tableName} incrementally:`, error)
-      return null
-    }
-  }
-
-  /**
-   * Escreve arquivo comprimido
-   */
-  private async writeCompressedFile(filePath: string, content: string): Promise<void> {
-    const { createReadStream, createWriteStream } = await import('fs')
-    const { Readable } = await import('stream')
+  async createIncrementalBackup(since?: Date): Promise<BackupMetadata> {
+    const backupId = this.generateBackupId('inc');
+    const sinceDate = since || new Date(Date.now() - 24 * 60 * 60 * 1000); // Últimas 24h
     
-    const readable = Readable.from([content])
-    const writeStream = createWriteStream(filePath)
-    const gzip = createGzip()
+    const metadata: BackupMetadata = {
+      id: backupId,
+      timestamp: new Date(),
+      type: 'incremental',
+      size: 0,
+      checksum: '',
+      tables: ['subscription_intents', 'webhook_logs'],
+      status: 'pending',
+      destination: 'local'
+    };
 
-    await pipeline(readable, gzip, writeStream)
+    try {
+      console.log(`[Backup] Starting incremental backup ${backupId} since ${sinceDate.toISOString()}`);
+      metadata.status = 'in_progress';
+      
+      // Backup apenas de dados modificados
+      const modifiedIntents = await this.backupModifiedSubscriptionIntents(sinceDate);
+      const recentWebhooks = await this.backupRecentWebhookLogs(sinceDate);
+      
+      const backupData = {
+        metadata,
+        data: {
+          subscription_intents: modifiedIntents,
+          webhook_logs: recentWebhooks
+        }
+      };
+
+      const backupPath = await this.saveBackup(backupId, backupData);
+      
+      metadata.checksum = await this.calculateChecksum(backupPath);
+      metadata.size = await this.getFileSize(backupPath);
+      metadata.status = 'completed';
+      
+      this.backupHistory.push(metadata);
+      
+      console.log(`[Backup] Incremental backup ${backupId} completed`);
+      
+      return metadata;
+      
+    } catch (error) {
+      console.error(`[Backup] Incremental backup ${backupId} failed:`, error);
+      metadata.status = 'failed';
+      metadata.error = (error as Error).message;
+      
+      this.backupHistory.push(metadata);
+      throw error;
+    }
   }
 
   /**
-   * Restaura backup de um arquivo
+   * Backup apenas de dados críticos (subscription_intents ativos)
    */
-  async restoreBackup(backupId: string, organizationId: string): Promise<boolean> {
+  async createCriticalDataBackup(): Promise<BackupMetadata> {
+    const backupId = this.generateBackupId('critical');
+    
+    const metadata: BackupMetadata = {
+      id: backupId,
+      timestamp: new Date(),
+      type: 'critical_data',
+      size: 0,
+      checksum: '',
+      tables: ['subscription_intents'],
+      status: 'pending',
+      destination: 'local'
+    };
+
     try {
-      console.log(`Starting restore of backup ${backupId} for organization ${organizationId}`)
-
-      // Buscar informações do backup
-      const { data: backupLog } = await this.supabase
-        .from('backup_logs')
-        .select('*')
-        .eq('id', backupId)
-        .eq('organization_id', organizationId)
-        .single()
-
-      if (!backupLog || !backupLog.file_path) {
-        throw new Error('Backup not found')
-      }
-
-      // Ler arquivo de backup
-      let sqlContent: string
+      console.log(`[Backup] Starting critical data backup ${backupId}`);
+      metadata.status = 'in_progress';
       
-      if (backupLog.file_path.endsWith('.gz')) {
-        sqlContent = await this.readCompressedFile(backupLog.file_path)
+      const criticalIntents = await this.backupCriticalSubscriptionIntents();
+      
+      const backupData = {
+        metadata,
+        data: {
+          subscription_intents: criticalIntents
+        }
+      };
+
+      const backupPath = await this.saveBackup(backupId, backupData);
+      
+      metadata.checksum = await this.calculateChecksum(backupPath);
+      metadata.size = await this.getFileSize(backupPath);
+      metadata.status = 'completed';
+      
+      this.backupHistory.push(metadata);
+      
+      console.log(`[Backup] Critical data backup ${backupId} completed`);
+      
+      return metadata;
+      
+    } catch (error) {
+      console.error(`[Backup] Critical data backup ${backupId} failed:`, error);
+      metadata.status = 'failed';
+      metadata.error = (error as Error).message;
+      
+      this.backupHistory.push(metadata);
+      throw error;
+    }
+  }
+
+  /**
+   * Backup de subscription_intents críticos
+   */
+  private async backupCriticalSubscriptionIntents(): Promise<any[]> {
+    return resilientDb.execute({
+      operation: async (client) => {
+        const { data, error } = await client
+          .from('subscription_intents')
+          .select('*')
+          .in('status', ['pending', 'processing', 'degraded_pending'])
+          .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()); // Últimos 7 dias
+        
+        if (error) throw error;
+        return data || [];
+      },
+      operationName: 'backup-critical-subscription-intents'
+    });
+  }
+
+  /**
+   * Backup de subscription_intents modificados
+   */
+  private async backupModifiedSubscriptionIntents(since: Date): Promise<any[]> {
+    return resilientDb.execute({
+      operation: async (client) => {
+        const { data, error } = await client
+          .from('subscription_intents')
+          .select('*')
+          .gte('updated_at', since.toISOString());
+        
+        if (error) throw error;
+        return data || [];
+      },
+      operationName: 'backup-modified-subscription-intents'
+    });
+  }
+
+  /**
+   * Backup de webhook logs recentes
+   */
+  private async backupRecentWebhookLogs(since?: Date): Promise<any[]> {
+    const sinceDate = since || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Últimos 7 dias
+    
+    return resilientDb.execute({
+      operation: async (client) => {
+        const { data, error } = await client
+          .from('webhook_logs')
+          .select('*')
+          .gte('created_at', sinceDate.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(10000); // Limita para evitar backups muito grandes
+        
+        if (error) throw error;
+        return data || [];
+      },
+      operationName: 'backup-recent-webhook-logs'
+    });
+  }
+
+  /**
+   * Backup de organizações
+   */
+  private async backupOrganizations(): Promise<any[]> {
+    return resilientDb.execute({
+      operation: async (client) => {
+        const { data, error } = await client
+          .from('organizations')
+          .select('*');
+        
+        if (error) throw error;
+        return data || [];
+      },
+      operationName: 'backup-organizations'
+    });
+  }
+
+  /**
+   * Backup de planos de assinatura
+   */
+  private async backupSubscriptionPlans(): Promise<any[]> {
+    return resilientDb.execute({
+      operation: async (client) => {
+        const { data, error } = await client
+          .from('subscription_plans')
+          .select('*');
+        
+        if (error) throw error;
+        return data || [];
+      },
+      operationName: 'backup-subscription-plans'
+    });
+  }
+
+  /**
+   * Salva backup em arquivo
+   */
+  private async saveBackup(backupId: string, data: any): Promise<string> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `backup_${backupId}_${timestamp}.json`;
+    const backupPath = `/tmp/${filename}`; // Em produção, usar path configurável
+    
+    try {
+      const fs = await import('fs/promises');
+      
+      let content = JSON.stringify(data, null, 2);
+      
+      // Compressão se habilitada
+      if (this.config.compressionEnabled) {
+        const zlib = await import('zlib');
+        const compressed = zlib.gzipSync(Buffer.from(content));
+        await fs.writeFile(`${backupPath}.gz`, compressed);
+        return `${backupPath}.gz`;
       } else {
-        sqlContent = await fs.readFile(backupLog.file_path, 'utf8')
+        await fs.writeFile(backupPath, content);
+        return backupPath;
       }
-
-      // Executar comandos SQL
-      const commands = sqlContent
-        .split(';')
-        .map(cmd => cmd.trim())
-        .filter(cmd => cmd.length > 0 && !cmd.startsWith('--'))
-
-      for (const command of commands) {
-        try {
-          await this.supabase.rpc('exec_sql', { sql_query: command + ';' })
-        } catch (error) {
-          console.error('Error executing restore command:', error)
-        }
-      }
-
-      console.log(`Restore of backup ${backupId} completed`)
-      return true
+      
     } catch (error) {
-      console.error('Error restoring backup:', error)
-      return false
+      console.error(`[Backup] Failed to save backup to ${backupPath}:`, error);
+      throw error;
     }
   }
 
   /**
-   * Lê arquivo comprimido
+   * Calcula checksum do arquivo de backup
    */
-  private async readCompressedFile(filePath: string): Promise<string> {
-    const { createReadStream } = await import('fs')
-    const { createGunzip } = await import('zlib')
-    const { pipeline } = await import('stream/promises')
-    
-    const chunks: Buffer[] = []
-    const readStream = createReadStream(filePath)
-    const gunzip = createGunzip()
-    
-    gunzip.on('data', (chunk) => chunks.push(chunk))
-    
-    await pipeline(readStream, gunzip)
-    
-    return Buffer.concat(chunks).toString('utf8')
-  }
-
-  /**
-   * Lista backups disponíveis
-   */
-  async listBackups(organizationId: string): Promise<any[]> {
-    const { data: backups } = await this.supabase
-      .from('backup_logs')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('started_at', { ascending: false })
-
-    return backups || []
-  }
-
-  /**
-   * Remove backups antigos baseado na política de retenção
-   */
-  async cleanupOldBackups(organizationId: string): Promise<number> {
-    const retention = {
-      daily: 7,
-      weekly: 4,
-      monthly: 12
-    }
-
-    let deletedCount = 0
-
+  private async calculateChecksum(filePath: string): Promise<string> {
     try {
-      // Remover backups diários antigos
-      const dailyCutoff = new Date(Date.now() - retention.daily * 24 * 60 * 60 * 1000)
-      const { data: oldDailyBackups } = await this.supabase
-        .from('backup_logs')
-        .select('id, file_path')
-        .eq('organization_id', organizationId)
-        .eq('backup_type', 'incremental')
-        .lt('started_at', dailyCutoff.toISOString())
-
-      if (oldDailyBackups) {
-        for (const backup of oldDailyBackups) {
-          await this.deleteBackupFile(backup.file_path)
-          await this.supabase
-            .from('backup_logs')
-            .delete()
-            .eq('id', backup.id)
-          deletedCount++
-        }
-      }
-
-      // Remover backups completos muito antigos
-      const monthlyCutoff = new Date(Date.now() - retention.monthly * 30 * 24 * 60 * 60 * 1000)
-      const { data: oldMonthlyBackups } = await this.supabase
-        .from('backup_logs')
-        .select('id, file_path')
-        .eq('organization_id', organizationId)
-        .eq('backup_type', 'full')
-        .lt('started_at', monthlyCutoff.toISOString())
-
-      if (oldMonthlyBackups) {
-        for (const backup of oldMonthlyBackups) {
-          await this.deleteBackupFile(backup.file_path)
-          await this.supabase
-            .from('backup_logs')
-            .delete()
-            .eq('id', backup.id)
-          deletedCount++
-        }
-      }
-
-      console.log(`Cleaned up ${deletedCount} old backups for organization ${organizationId}`)
-      return deletedCount
+      const crypto = await import('crypto');
+      const fs = await import('fs/promises');
+      
+      const content = await fs.readFile(filePath);
+      return crypto.createHash('sha256').update(content).digest('hex');
+      
     } catch (error) {
-      console.error('Error cleaning up old backups:', error)
-      return 0
+      console.error(`[Backup] Failed to calculate checksum for ${filePath}:`, error);
+      return '';
     }
   }
 
   /**
-   * Remove arquivo de backup do disco
+   * Obtém tamanho do arquivo
    */
-  private async deleteBackupFile(filePath: string | null): Promise<void> {
-    if (!filePath) return
-
+  private async getFileSize(filePath: string): Promise<number> {
     try {
-      await fs.unlink(filePath)
+      const fs = await import('fs/promises');
+      const stats = await fs.stat(filePath);
+      return stats.size;
     } catch (error) {
-      console.error(`Error deleting backup file ${filePath}:`, error)
+      console.error(`[Backup] Failed to get file size for ${filePath}:`, error);
+      return 0;
     }
   }
 
   /**
-   * Registra início do backup
+   * Limpa backups antigos baseado na retenção configurada
    */
-  private async logBackupStart(
-    backupId: string,
-    organizationId: string,
-    type: 'full' | 'incremental' | 'manual'
-  ): Promise<void> {
-    await this.supabase
-      .from('backup_logs')
-      .insert({
-        id: backupId,
-        organization_id: organizationId,
-        backup_type: type,
-        status: 'running',
-        started_at: new Date().toISOString()
-      })
+  private async cleanupOldBackups(): Promise<void> {
+    const cutoffDate = new Date(Date.now() - this.config.retentionDays * 24 * 60 * 60 * 1000);
+    
+    const oldBackups = this.backupHistory.filter(backup => 
+      backup.timestamp < cutoffDate && backup.status === 'completed'
+    );
+
+    for (const backup of oldBackups) {
+      try {
+        const fs = await import('fs/promises');
+        const backupPath = `/tmp/backup_${backup.id}_*`;
+        
+        // Remove arquivo físico (implementação simplificada)
+        console.log(`[Backup] Would cleanup old backup: ${backup.id}`);
+        
+        // Remove do histórico
+        const index = this.backupHistory.indexOf(backup);
+        if (index > -1) {
+          this.backupHistory.splice(index, 1);
+        }
+        
+      } catch (error) {
+        console.error(`[Backup] Failed to cleanup backup ${backup.id}:`, error);
+      }
+    }
   }
 
   /**
-   * Registra conclusão do backup
+   * Restaura dados de um backup
    */
-  private async logBackupComplete(backupId: string, result: BackupResult): Promise<void> {
-    await this.supabase
-      .from('backup_logs')
-      .update({
-        status: result.success ? 'completed' : 'failed',
-        completed_at: new Date().toISOString(),
-        file_path: result.filePath,
-        file_size_bytes: result.fileSize,
-        tables_backed_up: result.tablesBackedUp,
-        error_message: result.error
-      })
-      .eq('id', backupId)
+  async restoreFromBackup(backupId: string, tables?: string[]): Promise<void> {
+    console.log(`[Backup] Starting restore from backup ${backupId}`);
+    
+    try {
+      const backup = this.backupHistory.find(b => b.id === backupId);
+      if (!backup) {
+        throw new Error(`Backup ${backupId} not found`);
+      }
+
+      if (backup.status !== 'completed') {
+        throw new Error(`Backup ${backupId} is not in completed state`);
+      }
+
+      // Carrega dados do backup
+      const backupData = await this.loadBackup(backupId);
+      
+      // Valida checksum
+      const currentChecksum = await this.calculateChecksum(this.getBackupPath(backupId));
+      if (currentChecksum !== backup.checksum) {
+        throw new Error(`Backup ${backupId} checksum validation failed`);
+      }
+
+      // Restaura tabelas especificadas ou todas
+      const tablesToRestore = tables || backup.tables;
+      
+      for (const table of tablesToRestore) {
+        if (backupData.data[table]) {
+          await this.restoreTable(table, backupData.data[table]);
+        }
+      }
+      
+      console.log(`[Backup] Restore from backup ${backupId} completed successfully`);
+      
+    } catch (error) {
+      console.error(`[Backup] Restore from backup ${backupId} failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Carrega dados de um backup
+   */
+  private async loadBackup(backupId: string): Promise<any> {
+    const backupPath = this.getBackupPath(backupId);
+    
+    try {
+      const fs = await import('fs/promises');
+      
+      let content: Buffer;
+      
+      if (backupPath.endsWith('.gz')) {
+        const zlib = await import('zlib');
+        const compressed = await fs.readFile(backupPath);
+        content = zlib.gunzipSync(compressed);
+      } else {
+        content = await fs.readFile(backupPath);
+      }
+      
+      return JSON.parse(content.toString());
+      
+    } catch (error) {
+      console.error(`[Backup] Failed to load backup from ${backupPath}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restaura uma tabela específica
+   */
+  private async restoreTable(tableName: string, data: any[]): Promise<void> {
+    console.log(`[Backup] Restoring table ${tableName} with ${data.length} records`);
+    
+    await resilientDb.execute({
+      operation: async (client) => {
+        // Em um cenário real, seria mais cuidadoso com a restauração
+        // Aqui é uma implementação simplificada
+        
+        for (const record of data) {
+          const { error } = await client
+            .from(tableName)
+            .upsert(record, { onConflict: 'id' });
+          
+          if (error) {
+            console.error(`[Backup] Failed to restore record in ${tableName}:`, error);
+            // Continua com próximo registro
+          }
+        }
+      },
+      operationName: `restore-table-${tableName}`
+    });
+  }
+
+  /**
+   * Obtém caminho do arquivo de backup
+   */
+  private getBackupPath(backupId: string): string {
+    // Implementação simplificada - em produção, buscaria no sistema de arquivos
+    return `/tmp/backup_${backupId}_*.json`;
   }
 
   /**
    * Gera ID único para backup
    */
-  private generateBackupId(type: string): string {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const random = Math.random().toString(36).substr(2, 6)
-    return `backup_${type}_${timestamp}_${random}`
+  private generateBackupId(prefix: string = 'full'): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substr(2, 6);
+    return `${prefix}_${timestamp}_${random}`;
   }
 
   /**
-   * Agenda backup automático
+   * Obtém histórico de backups
    */
-  async scheduleAutomaticBackups(): Promise<void> {
-    // Esta função seria chamada por um cron job
-    console.log('Starting scheduled backup process...')
+  getBackupHistory(): BackupMetadata[] {
+    return [...this.backupHistory];
+  }
 
+  /**
+   * Verifica integridade de um backup
+   */
+  async verifyBackup(backupId: string): Promise<boolean> {
     try {
-      // Buscar todas as organizações ativas
-      const { data: organizations } = await this.supabase
-        .from('organizations')
-        .select('id')
-
-      if (!organizations) return
-
-      for (const org of organizations) {
-        try {
-          // Backup incremental diário
-          await this.createIncrementalBackup(org.id)
-          
-          // Backup completo semanal (domingo)
-          const today = new Date().getDay()
-          if (today === 0) { // Domingo
-            await this.createFullBackup(org.id)
-          }
-
-          // Limpeza de backups antigos
-          await this.cleanupOldBackups(org.id)
-        } catch (error) {
-          console.error(`Error backing up organization ${org.id}:`, error)
-        }
+      const backup = this.backupHistory.find(b => b.id === backupId);
+      if (!backup) {
+        return false;
       }
 
-      console.log('Scheduled backup process completed')
+      const backupPath = this.getBackupPath(backupId);
+      const currentChecksum = await this.calculateChecksum(backupPath);
+      
+      return currentChecksum === backup.checksum;
+      
     } catch (error) {
-      console.error('Error in scheduled backup process:', error)
+      console.error(`[Backup] Failed to verify backup ${backupId}:`, error);
+      return false;
     }
+  }
+
+  /**
+   * Obtém procedures de recovery documentados
+   */
+  getRecoveryProcedures(): RecoveryProcedure[] {
+    return [
+      {
+        name: 'subscription_intents_recovery',
+        description: 'Recuperação de subscription intents perdidos ou corrompidos',
+        estimatedTime: '15-30 minutos',
+        prerequisites: [
+          'Backup válido disponível',
+          'Acesso ao banco de dados',
+          'Confirmação de que o Iugu está funcionando'
+        ],
+        steps: [
+          {
+            order: 1,
+            description: 'Identificar subscription intents afetados',
+            command: 'SELECT * FROM subscription_intents WHERE status IN (\'pending\', \'processing\') AND updated_at < NOW() - INTERVAL \'1 hour\'',
+            verification: 'Verificar se a query retorna os registros esperados',
+            critical: true
+          },
+          {
+            order: 2,
+            description: 'Fazer backup dos dados atuais antes da recuperação',
+            command: 'npm run backup:critical',
+            verification: 'Confirmar que o backup foi criado com sucesso',
+            critical: true
+          },
+          {
+            order: 3,
+            description: 'Restaurar subscription intents do backup',
+            command: 'npm run restore:subscription-intents --backup-id=<BACKUP_ID>',
+            verification: 'Verificar se os registros foram restaurados corretamente',
+            critical: true
+          },
+          {
+            order: 4,
+            description: 'Reprocessar intents pendentes',
+            command: 'npm run process:pending-intents',
+            verification: 'Confirmar que os intents foram processados no Iugu',
+            critical: false
+          }
+        ],
+        rollbackSteps: [
+          {
+            order: 1,
+            description: 'Restaurar backup feito no passo 2',
+            command: 'npm run restore:from-backup --backup-id=<PRE_RECOVERY_BACKUP>',
+            verification: 'Verificar se o estado anterior foi restaurado',
+            critical: true
+          }
+        ]
+      },
+      {
+        name: 'webhook_logs_recovery',
+        description: 'Recuperação de logs de webhook para auditoria',
+        estimatedTime: '10-15 minutos',
+        prerequisites: [
+          'Backup com webhook logs disponível',
+          'Período específico para recuperação identificado'
+        ],
+        steps: [
+          {
+            order: 1,
+            description: 'Identificar período de logs perdidos',
+            verification: 'Confirmar datas de início e fim do período afetado',
+            critical: true
+          },
+          {
+            order: 2,
+            description: 'Restaurar webhook logs do backup',
+            command: 'npm run restore:webhook-logs --from=<START_DATE> --to=<END_DATE>',
+            verification: 'Verificar se os logs foram restaurados no período correto',
+            critical: true
+          }
+        ]
+      }
+    ];
   }
 }
 
-export default BackupService
+/**
+ * Instância singleton do serviço de backup
+ */
+export const backupService = new BackupService();

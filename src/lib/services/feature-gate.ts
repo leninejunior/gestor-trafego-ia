@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { PlanFeatures } from '@/lib/types/subscription';
 import { SubscriptionService } from './subscription-service';
+import { gracefulDegradation } from '@/lib/resilience/graceful-degradation';
 
 export type FeatureKey = 
   | 'maxClients'
@@ -9,7 +10,11 @@ export type FeatureKey =
   | 'customReports'
   | 'apiAccess'
   | 'whiteLabel'
-  | 'prioritySupport';
+  | 'prioritySupport'
+  | 'dataRetention'
+  | 'csvExport'
+  | 'jsonExport'
+  | 'historicalDataCache';
 
 export interface FeatureAccessResult {
   hasAccess: boolean;
@@ -54,67 +59,104 @@ export class FeatureGateService {
     organizationId: string, 
     feature: FeatureKey
   ): Promise<FeatureAccessResult> {
-    try {
-      // Get organization's active subscription
-      const subscription = await this.subscriptionService.getActiveSubscription(organizationId);
-      
-      if (!subscription) {
-        return {
-          hasAccess: false,
-          reason: 'No active subscription found',
-          upgradeRequired: true
-        };
-      }
-
-      // Check if subscription is active
-      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
-        return {
-          hasAccess: false,
-          reason: `Subscription status is ${subscription.status}`,
-          upgradeRequired: true
-        };
-      }
-
-      const planFeatures = subscription.plan.features;
-
-      // Handle boolean features
-      if (typeof planFeatures[feature] === 'boolean') {
-        const hasAccess = planFeatures[feature] as boolean;
-        return {
-          hasAccess,
-          reason: hasAccess ? undefined : `Feature ${feature} not included in current plan`,
-          upgradeRequired: !hasAccess
-        };
-      }
-
-      // Handle numeric features (usage limits)
-      if (typeof planFeatures[feature] === 'number') {
-        const limit = planFeatures[feature] as number;
-        const currentUsage = await this.getCurrentUsage(organizationId, feature);
+    return gracefulDegradation.executeWithFallback(
+      'feature-gate',
+      async () => {
+        // Get organization's active subscription
+        const subscription = await this.subscriptionService.getActiveSubscription(organizationId);
         
+        if (!subscription) {
+          return {
+            hasAccess: false,
+            reason: 'No active subscription found',
+            upgradeRequired: true
+          };
+        }
+
+        // Check if subscription is active
+        if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+          return {
+            hasAccess: false,
+            reason: `Subscription status is ${subscription.status}`,
+            upgradeRequired: true
+          };
+        }
+
+        const planFeatures = subscription.plan.features;
+
+        // Handle boolean features
+        if (typeof planFeatures[feature] === 'boolean') {
+          const hasAccess = planFeatures[feature] as boolean;
+          return {
+            hasAccess,
+            reason: hasAccess ? undefined : `Feature ${feature} not included in current plan`,
+            upgradeRequired: !hasAccess
+          };
+        }
+
+        // Handle numeric features (usage limits)
+        if (typeof planFeatures[feature] === 'number') {
+          const limit = planFeatures[feature] as number;
+          const currentUsage = await this.getCurrentUsage(organizationId, feature);
+          
+          return {
+            hasAccess: currentUsage < limit,
+            reason: currentUsage >= limit ? `Usage limit reached for ${feature}` : undefined,
+            upgradeRequired: currentUsage >= limit,
+            currentUsage,
+            limit
+          };
+        }
+
         return {
-          hasAccess: currentUsage < limit,
-          reason: currentUsage >= limit ? `Usage limit reached for ${feature}` : undefined,
-          upgradeRequired: currentUsage >= limit,
-          currentUsage,
-          limit
+          hasAccess: false,
+          reason: `Unknown feature: ${feature}`,
+          upgradeRequired: false
+        };
+      },
+      'check-feature-access'
+    ).catch(error => {
+      console.error('Error checking feature access:', error);
+      
+      // Fallback para permissões básicas em caso de falha total
+      const basicFeatures: Record<FeatureKey, boolean | number> = {
+        maxClients: 1,
+        maxCampaigns: 5,
+        advancedAnalytics: false,
+        customReports: false,
+        apiAccess: false,
+        whiteLabel: false,
+        prioritySupport: false,
+        dataRetention: 30,
+        csvExport: false,
+        jsonExport: false,
+        historicalDataCache: false
+      };
+      
+      const fallbackValue = basicFeatures[feature];
+      
+      if (typeof fallbackValue === 'boolean') {
+        return {
+          hasAccess: fallbackValue,
+          reason: fallbackValue ? undefined : 'Using fallback permissions due to system issues',
+          upgradeRequired: !fallbackValue
+        };
+      } else if (typeof fallbackValue === 'number') {
+        return {
+          hasAccess: true, // Assume dentro do limite básico
+          reason: 'Using fallback limits due to system issues',
+          upgradeRequired: false,
+          currentUsage: 0,
+          limit: fallbackValue
         };
       }
-
+      
       return {
         hasAccess: false,
-        reason: `Unknown feature: ${feature}`,
+        reason: 'System temporarily unavailable',
         upgradeRequired: false
       };
-
-    } catch (error) {
-      console.error('Error checking feature access:', error);
-      return {
-        hasAccess: false,
-        reason: 'Error checking feature access',
-        upgradeRequired: false
-      };
-    }
+    });
   }
 
   /**
@@ -163,15 +205,9 @@ export class FeatureGateService {
     try {
       const supabase = await this.getSupabaseClient();
       
-      // Check if increment would exceed limit
-      const usageCheck = await this.checkUsageLimit(organizationId, feature);
-      if (!usageCheck.withinLimit) {
-        return false;
-      }
-
-      // Use database function to increment usage atomically
+      // Use atomic database function to check and increment usage
       const { data, error } = await supabase
-        .rpc('increment_feature_usage', {
+        .rpc('check_and_increment_feature_usage', {
           org_id: organizationId,
           feature_name: feature
         });
@@ -181,7 +217,8 @@ export class FeatureGateService {
         return false;
       }
 
-      return data === true;
+      // Return success status from the atomic function
+      return data?.success === true;
 
     } catch (error) {
       console.error('Error incrementing usage:', error);
@@ -199,12 +236,14 @@ export class FeatureGateService {
     try {
       const supabase = await this.getSupabaseClient();
       
+      // Use server-side current_date to ensure consistent timezone handling
+      const currentDate = new Date().toISOString().split('T')[0];
       const { data, error } = await supabase
         .from('feature_usage')
         .select('usage_count')
         .eq('organization_id', organizationId)
         .eq('feature_key', feature)
-        .eq('usage_date', new Date().toISOString().split('T')[0])
+        .eq('usage_date', currentDate)
         .single();
 
       if (error) {
@@ -237,7 +276,10 @@ export class FeatureGateService {
 
       // Add all plan features to matrix
       Object.keys(planFeatures).forEach(key => {
-        matrix[key] = planFeatures[key as keyof PlanFeatures];
+        const value = planFeatures[key as keyof PlanFeatures];
+        if (value !== undefined) {
+          matrix[key] = value;
+        }
       });
 
       // Add current usage for numeric features
@@ -366,14 +408,23 @@ export class FeatureGateService {
   ): Promise<boolean> {
     try {
       const supabase = await this.getSupabaseClient();
-      const targetDate = date || new Date();
+      
+      // Use server-side current_date if no date provided to ensure timezone consistency
+      let dateFilter: string;
+      if (date) {
+        // Convert provided date to UTC date string
+        const utcDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+        dateFilter = utcDate.toISOString().split('T')[0];
+      } else {
+        dateFilter = new Date().toISOString().split('T')[0];
+      }
       
       const { error } = await supabase
         .from('feature_usage')
         .update({ usage_count: 0 })
         .eq('organization_id', organizationId)
         .eq('feature_key', feature)
-        .eq('usage_date', targetDate.toISOString().split('T')[0]);
+        .eq('usage_date', dateFilter);
 
       if (error) {
         console.error('Error resetting usage:', error);

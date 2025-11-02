@@ -1,4 +1,43 @@
 // Tipos para Meta Ads API
+
+export class MetaApiError extends Error {
+  constructor(
+    message: string,
+    public code?: number,
+    public type?: string,
+    public subcode?: number
+  ) {
+    super(message);
+    this.name = 'MetaApiError';
+  }
+}
+
+export interface MetaAccount {
+  id: string;
+  name: string;
+  account_status: number;
+  currency: string;
+  timezone_name: string;
+  spend_cap?: string;
+  balance?: string;
+}
+
+export interface MetaInsights {
+  impressions: string;
+  clicks: string;
+  spend: string;
+  reach: string;
+  frequency: string;
+  cpm: string;
+  cpc: string;
+  ctr: string;
+  cost_per_conversion?: string;
+  conversions?: string;
+  conversion_rate?: string;
+  date_start: string;
+  date_stop: string;
+}
+
 export interface MetaAdAccount {
   id: string;
   name: string;

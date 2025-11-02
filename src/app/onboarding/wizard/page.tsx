@@ -94,7 +94,7 @@ export default function OnboardingWizard() {
     }
 
     const { data: membership } = await supabase
-      .from('memberships')
+      .from('organization_memberships')
       .select(`
         organizations (
           name
@@ -141,7 +141,7 @@ export default function OnboardingWizard() {
 
       // Atualizar nome da organização
       const { data: membership } = await supabase
-        .from('memberships')
+        .from('organization_memberships')
         .select('organization_id')
         .eq('user_id', user.id)
         .single();
@@ -177,7 +177,7 @@ export default function OnboardingWizard() {
       if (!user) return;
 
       const { data: membership } = await supabase
-        .from('memberships')
+        .from('organization_memberships')
         .select('organization_id')
         .eq('user_id', user.id)
         .single();

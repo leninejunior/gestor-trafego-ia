@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
 export async function middleware(request: NextRequest) {
+  // Skip middleware for API routes - let them handle their own authentication
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.next()
+  }
+
   // update user's auth session
   const { supabase, response } = await updateSession(request) // Desestrutura supabase e response
 

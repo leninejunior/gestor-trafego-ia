@@ -1,9 +1,8 @@
 /**
- * Dashboard de Monitoramento do Sistema
- * - Métricas em tempo real
- * - Health checks
- * - Alertas ativos
- * - Performance do sistema
+ * Admin Monitoring Dashboard
+ * 
+ * Dashboard completo de monitoramento técnico e de negócio
+ * Requirements: 4.4, 6.2 - Dashboards de monitoramento e KPIs
  */
 
 'use client'
@@ -13,409 +12,656 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Progress } from '@/components/ui/progress'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { 
   Activity, 
   AlertTriangle, 
   CheckCircle, 
-  XCircle, 
   Clock, 
-  Database,
-  Server,
-  Cpu,
-  HardDrive,
-  Network,
-  RefreshCw
+  DollarSign, 
+  TrendingUp, 
+  Users, 
+  Zap,
+  RefreshCw,
+  Bell,
+  BarChart3,
+  Shield,
+  Server
 } from 'lucide-react'
 
-interface HealthCheck {
-  service: string
-  status: 'healthy' | 'degraded' | 'unhealthy'
-  responseTime?: number
-  error?: string
-  lastCheck: string
+interface SystemMetrics {
+  checkout: {
+    checkouts_started: number
+    checkouts_completed: number
+    conversion_rate: number
+    abandonment_rate: number
+    avg_checkout_duration_ms: number
+    total_revenue: number
+    avg_order_value: number
+  }
+  payment: {
+    webhooks_received: number
+    webhooks_processed: number
+    webhooks_failed: number
+    webhook_processing_rate: number
+    avg_webhook_processing_time_ms: number
+    payment_failures: number
+    error_rate: number
+  }
+  performance: {
+    api_response_time_ms: number
+    api_error_rate: number
+    api_throughput_rps: number
+    memory_usage_mb: number
+    cpu_usage_percent: number
+  }
+  alerts: {
+    active_alerts: number
+    critical_alerts: number
+    high_alerts: number
+    medium_alerts: number
+    low_alerts: number
+  }
 }
 
-interface SystemAlert {
+interface AlertInstance {
   id: string
-  alert_type: string
-  severity: 'low' | 'medium' | 'high' | 'critical'
   title: string
+  severity: string
   message: string
-  created_at: string
+  triggered_at: string
+  metric_value: number
+  threshold: number
   is_resolved: boolean
 }
 
-interface SystemMetric {
-  metric_name: string
-  metric_value: number
-  metric_unit?: string
-  recorded_at: string
-  tags?: Record<string, string>
-}
-
-export default function MonitoringPage() {
-  const [healthChecks, setHealthChecks] = useState<Record<string, HealthCheck>>({})
-  const [alerts, setAlerts] = useState<SystemAlert[]>([])
-  const [metrics, setMetrics] = useState<SystemMetric[]>([])
+export default function MonitoringDashboard() {
+  const [metrics, setMetrics] = useState<SystemMetrics | null>(null)
+  const [alerts, setAlerts] = useState<AlertInstance[]>([])
   const [loading, setLoading] = useState(true)
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+
+  const fetchMetrics = async () => {
+    try {
+      const response = await fetch('/api/admin/monitoring/metrics')
+      if (response.ok) {
+        const data = await response.json()
+        setMetrics(data)
+        setLastUpdate(new Date())
+      }
+    } catch (error) {
+      console.error('Error fetching metrics:', error)
+    }
+  }
+
+  const fetchAlerts = async () => {
+    try {
+      const response = await fetch('/api/admin/monitoring/alerts')
+      if (response.ok) {
+        const data = await response.json()
+        setAlerts(data.alerts || [])
+      }
+    } catch (error) {
+      console.error('Error fetching alerts:', error)
+    }
+  }
+
+  const refreshData = async () => {
+    setLoading(true)
+    await Promise.all([fetchMetrics(), fetchAlerts()])
+    setLoading(false)
+  }
 
   useEffect(() => {
-    loadMonitoringData()
-    
-    // Atualizar a cada 30 segundos
-    const interval = setInterval(loadMonitoringData, 30000)
-    return () => clearInterval(interval)
+    refreshData()
   }, [])
 
-  const loadMonitoringData = async () => {
-    try {
-      // Carregar health checks
-      const healthResponse = await fetch('/api/admin/monitoring/health')
-      if (healthResponse.ok) {
-        const healthData = await healthResponse.json()
-        setHealthChecks(healthData)
-      }
+  useEffect(() => {
+    if (!autoRefresh) return
 
-      // Carregar alertas ativos
-      const alertsResponse = await fetch('/api/admin/monitoring/alerts')
-      if (alertsResponse.ok) {
-        const alertsData = await alertsResponse.json()
-        setAlerts(alertsData)
-      }
+    const interval = setInterval(() => {
+      refreshData()
+    }, 30000) // Atualizar a cada 30 segundos
 
-      // Carregar métricas recentes
-      const metricsResponse = await fetch('/api/admin/monitoring/metrics')
-      if (metricsResponse.ok) {
-        const metricsData = await metricsResponse.json()
-        setMetrics(metricsData)
-      }
-
-      setLastUpdate(new Date())
-    } catch (error) {
-      console.error('Error loading monitoring data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'healthy': return 'text-green-600'
-      case 'degraded': return 'text-yellow-600'
-      case 'unhealthy': return 'text-red-600'
-      default: return 'text-gray-600'
-    }
-  }
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'healthy': return <CheckCircle className="h-4 w-4 text-green-600" />
-      case 'degraded': return <AlertTriangle className="h-4 w-4 text-yellow-600" />
-      case 'unhealthy': return <XCircle className="h-4 w-4 text-red-600" />
-      default: return <Clock className="h-4 w-4 text-gray-600" />
-    }
-  }
+    return () => clearInterval(interval)
+  }, [autoRefresh])
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'low': return 'bg-blue-100 text-blue-800'
-      case 'medium': return 'bg-yellow-100 text-yellow-800'
-      case 'high': return 'bg-orange-100 text-orange-800'
-      case 'critical': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'critical':
+        return 'bg-red-500'
+      case 'high':
+        return 'bg-orange-500'
+      case 'medium':
+        return 'bg-yellow-500'
+      case 'low':
+        return 'bg-blue-500'
+      default:
+        return 'bg-gray-500'
     }
   }
 
-  const getMetricValue = (metricName: string): SystemMetric | null => {
-    return metrics.find(m => m.metric_name === metricName) || null
+  const getSeverityTextColor = (severity: string) => {
+    switch (severity) {
+      case 'critical':
+        return 'text-red-600'
+      case 'high':
+        return 'text-orange-600'
+      case 'medium':
+        return 'text-yellow-600'
+      case 'low':
+        return 'text-blue-600'
+      default:
+        return 'text-gray-600'
+    }
   }
 
-  const formatBytes = (bytes: number): string => {
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    if (bytes === 0) return '0 Bytes'
-    const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
+  const formatDuration = (ms: number) => {
+    if (ms < 1000) return `${ms.toFixed(0)}ms`
+    return `${(ms / 1000).toFixed(2)}s`
   }
 
-  const formatDuration = (seconds: number): string => {
-    const days = Math.floor(seconds / 86400)
-    const hours = Math.floor((seconds % 86400) / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    
-    if (days > 0) return `${days}d ${hours}h ${minutes}m`
-    if (hours > 0) return `${hours}h ${minutes}m`
-    return `${minutes}m`
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value)
   }
 
-  if (loading) {
+  const formatPercentage = (value: number) => {
+    return `${value.toFixed(2)}%`
+  }
+
+  if (loading && !metrics) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="h-8 w-8 animate-spin" />
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center space-x-2">
+          <RefreshCw className="h-6 w-6 animate-spin" />
+          <span>Carregando métricas...</span>
+        </div>
       </div>
     )
   }
 
-  const memoryUsed = getMetricValue('nodejs_memory_heap_used')
-  const memoryTotal = getMetricValue('nodejs_memory_heap_total')
-  const uptime = getMetricValue('nodejs_uptime')
-  const memoryUsagePercent = memoryUsed && memoryTotal ? 
-    (memoryUsed.metric_value / memoryTotal.metric_value) * 100 : 0
-
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">System Monitoring</h1>
+          <h1 className="text-3xl font-bold">Monitoramento do Sistema</h1>
           <p className="text-muted-foreground">
-            Last updated: {lastUpdate.toLocaleTimeString()}
+            Dashboard de métricas técnicas e de negócio
           </p>
         </div>
-        <Button onClick={loadMonitoringData} variant="outline">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAutoRefresh(!autoRefresh)}
+            >
+              <Activity className={`h-4 w-4 ${autoRefresh ? 'animate-pulse' : ''}`} />
+              {autoRefresh ? 'Auto' : 'Manual'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshData}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+          </div>
+          {lastUpdate && (
+            <span className="text-sm text-muted-foreground">
+              Última atualização: {lastUpdate.toLocaleTimeString('pt-BR')}
+            </span>
+          )}
+        </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="health">Health Checks</TabsTrigger>
-          <TabsTrigger value="alerts">Alerts</TabsTrigger>
-          <TabsTrigger value="metrics">Metrics</TabsTrigger>
+      {/* Alertas Críticos */}
+      {alerts.filter(a => a.severity === 'critical' && !a.is_resolved).length > 0 && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">
+            <strong>Alertas Críticos Ativos:</strong> {alerts.filter(a => a.severity === 'critical' && !a.is_resolved).length} alertas críticos precisam de atenção imediata.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+          <TabsTrigger value="checkout">Checkout</TabsTrigger>
+          <TabsTrigger value="technical">Técnico</TabsTrigger>
+          <TabsTrigger value="alerts">Alertas</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4">
-          {/* System Status Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Visão Geral */}
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* KPIs Principais */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">System Status</CardTitle>
-                <Server className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Taxa de Conversão</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="flex items-center space-x-2">
-                  {Object.values(healthChecks).every(hc => hc.status === 'healthy') ? (
-                    <>
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="text-green-600 font-medium">All Systems Operational</span>
-                    </>
-                  ) : (
-                    <>
-                      <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                      <span className="text-yellow-600 font-medium">Some Issues Detected</span>
-                    </>
+                <div className="text-2xl font-bold">
+                  {metrics ? formatPercentage(metrics.checkout.conversion_rate) : '--'}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Últimas 24 horas
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {metrics ? formatCurrency(metrics.checkout.total_revenue) : '--'}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Últimas 24 horas
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Webhooks Processados</CardTitle>
+                <Zap className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {metrics ? formatPercentage(metrics.payment.webhook_processing_rate) : '--'}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Taxa de sucesso
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Alertas Ativos</CardTitle>
+                <Bell className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {metrics ? metrics.alerts.active_alerts : '--'}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {metrics && metrics.alerts.critical_alerts > 0 && (
+                    <span className="text-red-600">
+                      {metrics.alerts.critical_alerts} críticos
+                    </span>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Memory Usage</CardTitle>
-                <Cpu className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {memoryUsagePercent.toFixed(1)}%
-                </div>
-                <Progress value={memoryUsagePercent} className="mt-2" />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {memoryUsed ? formatBytes(memoryUsed.metric_value) : '0'} / {memoryTotal ? formatBytes(memoryTotal.metric_value) : '0'}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Uptime</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {uptime ? formatDuration(uptime.metric_value) : '0m'}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Since last restart
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Alerts</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {alerts.filter(a => !a.is_resolved).length}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {alerts.filter(a => !a.is_resolved && a.severity === 'critical').length} critical
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Recent Alerts */}
-          {alerts.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Alerts</CardTitle>
-                <CardDescription>Latest system alerts and notifications</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {alerts.slice(0, 5).map((alert) => (
-                    <div key={alert.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <AlertTriangle className={`h-4 w-4 ${
-                          alert.severity === 'critical' ? 'text-red-600' :
-                          alert.severity === 'high' ? 'text-orange-600' :
-                          alert.severity === 'medium' ? 'text-yellow-600' :
-                          'text-blue-600'
-                        }`} />
-                        <div>
-                          <p className="font-medium">{alert.title}</p>
-                          <p className="text-sm text-muted-foreground">{alert.message}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge className={getSeverityColor(alert.severity)}>
-                          {alert.severity}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(alert.created_at).toLocaleTimeString()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="health" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(healthChecks).map(([service, check]) => (
-              <Card key={service}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium capitalize">
-                    {service.replace('_', ' ')}
-                  </CardTitle>
-                  {getStatusIcon(check.status)}
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-lg font-bold ${getStatusColor(check.status)}`}>
-                    {check.status.toUpperCase()}
-                  </div>
-                  {check.responseTime && (
-                    <p className="text-xs text-muted-foreground">
-                      Response time: {check.responseTime}ms
-                    </p>
-                  )}
-                  {check.error && (
-                    <p className="text-xs text-red-600 mt-1">
-                      Error: {check.error}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Last check: {new Date(check.lastCheck).toLocaleTimeString()}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="alerts" className="space-y-4">
+          {/* Status do Sistema */}
           <Card>
             <CardHeader>
-              <CardTitle>System Alerts</CardTitle>
-              <CardDescription>All system alerts and their status</CardDescription>
+              <CardTitle>Status do Sistema</CardTitle>
+              <CardDescription>
+                Visão geral da saúde dos componentes principais
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              {alerts.length === 0 ? (
-                <div className="text-center py-8">
-                  <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                  <p className="text-lg font-medium">No alerts</p>
-                  <p className="text-muted-foreground">All systems are running normally</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${
+                    metrics && metrics.checkout.conversion_rate > 30 ? 'bg-green-500' : 'bg-red-500'
+                  }`} />
+                  <div>
+                    <p className="font-medium">Sistema de Checkout</p>
+                    <p className="text-sm text-muted-foreground">
+                      {metrics && metrics.checkout.conversion_rate > 30 ? 'Operacional' : 'Degradado'}
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {alerts.map((alert) => (
-                    <div key={alert.id} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <Badge className={getSeverityColor(alert.severity)}>
-                            {alert.severity}
-                          </Badge>
-                          <span className="font-medium">{alert.title}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {alert.is_resolved ? (
-                            <Badge variant="outline" className="bg-green-50 text-green-700">
-                              Resolved
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive">Active</Badge>
-                          )}
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(alert.created_at).toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{alert.message}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Type: {alert.alert_type}
-                      </p>
-                    </div>
-                  ))}
+
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${
+                    metrics && metrics.payment.webhook_processing_rate > 95 ? 'bg-green-500' : 'bg-red-500'
+                  }`} />
+                  <div>
+                    <p className="font-medium">Processamento de Pagamentos</p>
+                    <p className="text-sm text-muted-foreground">
+                      {metrics && metrics.payment.webhook_processing_rate > 95 ? 'Operacional' : 'Degradado'}
+                    </p>
+                  </div>
                 </div>
-              )}
+
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${
+                    metrics && metrics.performance.api_error_rate < 5 ? 'bg-green-500' : 'bg-red-500'
+                  }`} />
+                  <div>
+                    <p className="font-medium">APIs</p>
+                    <p className="text-sm text-muted-foreground">
+                      {metrics && metrics.performance.api_error_rate < 5 ? 'Operacional' : 'Degradado'}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="metrics" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Agrupar métricas por tipo */}
-            {Array.from(new Set(metrics.map(m => m.metric_name))).map((metricName) => {
-              const metric = getMetricValue(metricName)
-              if (!metric) return null
+        {/* Dashboard de Checkout */}
+        <TabsContent value="checkout" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Checkouts Iniciados</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {metrics ? metrics.checkout.checkouts_started.toLocaleString() : '--'}
+                </div>
+                <p className="text-sm text-muted-foreground">Últimas 24 horas</p>
+              </CardContent>
+            </Card>
 
-              return (
-                <Card key={metricName}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      {metricName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      {metricName.includes('memory') || metricName.includes('bytes') ? 
-                        formatBytes(metric.metric_value) :
-                        metricName.includes('uptime') ?
-                        formatDuration(metric.metric_value) :
-                        metric.metric_value.toLocaleString()
-                      }
-                    </div>
-                    {metric.metric_unit && (
-                      <p className="text-xs text-muted-foreground">
-                        {metric.metric_unit}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(metric.recorded_at).toLocaleTimeString()}
-                    </p>
-                  </CardContent>
-                </Card>
-              )
-            })}
+            <Card>
+              <CardHeader>
+                <CardTitle>Checkouts Completados</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {metrics ? metrics.checkout.checkouts_completed.toLocaleString() : '--'}
+                </div>
+                <p className="text-sm text-muted-foreground">Últimas 24 horas</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Taxa de Abandono</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {metrics ? formatPercentage(metrics.checkout.abandonment_rate) : '--'}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {metrics && metrics.checkout.abandonment_rate > 70 && (
+                    <span className="text-red-600">Acima do limite</span>
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Tempo Médio de Checkout</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {metrics ? formatDuration(metrics.checkout.avg_checkout_duration_ms) : '--'}
+                </div>
+                <p className="text-sm text-muted-foreground">Tempo médio para completar</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Ticket Médio</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {metrics ? formatCurrency(metrics.checkout.avg_order_value) : '--'}
+                </div>
+                <p className="text-sm text-muted-foreground">Valor médio por pedido</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Receita Total</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {metrics ? formatCurrency(metrics.checkout.total_revenue) : '--'}
+                </div>
+                <p className="text-sm text-muted-foreground">Últimas 24 horas</p>
+              </CardContent>
+            </Card>
           </div>
+        </TabsContent>
+
+        {/* Dashboard Técnico */}
+        <TabsContent value="technical" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Métricas de Performance */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Server className="h-5 w-5" />
+                  <span>Performance da API</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span>Tempo de Resposta</span>
+                  <span className="font-mono">
+                    {metrics ? formatDuration(metrics.performance.api_response_time_ms) : '--'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Taxa de Erro</span>
+                  <span className={`font-mono ${
+                    metrics && metrics.performance.api_error_rate > 5 ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    {metrics ? formatPercentage(metrics.performance.api_error_rate) : '--'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Throughput</span>
+                  <span className="font-mono">
+                    {metrics ? `${metrics.performance.api_throughput_rps.toFixed(2)} req/s` : '--'}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Métricas de Webhook */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Zap className="h-5 w-5" />
+                  <span>Processamento de Webhooks</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span>Webhooks Recebidos</span>
+                  <span className="font-mono">
+                    {metrics ? metrics.payment.webhooks_received.toLocaleString() : '--'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Taxa de Sucesso</span>
+                  <span className={`font-mono ${
+                    metrics && metrics.payment.webhook_processing_rate < 95 ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    {metrics ? formatPercentage(metrics.payment.webhook_processing_rate) : '--'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Tempo de Processamento</span>
+                  <span className="font-mono">
+                    {metrics ? formatDuration(metrics.payment.avg_webhook_processing_time_ms) : '--'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Falhas de Pagamento</span>
+                  <span className={`font-mono ${
+                    metrics && metrics.payment.payment_failures > 0 ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    {metrics ? metrics.payment.payment_failures.toLocaleString() : '--'}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Métricas de Sistema */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Activity className="h-5 w-5" />
+                <span>Recursos do Sistema</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Uso de Memória</span>
+                    <span className="font-mono">
+                      {metrics ? `${metrics.performance.memory_usage_mb.toFixed(0)} MB` : '--'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full" 
+                      style={{ 
+                        width: metrics ? `${Math.min(metrics.performance.memory_usage_mb / 1024 * 100, 100)}%` : '0%' 
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Uso de CPU</span>
+                    <span className="font-mono">
+                      {metrics ? formatPercentage(metrics.performance.cpu_usage_percent) : '--'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-green-600 h-2 rounded-full" 
+                      style={{ 
+                        width: metrics ? `${Math.min(metrics.performance.cpu_usage_percent, 100)}%` : '0%' 
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Dashboard de Alertas */}
+        <TabsContent value="alerts" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Total</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{alerts.length}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-red-600">Críticos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  {alerts.filter(a => a.severity === 'critical' && !a.is_resolved).length}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-orange-600">Altos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-orange-600">
+                  {alerts.filter(a => a.severity === 'high' && !a.is_resolved).length}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-yellow-600">Médios</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-yellow-600">
+                  {alerts.filter(a => a.severity === 'medium' && !a.is_resolved).length}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Lista de Alertas */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Alertas Recentes</CardTitle>
+              <CardDescription>
+                Últimos alertas disparados pelo sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {alerts.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
+                    <p>Nenhum alerta ativo no momento</p>
+                  </div>
+                ) : (
+                  alerts.slice(0, 10).map((alert) => (
+                    <div key={alert.id} className="flex items-start space-x-4 p-4 border rounded-lg">
+                      <div className={`w-2 h-2 rounded-full mt-2 ${getSeverityColor(alert.severity)}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium truncate">{alert.title}</h4>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className={getSeverityTextColor(alert.severity)}>
+                              {alert.severity.toUpperCase()}
+                            </Badge>
+                            {alert.is_resolved && (
+                              <Badge variant="outline" className="text-green-600">
+                                RESOLVIDO
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {alert.message}
+                        </p>
+                        <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
+                          <span className="flex items-center space-x-1">
+                            <Clock className="h-3 w-3" />
+                            <span>{new Date(alert.triggered_at).toLocaleString('pt-BR')}</span>
+                          </span>
+                          <span>
+                            Valor: {alert.metric_value} | Limite: {alert.threshold}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

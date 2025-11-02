@@ -25,7 +25,17 @@
     "apply-schema": "node scripts/apply-advanced-features-schema.js",
     "apply-landing-schema": "node scripts/apply-landing-schema.js",
     "pre-deploy": "node scripts/pre-deploy-check.js",
-    "deploy": "npm run pre-deploy && vercel --prod"
+    "deploy": "npm run pre-deploy && vercel --prod",
+    "deploy:staging": "node scripts/deploy-staging.js",
+    "validate:staging": "node scripts/validate-staging.js",
+    "deploy:production": "node scripts/deploy-production.js",
+    "test:staging": "npm run validate:staging",
+    "smoke-tests": "node scripts/smoke-tests.js",
+    "test:e2e:staging": "node scripts/e2e-staging-tests.js",
+    "report:staging": "node scripts/generate-staging-report.js",
+    "monitor:production": "node scripts/monitor-production.js",
+    "communicate:launch": "node scripts/communicate-launch.js",
+    "deployment:summary": "node scripts/deployment-summary.js"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

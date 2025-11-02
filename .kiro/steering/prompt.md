@@ -10,7 +10,7 @@ Diretrizes (Obrigatórias)
 7) Não introduzir tecnologias novas sem necessidade e, se introduzir, remover o legado para evitar duplicidade.
 8) Dados simulados apenas para testes pontuais; nunca para dev/prod.
 9) Segurança desde o início (validação, sanitização, RBAC, MFA quando aplicável).
-
+10) nâo fiquei criando arquivos desnecessários. A cada implementação verifique se precisa sõ atualizar um arquivo ao inves de ficarcriando vãrios novos. Unifique arquivos que fazem a memsa fun~cao ou resolvem o mesmo problema ao inves de criar varios outros.. ao dar certo uma tarefa atualize a docuemnta~cao para lembrar desse sucesso.
 Fluxo de Trabalho
 - Antes de implementar, verificar documentação em `backend/docs/`.
 - BFF deve atuar como proxy e agregador, minimizando lógica de domínio.
