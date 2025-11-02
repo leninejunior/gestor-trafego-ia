@@ -1,41 +1,39 @@
 # 🔧 Correção dos Cron Jobs para Vercel Hobby
 
-## ❌ Problema Identificado
+## ❌ Problema Identificado - RESOLVIDO ✅
 
-O Vercel Hobby (plano gratuito) tem limitações nos cron jobs:
-- **Limitação**: Apenas cron jobs que executam **uma vez por dia**
-- **Erro**: `*/5 * * * *` (a cada 5 minutos) não é permitido
-- **Solução**: Ajustar para execução diária
+O Vercel Hobby tem limitações nos cron jobs:
+- **Limitação**: Apenas **2 cron jobs por equipe** no total
+- **Erro**: Projeto tentava criar **5 cron jobs** (excedendo limite)
+- **Solução**: Reduzir para apenas **1 cron job essencial**
+
+### 🚨 Erro Original
+```
+Your plan allows your team to create up to 2 Cron Jobs. 
+Your team currently has 1, and this project is attempting to create 4 more, 
+exceeding your team's limit.
+```
 
 ## ✅ Correção Aplicada
 
-### Arquivo `vercel.json` (Plano Hobby)
+### Arquivo `vercel.json` (Correção Final - Commit c3ef2f5)
 ```json
 {
   "crons": [
     {
-      "path": "/api/cron/billing",
-      "schedule": "0 2 * * *"  // 02:00 diariamente
-    },
-    {
-      "path": "/api/cron/data-cleanup", 
-      "schedule": "0 3 * * *"  // 03:00 diariamente
-    },
-    {
-      "path": "/api/cron/export-cleanup",
-      "schedule": "0 4 * * *"  // 04:00 diariamente
-    },
-    {
       "path": "/api/cron/cleanup",
-      "schedule": "0 5 * * *"  // 05:00 diariamente
-    },
-    {
-      "path": "/api/cron/google-sync",
-      "schedule": "0 6 * * *"  // 06:00 diariamente
+      "schedule": "0 3 * * *"  // 03:00 diariamente - ÚNICO CRON JOB
     }
   ]
 }
 ```
+
+### Cron Jobs Removidos (Para Caber no Limite)
+- ❌ `/api/cron/billing` - Processamento de cobranças
+- ❌ `/api/cron/data-cleanup` - Limpeza de dados
+- ❌ `/api/cron/export-cleanup` - Limpeza de exports  
+- ❌ `/api/cron/google-sync` - Sincronização Google Ads
+- ✅ `/api/cron/cleanup` - **MANTIDO** (limpeza geral)
 
 ### Cron Jobs Removidos (Hobby)
 - `sync-scheduler` (*/5 * * * *)
@@ -65,15 +63,15 @@ POST /api/google/sync
 - **Uptime Robot**: Monitoramento com calls
 - **Cron-job.org**: Serviço gratuito
 
-## 📋 Cronograma de Execução (Hobby)
+## 📋 Cronograma de Execução (Hobby - Atual)
 
-| Horário | Cron Job | Função |
-|---------|----------|---------|
-| 02:00 | billing | Processamento de cobranças |
-| 03:00 | data-cleanup | Limpeza de dados antigos |
-| 04:00 | export-cleanup | Limpeza de exports |
-| 05:00 | cleanup | Limpeza geral |
-| 06:00 | google-sync | Sincronização Google Ads |
+| Horário | Cron Job | Função | Status |
+|---------|----------|---------|---------|
+| 03:00 | cleanup | Limpeza geral do sistema | ✅ ATIVO |
+| Manual | billing | Processamento de cobranças | 🔧 Via API |
+| Manual | data-cleanup | Limpeza de dados antigos | 🔧 Via API |
+| Manual | export-cleanup | Limpeza de exports | 🔧 Via API |
+| Manual | google-sync | Sincronização Google Ads | 🔧 Via API |
 
 ## 🔄 Como Alternar Entre Configurações
 
