@@ -47,7 +47,6 @@ src/app/api/notifications/push/
 src/app/api/webhooks/
 src/lib/meta/advanced-client.ts
 src/lib/meta/advanced-sync-service.ts
-src/lib/monitoring/
 src/lib/backup/
 src/lib/automation/
 
@@ -57,11 +56,18 @@ src/app/admin/campaigns/
 src/app/admin/utm/
 src/app/admin/ai-agent/
 src/app/admin/llm-config/
-src/app/admin/monitoring/
 src/app/admin/billing/
 src/app/api/admin/balance/
 src/app/api/admin/campaigns/
 src/app/api/admin/utm/
 src/app/api/admin/ai-agent/
 src/app/api/admin/llm-config/
-src/app/api/admin/monitoring/
+
+# Cron jobs removidos para Hobby
+src/app/api/cron/sync-scheduler/
+src/app/api/cron/sync-executor/
+src/app/api/cron/alert-checker/
+src/app/api/cron/health-checks/
+src/app/api/cron/webhook-dlq-processor/
+src/app/api/cron/google-monitoring/
+src/app/api/cron/subscription-intent-expiration/

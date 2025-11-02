@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SubscriptionIntentsList } from '@/components/admin/subscription-intents-list';
-import { SubscriptionIntentAnalytics } from '@/components/admin/subscription-intent-analytics';
+import SubscriptionIntentAnalytics from '@/components/admin/subscription-intent-analytics';
 import { RealTimeMetrics } from '@/components/admin/real-time-metrics';
 import { AnalyticsFilters } from '@/components/admin/analytics-filters';
 import { TroubleshootingTools } from '@/components/admin/troubleshooting-tools';
