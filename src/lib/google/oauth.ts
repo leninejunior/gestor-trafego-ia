@@ -52,7 +52,7 @@ export class GoogleOAuthService {
     this.config = {
       clientId: config?.clientId || process.env.GOOGLE_CLIENT_ID || '',
       clientSecret: config?.clientSecret || process.env.GOOGLE_CLIENT_SECRET || '',
-      redirectUri: config?.redirectUri || `${process.env.NEXT_PUBLIC_APP_URL}/api/google/callback-simple`,
+      redirectUri: config?.redirectUri || `${process.env.NEXT_PUBLIC_APP_URL}/api/google/callback`,
       scopes: config?.scopes || this.DEFAULT_SCOPES,
     };
 
