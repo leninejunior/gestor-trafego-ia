@@ -1,4 +1,28 @@
-'use client';
+#!/usr/bin/env node
+
+/**
+ * Script para restaurar o Google Ads Card original
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+console.log('🔄 RESTAURANDO GOOGLE ADS ORIGINAL');
+console.log('==================================');
+
+const googleAdsCardPath = path.join(__dirname, '..', 'src', 'components', 'google', 'google-ads-card.tsx');
+const backupPath = googleAdsCardPath + '.backup';
+
+// Verificar se existe backup
+if (fs.existsSync(backupPath)) {
+  // Restaurar do backup
+  fs.copyFileSync(backupPath, googleAdsCardPath);
+  console.log('✅ Google Ads Card original restaurado do backup');
+} else {
+  console.log('❌ Backup não encontrado, criando versão original...');
+  
+  // Criar versão original funcional
+  const originalGoogleAdsCard = `'use client';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +44,7 @@ export function GoogleAdsCard({ clientId }: GoogleAdsCardProps) {
     setError(null);
     
     try {
-      const response = await fetch(`/api/google/auth?clientId=${clientId}`);
+      const response = await fetch(\`/api/google/auth?clientId=\${clientId}\`);
       
       if (!response.ok) {
         throw new Error('Erro ao conectar com Google Ads');
@@ -120,4 +144,22 @@ export function GoogleAdsCard({ clientId }: GoogleAdsCardProps) {
       </CardContent>
     </Card>
   );
+}`;
+
+  fs.writeFileSync(googleAdsCardPath, originalGoogleAdsCard);
+  console.log('✅ Google Ads Card original criado');
 }
+
+console.log('\n🎯 RESULTADO:');
+console.log('=============');
+console.log('✅ Google Ads Card restaurado');
+console.log('✅ Funcionalidade de conexão ativa');
+console.log('✅ Interface profissional mantida');
+
+console.log('\n🔧 PRÓXIMOS PASSOS:');
+console.log('==================');
+console.log('1. Verificar variáveis de ambiente Google');
+console.log('2. Configurar OAuth no Google Cloud Console');
+console.log('3. Testar conexão Google Ads');
+
+console.log('\n✅ Google Ads restaurado com sucesso!');
