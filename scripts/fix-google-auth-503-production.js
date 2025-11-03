@@ -1,4 +1,27 @@
+#!/usr/bin/env node
+
 /**
+ * Script para corrigir erro 503 do Google Auth em produção
+ * Cria uma versão mais robusta do endpoint
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+console.log('🔧 CORRIGINDO GOOGLE AUTH 503 - PRODUÇÃO');
+console.log('=========================================');
+
+// Backup do arquivo original
+const authRoutePath = path.join(__dirname, '..', 'src', 'app', 'api', 'google', 'auth', 'route.ts');
+const backupPath = authRoutePath + '.backup';
+
+if (fs.existsSync(authRoutePath)) {
+  fs.copyFileSync(authRoutePath, backupPath);
+  console.log('✅ Backup criado:', backupPath);
+}
+
+// Nova versão mais robusta
+const newAuthRoute = `/**
  * Google Ads Authentication API Route - Production Fixed
  * 
  * Initiates OAuth 2.0 flow for Google Ads API
@@ -277,4 +300,18 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}`;
+
+// Escrever nova versão
+fs.writeFileSync(authRoutePath, newAuthRoute);
+console.log('✅ Arquivo atualizado com logs detalhados');
+
+console.log('\n🔧 PRÓXIMOS PASSOS:');
+console.log('==================');
+console.log('1. Commit e push das mudanças');
+console.log('2. Aguarde redeploy automático no Vercel');
+console.log('3. Verifique logs no Vercel Dashboard > Functions');
+console.log('4. Teste o endpoint novamente');
+console.log('5. Se necessário, restaure backup:', backupPath);
+
+console.log('\n✅ Correção aplicada com sucesso!');
