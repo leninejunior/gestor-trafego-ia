@@ -159,6 +159,119 @@ export async function GET(
 }
 
 /**
+ * PATCH /api/admin/plans/[id]
+ * Admin-only endpoint to partially update a subscription plan (e.g., status)
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    console.log('🔍 PATCH /api/admin/plans/[id] called');
+    console.log('🔍 Request URL:', request.url);
+    
+    // Check authentication and admin role
+    const authResult = await checkAdminAuth();
+    if (!authResult.success) {
+      return createAdminAuthErrorResponse(authResult);
+    }
+
+    // Extract plan ID (await params in Next.js 15)
+    const planId = await extractPlanId(params, request);
+    if (!planId) {
+      console.error('❌ Plan ID is missing or invalid:', { params, url: request.url });
+      return NextResponse.json(
+        { success: false, error: 'Plan ID is required' },
+        { status: 400 }
+      );
+    }
+    
+    console.log('✅ Plan ID found:', planId);
+
+    // Parse request body
+    const body = await request.json();
+    console.log('🔍 Request body:', JSON.stringify(body, null, 2));
+    
+    const supabase = await createClient();
+
+    // For PATCH, we only update the provided fields
+    const updateData: any = {};
+    
+    // Allow updating specific fields
+    if (typeof body.is_active === 'boolean') {
+      updateData.is_active = body.is_active;
+    }
+    if (typeof body.is_popular === 'boolean') {
+      updateData.is_popular = body.is_popular;
+    }
+    if (body.name) {
+      updateData.name = body.name;
+    }
+    if (body.description) {
+      updateData.description = body.description;
+    }
+    if (typeof body.monthly_price === 'number') {
+      updateData.monthly_price = body.monthly_price;
+    }
+    if (typeof body.annual_price === 'number') {
+      updateData.annual_price = body.annual_price;
+    }
+
+    // Ensure we have something to update
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'No valid fields to update' },
+        { status: 400 }
+      );
+    }
+
+    updateData.updated_at = new Date().toISOString();
+
+    console.log('🔄 Updating plan with data:', JSON.stringify(updateData, null, 2));
+
+    // Update the plan
+    const { data: updatedPlan, error: updateError } = await supabase
+      .from('subscription_plans')
+      .update(updateData)
+      .eq('id', planId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('❌ Database update error:', updateError);
+      throw new Error(`Failed to update plan: ${updateError.message}`);
+    }
+
+    if (!updatedPlan) {
+      return NextResponse.json(
+        { success: false, error: 'Plan not found' },
+        { status: 404 }
+      );
+    }
+
+    console.log('✅ Plan updated successfully');
+
+    return NextResponse.json({
+      success: true,
+      data: updatedPlan,
+      message: 'Plan updated successfully',
+    });
+  } catch (error) {
+    console.error('❌ Error updating plan:', error);
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to update plan',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * DELETE /api/admin/plans/[id]
  * Admin-only endpoint to delete a subscription plan
  */

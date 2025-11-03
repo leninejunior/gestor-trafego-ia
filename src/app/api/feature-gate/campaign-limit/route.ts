@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
       .select('organization_id')
       .eq('user_id', user.id)
       .eq('organization_id', client.org_id)
-      .eq('status', 'active')
       .single();
 
     if (membershipError || !membership) {

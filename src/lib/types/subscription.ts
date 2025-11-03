@@ -27,7 +27,7 @@ export interface SubscriptionPlan {
   description: string | null;
   monthly_price: number;
   annual_price: number;
-  features: PlanFeatures;
+  features: PlanFeatures | string[]; // Support both object and array formats
   max_clients: number;
   max_campaigns: number;
   is_active: boolean;

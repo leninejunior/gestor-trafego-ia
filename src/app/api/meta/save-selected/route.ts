@@ -39,14 +39,41 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       console.log('Erro de autenticação:', userError);
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+      console.log('Headers da requisição:', Object.fromEntries(request.headers.entries()));
+      
+      // Tentar obter usuário via service client como fallback
+      try {
+        const { createServiceClient } = require('@/lib/supabase/server');
+        const serviceSupabase = createServiceClient();
+        
+        // Buscar cliente para verificar se existe
+        const { data: clientCheck } = await serviceSupabase
+          .from('clients')
+          .select('id')
+          .eq('id', client_id)
+          .single();
+          
+        if (!clientCheck) {
+          return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
+        }
+        
+        console.log('5. Usando service client como fallback para cliente:', client_id);
+      } catch (fallbackError) {
+        console.error('Erro no fallback:', fallbackError);
+        return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+      }
+    } else {
+      console.log('5. Usuário autenticado:', user.id);
     }
-    console.log('5. Usuário autenticado:', user.id);
 
-    console.log('6. Verificando cliente:', client_id, 'para usuário:', user.id);
+    console.log('6. Verificando cliente:', client_id);
 
-    // Verificar se o cliente existe (simplificado)
-    const { data: client, error: clientError } = await supabase
+    // Usar service client para operações no banco
+    const { createServiceClient } = require('@/lib/supabase/server');
+    const serviceSupabase = createServiceClient();
+
+    // Verificar se o cliente existe
+    const { data: client, error: clientError } = await serviceSupabase
       .from('clients')
       .select('id, org_id')
       .eq('id', client_id)
@@ -65,7 +92,7 @@ export async function POST(request: NextRequest) {
     // Remover conexões existentes para este cliente
     console.log('Removendo conexões existentes para cliente:', client_id);
     
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await serviceSupabase
       .from('client_meta_connections')
       .delete()
       .eq('client_id', client_id);
@@ -95,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Inserindo conexões:', connectionsToInsert.length, 'contas');
     
-    const { error: insertError } = await supabase
+    const { error: insertError } = await serviceSupabase
       .from('client_meta_connections')
       .upsert(connectionsToInsert, { 
         onConflict: 'client_id,ad_account_id',

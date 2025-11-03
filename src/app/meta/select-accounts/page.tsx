@@ -128,11 +128,14 @@ function SelectAccountsContent() {
 
     setIsSaving(true);
     try {
+      console.log('💾 [SELECT ACCOUNTS] Salvando conexões selecionadas...');
+      
       const response = await fetch('/api/meta/save-selected', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Incluir cookies de sessão
         body: JSON.stringify({
           client_id: clientId,
           access_token: accessToken,
@@ -143,20 +146,25 @@ function SelectAccountsContent() {
         }),
       });
 
+      console.log('📡 [SELECT ACCOUNTS] Resposta do save:', response.status);
+
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ [SELECT ACCOUNTS] Conexões salvas com sucesso');
         toast.success(data.message || 'Contas conectadas com sucesso!');
         
         // Aguardar um pouco para mostrar o toast e depois redirecionar
         setTimeout(() => {
+          console.log('🔄 [SELECT ACCOUNTS] Redirecionando para cliente...');
           router.push(`/dashboard/clients/${clientId}?success=meta_connected`);
         }, 1500);
       } else {
         const data = await response.json();
+        console.error('❌ [SELECT ACCOUNTS] Erro ao salvar:', data);
         toast.error(data.error || 'Erro ao salvar conexões');
       }
     } catch (error) {
-      console.error('Erro ao salvar:', error);
+      console.error('💥 [SELECT ACCOUNTS] Erro ao salvar:', error);
       toast.error('Erro ao salvar conexões');
     } finally {
       setIsSaving(false);
@@ -314,7 +322,10 @@ function SelectAccountsContent() {
               <div className="flex space-x-3">
                 <Button 
                   variant="outline" 
-                  onClick={() => router.push(`/dashboard/clients/${clientId}`)}
+                  onClick={() => {
+                    console.log('🔄 [SELECT ACCOUNTS] Cancelando e redirecionando...');
+                    router.push(`/dashboard/clients/${clientId}`);
+                  }}
                 >
                   Cancelar
                 </Button>

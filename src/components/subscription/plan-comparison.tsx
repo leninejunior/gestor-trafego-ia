@@ -197,18 +197,34 @@ export function PlanComparison({
                 <div className="border-t pt-4">
                   <h4 className="font-medium mb-3 text-sm">Recursos Inclusos</h4>
                   <div className="space-y-2">
-                    {Object.entries(plan.features).map(([key, value]) => (
-                      <div key={key} className="flex items-center gap-2 text-sm">
-                        {value ? (
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                        ) : (
-                          <X className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        )}
-                        <span className={value ? "" : "text-muted-foreground"}>
-                          {getFeatureLabel(key)}
-                        </span>
-                      </div>
-                    ))}
+                    {(() => {
+                      // Handle both array and object formats for features
+                      const features = Array.isArray(plan.features) 
+                        ? plan.features 
+                        : Object.entries(plan.features || {});
+                      
+                      if (Array.isArray(plan.features)) {
+                        return plan.features.map((feature, index) => (
+                          <div key={index} className="flex items-center gap-2 text-sm">
+                            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                            <span>{feature}</span>
+                          </div>
+                        ));
+                      } else {
+                        return Object.entries(plan.features || {}).map(([key, value]) => (
+                          <div key={key} className="flex items-center gap-2 text-sm">
+                            {value ? (
+                              <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                            ) : (
+                              <X className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            )}
+                            <span className={value ? "" : "text-muted-foreground"}>
+                              {getFeatureLabel(key)}
+                            </span>
+                          </div>
+                        ));
+                      }
+                    })()}
                   </div>
                 </div>
 
@@ -296,22 +312,54 @@ export function PlanComparison({
                       </td>
                     ))}
                   </tr>
-                  {Object.keys(sortedPlans[0]?.features || {}).map(featureKey => (
-                    <tr key={featureKey} className="border-b">
-                      <td className="py-3 px-4 font-medium">
-                        {getFeatureLabel(featureKey)}
-                      </td>
-                      {sortedPlans.map(plan => (
-                        <td key={plan.id} className="text-center py-3 px-4">
-                          {plan.features[featureKey as keyof typeof plan.features] ? (
-                            <Check className="h-5 w-5 text-green-500 mx-auto" />
-                          ) : (
-                            <X className="h-5 w-5 text-muted-foreground mx-auto" />
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {(() => {
+                    // Handle both array and object formats for features in comparison table
+                    const firstPlan = sortedPlans[0];
+                    if (!firstPlan) return null;
+                    
+                    if (Array.isArray(firstPlan.features)) {
+                      // For array format, show all unique features across plans
+                      const allFeatures = new Set<string>();
+                      sortedPlans.forEach(plan => {
+                        if (Array.isArray(plan.features)) {
+                          plan.features.forEach(feature => allFeatures.add(feature));
+                        }
+                      });
+                      
+                      return Array.from(allFeatures).map(feature => (
+                        <tr key={feature} className="border-b">
+                          <td className="py-3 px-4 font-medium">{feature}</td>
+                          {sortedPlans.map(plan => (
+                            <td key={plan.id} className="text-center py-3 px-4">
+                              {Array.isArray(plan.features) && plan.features.includes(feature) ? (
+                                <Check className="h-5 w-5 text-green-500 mx-auto" />
+                              ) : (
+                                <X className="h-5 w-5 text-muted-foreground mx-auto" />
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ));
+                    } else {
+                      // For object format
+                      return Object.keys(firstPlan.features || {}).map(featureKey => (
+                        <tr key={featureKey} className="border-b">
+                          <td className="py-3 px-4 font-medium">
+                            {getFeatureLabel(featureKey)}
+                          </td>
+                          {sortedPlans.map(plan => (
+                            <td key={plan.id} className="text-center py-3 px-4">
+                              {plan.features[featureKey as keyof typeof plan.features] ? (
+                                <Check className="h-5 w-5 text-green-500 mx-auto" />
+                              ) : (
+                                <X className="h-5 w-5 text-muted-foreground mx-auto" />
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ));
+                    }
+                  })()}
                 </tbody>
               </table>
             </div>

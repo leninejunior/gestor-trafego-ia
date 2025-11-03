@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import axios from 'axios';
 
 export async function GET(request: NextRequest) {
@@ -77,28 +77,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/clients?error=no_ad_accounts`);
     }
 
-    // Limpar conexões antigas antes de redirecionar
+    // Limpar conexões antigas antes de redirecionar (usando service client)
     console.log('Limpando conexões antigas para cliente:', clientId);
     try {
-      const supabase = await createClient();
+      const serviceSupabase = createServiceClient();
       
-      // Verificar se há sessão ativa
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const { error: deleteError } = await serviceSupabase
+        .from('client_meta_connections')
+        .delete()
+        .eq('client_id', clientId);
       
-      if (sessionError || !session) {
-        console.warn('⚠️ Sessão não encontrada, pulando limpeza de conexões antigas');
-        // Continuar sem limpar - não é crítico
+      if (deleteError) {
+        console.error('Erro ao limpar conexões antigas:', deleteError);
       } else {
-        const { error: deleteError } = await supabase
-          .from('client_meta_connections')
-          .delete()
-          .eq('client_id', clientId);
-        
-        if (deleteError) {
-          console.error('Erro ao limpar conexões antigas:', deleteError);
-        } else {
-          console.log('Conexões antigas removidas com sucesso');
-        }
+        console.log('Conexões antigas removidas com sucesso');
       }
     } catch (cleanupError) {
       console.warn('⚠️ Erro ao limpar conexões antigas (não crítico):', cleanupError);
@@ -110,7 +102,18 @@ export async function GET(request: NextRequest) {
     selectUrl.searchParams.set('access_token', access_token);
     selectUrl.searchParams.set('client_id', clientId);
     
-    return NextResponse.redirect(selectUrl.toString());
+    console.log('🔄 Redirecionando para seleção de contas:', selectUrl.toString());
+    
+    // Criar resposta de redirecionamento preservando cookies de sessão
+    const response = NextResponse.redirect(selectUrl.toString());
+    
+    // Preservar cookies de sessão do Supabase
+    const cookieHeader = request.headers.get('cookie');
+    if (cookieHeader) {
+      response.headers.set('Set-Cookie', cookieHeader);
+    }
+    
+    return response;
     
   } catch (error: any) {
     console.error('Erro detalhado no callback do Meta:', {

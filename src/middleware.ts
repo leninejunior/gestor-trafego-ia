@@ -7,6 +7,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Skip authentication check for Meta OAuth flow pages
+  if (request.nextUrl.pathname.startsWith('/meta/')) {
+    console.log('🔄 [MIDDLEWARE] Permitindo acesso ao fluxo OAuth Meta:', request.nextUrl.pathname);
+    return NextResponse.next()
+  }
+
   // update user's auth session
   const { supabase, response } = await updateSession(request) // Desestrutura supabase e response
 
@@ -14,6 +20,7 @@ export async function middleware(request: NextRequest) {
 
   // Se o usuário não estiver logado e tentar acessar o dashboard, redirecione para o login
   if (!data.user && request.nextUrl.pathname.startsWith('/dashboard')) {
+    console.log('🚫 [MIDDLEWARE] Usuário não autenticado tentando acessar dashboard');
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

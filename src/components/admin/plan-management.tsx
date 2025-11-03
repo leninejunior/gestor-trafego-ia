@@ -143,6 +143,8 @@ export function AdminPlanManagement() {
   });
   const [newFeature, setNewFeature] = useState('');
   const [saving, setSaving] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     console.log('🚀 AdminPlanManagement component mounted');
@@ -361,7 +363,7 @@ export function AdminPlanManagement() {
         if (errorData.details) {
           console.error('❌ Validation details:', errorData.details);
           const detailsMessage = Array.isArray(errorData.details) 
-            ? errorData.details.map(d => d.message || d).join(', ')
+            ? errorData.details.map((d: any) => d.message || d).join(', ')
             : JSON.stringify(errorData.details);
           throw new Error(`Validation error: ${detailsMessage}`);
         }
@@ -387,10 +389,44 @@ export function AdminPlanManagement() {
     }
   };
 
-  const handleDeletePlan = async (planId: string) => {
-    if (!confirm('Are you sure you want to delete this plan?')) return;
+  const handleTogglePlanStatus = async (planId: string, currentStatus: boolean) => {
+    try {
+      setError(null);
+      setSuccessMessage(null);
+      
+      const response = await fetch(`/api/admin/plans/${planId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_active: !currentStatus }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update plan status');
+      }
+
+      const result = await response.json();
+      setSuccessMessage(`Plan ${!currentStatus ? 'activated' : 'deactivated'} successfully!`);
+      await fetchPlans();
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error('Error updating plan status:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update plan status');
+    }
+  };
+
+  const handleDeletePlan = async (planId: string, planName: string) => {
+    const confirmMessage = `Are you sure you want to delete the plan "${planName}"?\n\nThis action cannot be undone and may affect existing subscriptions.`;
+    if (!confirm(confirmMessage)) return;
 
     try {
+      setError(null);
+      setSuccessMessage(null);
+      
       const response = await fetch(`/api/admin/plans/${planId}`, {
         method: 'DELETE',
       });
@@ -400,7 +436,11 @@ export function AdminPlanManagement() {
         throw new Error(errorData.error || 'Failed to delete plan');
       }
 
+      setSuccessMessage(`Plan "${planName}" deleted successfully!`);
       await fetchPlans();
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       console.error('Error deleting plan:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete plan');
@@ -488,6 +528,27 @@ export function AdminPlanManagement() {
       ...prev,
       features: [...featureTemplates[template]]
     }));
+  };
+
+  // Filter and search plans
+  const filteredPlans = plans.filter(plan => {
+    const matchesStatus = filterStatus === 'all' || 
+      (filterStatus === 'active' && plan.is_active) ||
+      (filterStatus === 'inactive' && !plan.is_active);
+    
+    const matchesSearch = searchTerm === '' ||
+      plan.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      plan.description.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchesStatus && matchesSearch;
+  });
+
+  // Calculate statistics
+  const stats = {
+    total: plans.length,
+    active: plans.filter(p => p.is_active).length,
+    inactive: plans.filter(p => !p.is_active).length,
+    popular: plans.filter(p => p.is_popular || false).length
   };
 
   if (loading) {
@@ -599,9 +660,126 @@ export function AdminPlanManagement() {
         </div>
       </div>
 
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Plans</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              </div>
+              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                <Settings className="w-4 h-4 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Active Plans</p>
+                <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+              </div>
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Inactive Plans</p>
+                <p className="text-2xl font-bold text-gray-500">{stats.inactive}</p>
+              </div>
+              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                <XCircle className="w-4 h-4 text-gray-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Popular Plans</p>
+                <p className="text-2xl font-bold text-blue-600">{stats.popular}</p>
+              </div>
+              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                <Badge className="w-4 h-4 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters and Search */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <div>
+            <Label htmlFor="search" className="sr-only">Search plans</Label>
+            <Input
+              id="search"
+              placeholder="Search plans..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-64"
+            />
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="filter" className="text-sm font-medium">Filter:</Label>
+            <select
+              id="filter"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'active' | 'inactive')}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Plans</option>
+              <option value="active">Active Only</option>
+              <option value="inactive">Inactive Only</option>
+            </select>
+          </div>
+        </div>
+        
+        <div className="text-sm text-gray-600">
+          Showing {filteredPlans.length} of {plans.length} plans
+        </div>
+      </div>
+
       {/* Plans Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {plans.map((plan) => (
+        {filteredPlans.length === 0 ? (
+          <div className="col-span-full">
+            <Card>
+              <CardContent className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No plans found</h3>
+                  <p className="text-gray-600 mb-4">
+                    {searchTerm || filterStatus !== 'all' 
+                      ? 'Try adjusting your search or filter criteria.'
+                      : 'Get started by creating your first subscription plan.'
+                    }
+                  </p>
+                  {!searchTerm && filterStatus === 'all' && (
+                    <Button onClick={() => setIsCreateDialogOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create First Plan
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          filteredPlans.map((plan) => (
           <Card key={plan.id} className="relative">
             {plan.is_popular && (
               <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
@@ -629,7 +807,24 @@ export function AdminPlanManagement() {
                       Edit Plan
                     </DropdownMenuItem>
                     <DropdownMenuItem 
-                      onClick={() => handleDeletePlan(plan.id)}
+                      onClick={() => handleTogglePlanStatus(plan.id, plan.is_active)}
+                      className={plan.is_active ? "text-orange-600" : "text-green-600"}
+                    >
+                      {plan.is_active ? (
+                        <>
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Deactivate Plan
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Activate Plan
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => handleDeletePlan(plan.id, plan.name)}
                       className="text-red-600"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
@@ -651,14 +846,25 @@ export function AdminPlanManagement() {
                   <span className="text-sm text-gray-600">Annual</span>
                   <span className="font-semibold">{formatCurrency(plan.annual_price)}</span>
                 </div>
+                {plan.annual_price > 0 && plan.monthly_price > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Annual Savings</span>
+                    <span className="text-green-600 font-medium">
+                      {Math.round(((plan.monthly_price * 12 - plan.annual_price) / (plan.monthly_price * 12)) * 100)}%
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Status */}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Status</span>
-                <Badge variant={plan.is_active ? "default" : "secondary"}>
-                  {plan.is_active ? 'Active' : 'Inactive'}
-                </Badge>
+                <div className="flex items-center space-x-2">
+                  <div className={`w-2 h-2 rounded-full ${plan.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                  <Badge variant={plan.is_active ? "default" : "secondary"}>
+                    {plan.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
               </div>
 
               {/* Limits Summary */}
@@ -737,9 +943,47 @@ export function AdminPlanManagement() {
                   })()}
                 </div>
               </div>
+
+              {/* Quick Actions */}
+              <div className="pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEditDialog(plan)}
+                    className="flex-1 mr-2"
+                  >
+                    <Edit className="w-3 h-3 mr-1" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant={plan.is_active ? "outline" : "default"}
+                    size="sm"
+                    onClick={() => handleTogglePlanStatus(plan.id, plan.is_active)}
+                    className={`flex-1 ml-2 ${
+                      plan.is_active 
+                        ? "text-orange-600 border-orange-200 hover:bg-orange-50" 
+                        : "bg-green-600 hover:bg-green-700 text-white"
+                    }`}
+                  >
+                    {plan.is_active ? (
+                      <>
+                        <XCircle className="w-3 h-3 mr-1" />
+                        Deactivate
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Activate
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Edit Dialog */}

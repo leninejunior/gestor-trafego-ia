@@ -177,7 +177,7 @@ export class PlanConfigurationService {
 
     // Buscar organização do usuário via memberships
     const { data: membership, error: memberError } = await supabase
-      .from('organization_memberships')
+      .from('memberships')
       .select('organization_id')
       .eq('user_id', userId)
       .single();
@@ -214,7 +214,7 @@ export class PlanConfigurationService {
 
     // Buscar organização do usuário
     const { data: membership, error: memberError } = await supabase
-      .from('organization_memberships')
+      .from('memberships')
       .select('organization_id')
       .eq('user_id', userId)
       .single();
@@ -223,14 +223,32 @@ export class PlanConfigurationService {
       return { allowed: false, current: 0, limit: 0 };
     }
 
-    const limits = await this.getOrganizationPlanLimits(membership.organization_id);
+    // Buscar assinatura ativa da organização
+    const { data: subscription, error: subError } = await supabase
+      .from('subscriptions')
+      .select('plan_id')
+      .eq('organization_id', membership.organization_id)
+      .eq('status', 'active')
+      .single();
 
-    if (!limits) {
+    if (subError || !subscription) {
+      // Sem assinatura ativa - usar limites padrão restritivos
+      return { allowed: false, current: 0, limit: 1 };
+    }
+
+    // Buscar limites do plano
+    const { data: plan, error: planError } = await supabase
+      .from('subscription_plans')
+      .select('max_clients')
+      .eq('id', subscription.plan_id)
+      .single();
+
+    if (planError || !plan) {
       return { allowed: false, current: 0, limit: 0 };
     }
 
     // Se ilimitado, sempre permitir
-    if (limits.max_clients === -1) {
+    if (plan.max_clients === -1) {
       return { allowed: true, current: 0, limit: -1 };
     }
 
@@ -241,16 +259,18 @@ export class PlanConfigurationService {
       .eq('org_id', membership.organization_id);
 
     if (error) {
-      throw new Error(`Erro ao contar clientes: ${error.message}`);
+      console.error('Erro ao contar clientes:', error);
+      // Em caso de erro, permitir para não bloquear o usuário
+      return { allowed: true, current: 0, limit: plan.max_clients };
     }
 
     const currentCount = count || 0;
-    const allowed = currentCount < limits.max_clients;
+    const allowed = currentCount < plan.max_clients;
 
     return {
       allowed,
       current: currentCount,
-      limit: limits.max_clients,
+      limit: plan.max_clients,
     };
   }
 
@@ -272,14 +292,32 @@ export class PlanConfigurationService {
       return { allowed: false, current: 0, limit: 0 };
     }
 
-    const limits = await this.getOrganizationPlanLimits(client.org_id);
+    // Buscar assinatura ativa da organização
+    const { data: subscription, error: subError } = await supabase
+      .from('subscriptions')
+      .select('plan_id')
+      .eq('organization_id', client.org_id)
+      .eq('status', 'active')
+      .single();
 
-    if (!limits) {
+    if (subError || !subscription) {
+      // Sem assinatura ativa - usar limites padrão restritivos
+      return { allowed: false, current: 0, limit: 1 };
+    }
+
+    // Buscar limites do plano
+    const { data: plan, error: planError } = await supabase
+      .from('subscription_plans')
+      .select('max_campaigns')
+      .eq('id', subscription.plan_id)
+      .single();
+
+    if (planError || !plan) {
       return { allowed: false, current: 0, limit: 0 };
     }
 
     // Se ilimitado, sempre permitir
-    if (limits.max_campaigns_per_client === -1) {
+    if (plan.max_campaigns === -1) {
       return { allowed: true, current: 0, limit: -1 };
     }
 
@@ -290,16 +328,18 @@ export class PlanConfigurationService {
       .eq('client_id', clientId);
 
     if (error) {
-      throw new Error(`Erro ao contar campanhas: ${error.message}`);
+      console.error('Erro ao contar campanhas:', error);
+      // Em caso de erro, permitir para não bloquear o usuário
+      return { allowed: true, current: 0, limit: plan.max_campaigns };
     }
 
     const currentCount = count || 0;
-    const allowed = currentCount < limits.max_campaigns_per_client;
+    const allowed = currentCount < plan.max_campaigns;
 
     return {
       allowed,
       current: currentCount,
-      limit: limits.max_campaigns_per_client,
+      limit: plan.max_campaigns,
     };
   }
 

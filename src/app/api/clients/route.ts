@@ -1,6 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isSuperAdmin } from '@/lib/auth/super-admin';
+import { checkPlanLimits } from '@/lib/middleware/plan-limits';
+
+// POST - Criar novo cliente
+export async function POST(request: NextRequest) {
+  try {
+    // Verificar limites do plano ANTES de criar o cliente
+    const limitCheck = await checkPlanLimits(request, 'clients');
+    if (limitCheck) {
+      return limitCheck; // Retorna erro se limite excedido
+    }
+
+    const supabase = await createClient();
+    
+    // Verificar autenticação do usuário
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    // Parse do body
+    const body = await request.json();
+    const { name, description } = body;
+
+    if (!name) {
+      return NextResponse.json({ error: 'Nome do cliente é obrigatório' }, { status: 400 });
+    }
+
+    // Buscar organização do usuário
+    const { data: membership, error: membershipError } = await supabase
+      .from('memberships')
+      .select('org_id, role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (membershipError || !membership) {
+      return NextResponse.json({ error: 'Usuário não possui organização' }, { status: 403 });
+    }
+
+    // Criar cliente
+    const { data: newClient, error: createError } = await supabase
+      .from('clients')
+      .insert({
+        name,
+        description,
+        org_id: membership.org_id,
+        created_by: user.id
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Erro ao criar cliente:', createError);
+      return NextResponse.json({ error: 'Erro ao criar cliente' }, { status: 500 });
+    }
+
+    return NextResponse.json({ 
+      message: 'Cliente criado com sucesso',
+      client: newClient 
+    });
+  } catch (error: any) {
+    console.error('Erro ao criar cliente:', error);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {

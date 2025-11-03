@@ -55,24 +55,29 @@ export function PlanLimitsIndicator({
       setLoading(true);
       setError(null);
 
-      // Fetch plan limits and usage in parallel
-      const [limitsRes, usageRes] = await Promise.all([
-        fetch('/api/feature-gate/limits-summary'),
-        fetch('/api/feature-gate/statistics')
-      ]);
+      // Fetch plan limits and usage from our working API
+      const response = await fetch('/api/plan-limits');
 
-      if (!limitsRes.ok || !usageRes.ok) {
+      if (!response.ok) {
         throw new Error('Failed to fetch plan limits');
       }
 
-      const limitsData = await limitsRes.json();
-      const usageData = await usageRes.json();
+      const data = await response.json();
 
-      setLimits(limitsData.limits);
+      // Map the data to our component's expected format
+      setLimits({
+        max_clients: data.limits.max_clients,
+        max_campaigns_per_client: data.limits.max_campaigns,
+        data_retention_days: 30, // Default value
+        sync_interval_hours: 1, // Default value
+        allow_csv_export: data.limits.features.customReports || false,
+        allow_json_export: data.limits.features.apiAccess || false
+      });
+
       setUsage({
-        current_clients: usageData.clients_count || 0,
-        current_campaigns: usageData.campaigns_count || 0,
-        oldest_data_days: usageData.oldest_data_days || 0
+        current_clients: data.usage.clients || 0,
+        current_campaigns: data.usage.campaigns || 0,
+        oldest_data_days: 30 // Default value
       });
     } catch (err) {
       console.error('Error fetching plan limits:', err);

@@ -186,6 +186,12 @@ const navigationSections: NavigationSection[] = [
         adminOnly: true,
       },
       {
+        name: "Gerenciamento Manual",
+        href: "/admin/subscription-management",
+        icon: Edit,
+        adminOnly: true,
+      },
+      {
         name: "Gestão de Cobrança",
         href: "/admin/billing-management",
         icon: DollarSign,
