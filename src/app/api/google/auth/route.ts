@@ -37,7 +37,8 @@ function checkGoogleConfiguration() {
   for (const [key, value] of Object.entries(requiredVars)) {
     if (!value) {
       missing.push(key);
-    } else if (value.includes('your_') || value.includes('localhost')) {
+    } else if (value.includes('your_') && !value.includes('localhost')) {
+      // Só considera inválido se tiver placeholder, mas permite localhost para dev
       invalid.push(key);
     }
   }
