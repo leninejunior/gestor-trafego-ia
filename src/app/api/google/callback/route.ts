@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getGoogleOAuthService } from '@/lib/google/oauth';
 import { getGoogleTokenManager } from '@/lib/google/token-manager';
 import { GoogleAdsClient } from '@/lib/google/client';
@@ -172,8 +172,7 @@ export async function GET(request: NextRequest) {
         status: customerId === 'pending' ? 'pending' : 'active'
       });
       
-      // Import service client properly
-      const { createServiceClient } = await import('@/lib/supabase/server');
+      // Use service client to bypass RLS
       const serviceSupabase = createServiceClient();
       
       console.log('[Google Callback] Service client created, attempting insert...');
@@ -235,8 +234,13 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('[Google Callback] Unexpected error:', error);
+    console.error('[Google Callback] Error stack:', error.stack);
+    console.error('[Google Callback] Error message:', error.message);
+    
+    // Provide more specific error message for debugging
+    const errorMessage = error.message || 'Erro inesperado durante autenticação';
     return NextResponse.redirect(
-      new URL('/dashboard?error=unexpected&message=Erro inesperado durante autenticação', request.url)
+      new URL(`/dashboard?error=unexpected&message=${encodeURIComponent(errorMessage)}`, request.url)
     );
   }
 }
@@ -293,6 +297,7 @@ export async function POST(request: NextRequest) {
       .from('google_ads_connections')
       .upsert({
         client_id: clientId,
+        user_id: user.id, // Adicionar user_id obrigatório
         customer_id: 'temp-customer',
         refresh_token: 'temp', // Will be encrypted
         status: 'active',
