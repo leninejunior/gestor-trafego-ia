@@ -139,9 +139,9 @@ export async function GET(request: NextRequest) {
       .from('google_ads_connections')
       .insert({
         client_id: clientId,
-        customer_id: 'pending',
+        customer_id: 'temp-customer',
         refresh_token: tokens.refresh_token || 'temp',
-        status: 'pending',
+        status: 'active',
       })
       .select('id')
       .single();

@@ -185,7 +185,7 @@ export async function GET(request: NextRequest) {
           user_id: user.id, // Adicionar user_id que é obrigatório
           customer_id: customerId,
           refresh_token: 'temp', // Will be encrypted by token manager
-          status: customerId === 'pending' ? 'pending' : 'active',
+          status: 'active', // Always use 'active' as it's the only valid initial status
         })
         .select('id')
         .single();
@@ -293,9 +293,9 @@ export async function POST(request: NextRequest) {
       .from('google_ads_connections')
       .upsert({
         client_id: clientId,
-        customer_id: 'pending',
+        customer_id: 'temp-customer',
         refresh_token: 'temp', // Will be encrypted
-        status: 'pending',
+        status: 'active',
       }, {
         onConflict: 'client_id,customer_id'
       })
