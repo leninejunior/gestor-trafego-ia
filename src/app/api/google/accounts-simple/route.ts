@@ -3,7 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { GoogleAdsClient } from '@/lib/google/client';
 
 export async function GET(request: NextRequest) {
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar conexão no banco
-    const supabase = createServerClient();
+    const supabase = await createClient();
     const { data: connection, error: connectionError } = await supabase
       .from('google_ads_connections')
       .select('*')

@@ -1,8 +1,8 @@
-import { createServerClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { PaymentProvider, PaymentTransaction, CreatePaymentRequest } from '@/lib/types/payments';
 
 export class PaymentService {
-  private supabase = createServerClient();
+  private supabase = createServiceClient();
 
   // Buscar provedor ativo com failover
   async getActiveProvider(orgId: string, preferredProvider?: string): Promise<PaymentProvider | null> {
