@@ -126,6 +126,12 @@ export function LandingPage() {
             <a href="#contato" className="text-slate-700 hover:text-blue-600 font-medium">
               Contato
             </a>
+            <Link href="/privacy-policy" className="text-slate-700 hover:text-blue-600 font-medium">
+              Privacidade
+            </Link>
+            <Link href="/terms-of-service" className="text-slate-700 hover:text-blue-600 font-medium">
+              Termos
+            </Link>
             <Link href="/dashboard">
               <Button variant="outline">Acessar Sistema</Button>
             </Link>
@@ -572,6 +578,23 @@ export function LandingPage() {
           <p className="text-slate-400 mb-4">
             Plataforma profissional de gestão de campanhas para agências e gestores de tráfego
           </p>
+          
+          {/* Links do Footer */}
+          <div className="flex justify-center gap-6 mb-4">
+            <Link href="/privacy-policy" className="text-slate-400 hover:text-white text-sm">
+              Política de Privacidade
+            </Link>
+            <Link href="/terms-of-service" className="text-slate-400 hover:text-white text-sm">
+              Termos de Uso
+            </Link>
+            <a href="#contato" className="text-slate-400 hover:text-white text-sm">
+              Contato
+            </a>
+            <Link href="/dashboard" className="text-slate-400 hover:text-white text-sm">
+              Acessar Sistema
+            </Link>
+          </div>
+          
           <p className="text-sm text-slate-500">
             © {new Date().getFullYear()} Ads Manager Pro. Todos os direitos reservados.
           </p>
