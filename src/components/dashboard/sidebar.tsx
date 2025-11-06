@@ -156,6 +156,11 @@ const navigationSections: NavigationSection[] = [
         href: "/privacy-policy",
         icon: Shield,
       },
+      {
+        name: "Termos de Uso",
+        href: "/terms-of-service",
+        icon: Lock,
+      },
     ]
   },
   {
