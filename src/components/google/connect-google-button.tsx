@@ -36,17 +36,8 @@ export function ConnectGoogleButton({
     try {
       setIsConnecting(true);
       
-      const response = await fetch('/api/google/auth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          clientId,
-          redirectUri: `${window.location.origin}/api/google/callback`
-        }),
-      });
-
+      // Use simplified auth API
+      const response = await fetch(`/api/google/auth-simple?clientId=${clientId}`);
       const data = await response.json();
 
       if (!response.ok) {

@@ -34,7 +34,7 @@ interface GoogleConnection {
 interface Client {
   id: string;
   name: string;
-  google_connection?: GoogleConnection;
+  googleConnections?: GoogleConnection[];
 }
 
 interface KPIData {
@@ -83,14 +83,37 @@ export default function GooglePage() {
 
   const fetchClients = async () => {
     try {
+      console.log('='.repeat(80));
+      console.log('[Google Dashboard] 📊 CARREGANDO CLIENTES E CONEXÕES GOOGLE');
+      console.log('[Google Dashboard] Timestamp:', new Date().toISOString());
+      
       // Fetch clients and their Google connections in a single optimized request
       const response = await fetch('/api/clients?includeGoogleConnections=true');
-      if (!response.ok) throw new Error('Falha ao carregar clientes');
+      
+      console.log('[Google Dashboard] 📡 RESPOSTA DA API CLIENTS:');
+      console.log('[Google Dashboard] - Status:', response.status);
+      console.log('[Google Dashboard] - Status OK:', response.ok);
+      console.log('[Google Dashboard] - Headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Google Dashboard] ❌ ERRO NA RESPOSTA:', errorText);
+        throw new Error('Falha ao carregar clientes');
+      }
       
       const data = await response.json();
+      console.log('[Google Dashboard] 📋 DADOS RECEBIDOS:');
+      console.log('[Google Dashboard] - Total de clientes:', data.clients?.length || 0);
+      console.log('[Google Dashboard] - Clientes com Google:', data.clients?.filter(c => c.googleConnections?.length > 0).length || 0);
+      console.log('[Google Dashboard] - Estrutura dos dados:', JSON.stringify(data, null, 2));
+      
       setClients(data.clients || []);
+      console.log('[Google Dashboard] ✅ CLIENTES CARREGADOS COM SUCESSO');
+      console.log('='.repeat(80));
     } catch (error) {
-      console.error('Error fetching clients:', error);
+      console.error('[Google Dashboard] ❌ ERRO AO CARREGAR CLIENTES:', error);
+      console.error('[Google Dashboard] - Mensagem:', error.message);
+      console.error('[Google Dashboard] - Stack:', error.stack);
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar os clientes.',
@@ -103,20 +126,43 @@ export default function GooglePage() {
     try {
       setRefreshing(true);
       
+      console.log('='.repeat(80));
+      console.log('[Google Dashboard] 📈 CARREGANDO DADOS DE KPI');
+      console.log('[Google Dashboard] Timestamp:', new Date().toISOString());
+      
       const dateRange = getDateRange(dateFilter);
       const clientParam = selectedClient !== 'all' ? `&clientId=${selectedClient}` : '';
+      const apiUrl = `/api/google/metrics-simple?dateFrom=${dateRange.from}&dateTo=${dateRange.to}&groupBy=campaign${clientParam}`;
       
-      const response = await fetch(
-        `/api/google/metrics?dateFrom=${dateRange.from}&dateTo=${dateRange.to}&groupBy=campaign${clientParam}`
-      );
+      console.log('[Google Dashboard] 🔗 PARÂMETROS DA REQUISIÇÃO:');
+      console.log('[Google Dashboard] - Date filter:', dateFilter);
+      console.log('[Google Dashboard] - Date range:', dateRange);
+      console.log('[Google Dashboard] - Selected client:', selectedClient);
+      console.log('[Google Dashboard] - API URL:', apiUrl);
+      
+      // Use simplified metrics API
+      const response = await fetch(apiUrl);
+      
+      console.log('[Google Dashboard] 📡 RESPOSTA DA API METRICS:');
+      console.log('[Google Dashboard] - Status:', response.status);
+      console.log('[Google Dashboard] - Status OK:', response.ok);
+      console.log('[Google Dashboard] - Headers:', Object.fromEntries(response.headers.entries()));
       
       const data = await response.json();
+      console.log('[Google Dashboard] 📊 DADOS DE MÉTRICAS RECEBIDOS:');
+      console.log('[Google Dashboard] - Estrutura completa:', JSON.stringify(data, null, 2));
       
       if (!response.ok) {
+        console.log('[Google Dashboard] ⚠️ RESPOSTA NÃO OK - ANALISANDO...');
         if (response.status === 503 && !data.configured) {
-          // Google Ads not configured - this is expected, don't show error
+          console.log('[Google Dashboard] ℹ️ Google Ads não configurado - esperado, não mostrando erro');
           return;
         }
+        if (response.status === 400 && data.error?.includes('Parâmetros obrigatórios')) {
+          console.log('[Google Dashboard] ℹ️ Parâmetros obrigatórios ausentes - esperado quando nenhum cliente selecionado');
+          return;
+        }
+        console.error('[Google Dashboard] ❌ ERRO INESPERADO:', data);
         throw new Error(data.message || 'Falha ao carregar métricas');
       }
       
@@ -125,16 +171,29 @@ export default function GooglePage() {
         totalSpend: data.summary?.totalCost || 0,
         totalConversions: data.summary?.totalConversions || 0,
         averageRoas: 0, // Would need conversion value to calculate
-        averageCpa: data.summary?.averageCpa || 0,
-        totalCampaigns: data.summary?.campaignCount || 0,
-        activeCampaigns: data.metrics?.filter((m: any) => m.campaignStatus === 'ENABLED').length || 0,
+        averageCpa: data.summary?.averageCpc || 0,
+        totalCampaigns: data.campaigns?.length || 0,
+        activeCampaigns: data.campaigns?.filter((c: any) => c.status === 'ENABLED').length || 0,
         totalClients: clients.length,
-        connectedClients: clients.filter(c => c.google_connection?.status === 'active').length,
+        connectedClients: clients.filter(c => c.googleConnections?.some(conn => conn.status === 'active')).length,
       };
       
+      console.log('[Google Dashboard] 📊 KPIs CALCULADOS:');
+      console.log('[Google Dashboard] - Total spend:', kpis.totalSpend);
+      console.log('[Google Dashboard] - Total conversions:', kpis.totalConversions);
+      console.log('[Google Dashboard] - Average CPA:', kpis.averageCpa);
+      console.log('[Google Dashboard] - Total campaigns:', kpis.totalCampaigns);
+      console.log('[Google Dashboard] - Active campaigns:', kpis.activeCampaigns);
+      console.log('[Google Dashboard] - Total clients:', kpis.totalClients);
+      console.log('[Google Dashboard] - Connected clients:', kpis.connectedClients);
+      
       setKpiData(kpis);
+      console.log('[Google Dashboard] ✅ KPIs ATUALIZADOS COM SUCESSO');
+      console.log('='.repeat(80));
     } catch (error) {
-      console.error('Error fetching KPI data:', error);
+      console.error('[Google Dashboard] ❌ ERRO AO CARREGAR KPIs:', error);
+      console.error('[Google Dashboard] - Mensagem:', error.message);
+      console.error('[Google Dashboard] - Stack:', error.stack);
       // Don't show error toast for KPI data as it's not critical
     } finally {
       setRefreshing(false);
@@ -192,9 +251,11 @@ export default function GooglePage() {
 
   useEffect(() => {
     const loadData = async () => {
+      console.log('[Google Dashboard] 🚀 INICIANDO CARREGAMENTO INICIAL DA PÁGINA');
       setLoading(true);
       await fetchClients();
       setLoading(false);
+      console.log('[Google Dashboard] ✅ CARREGAMENTO INICIAL CONCLUÍDO');
     };
     
     loadData();
@@ -202,23 +263,32 @@ export default function GooglePage() {
 
   useEffect(() => {
     if (clients.length > 0) {
+      console.log('[Google Dashboard] 🔄 TRIGGER PARA ATUALIZAR KPIs');
+      console.log('[Google Dashboard] - Clientes carregados:', clients.length);
+      console.log('[Google Dashboard] - Cliente selecionado:', selectedClient);
+      console.log('[Google Dashboard] - Filtro de data:', dateFilter);
       fetchKPIData();
+    } else {
+      console.log('[Google Dashboard] ⏸️ AGUARDANDO CLIENTES SEREM CARREGADOS');
     }
   }, [clients, selectedClient, dateFilter]);
 
-  const connectedClients = clients.filter(c => c.google_connection?.status === 'active');
+  const connectedClients = clients.filter(c => 
+    c.googleConnections && c.googleConnections.length > 0 && 
+    c.googleConnections.some(conn => conn.status === 'active')
+  );
   const hasConnections = connectedClients.length > 0;
 
   // Check if Google Ads is configured
   const [isGoogleAdsConfigured, setIsGoogleAdsConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Check configuration status
+    // Check configuration status using simplified API
     const checkConfiguration = async () => {
       try {
-        const response = await fetch('/api/google/auth?clientId=test');
+        const response = await fetch('/api/google/auth-simple?clientId=test');
         const data = await response.json();
-        setIsGoogleAdsConfigured(response.status !== 503);
+        setIsGoogleAdsConfigured(response.status !== 503 && data.configured);
       } catch (error) {
         setIsGoogleAdsConfigured(false);
       }
@@ -262,6 +332,16 @@ export default function GooglePage() {
           <Button onClick={handleRefresh} variant="outline" disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Atualizar
+          </Button>
+          <Button 
+            onClick={() => {
+              console.log('[Google Dashboard] 🔙 VOLTANDO PARA LISTAGEM DE CLIENTES');
+              window.location.href = '/dashboard/clients';
+            }}
+            variant="outline"
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Ver Todos os Clientes
           </Button>
           <Button asChild>
             <Link href="/dashboard/clients">

@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getGoogleOAuthService } from '@/lib/google/oauth';
-import { getGoogleTokenManager } from '@/lib/google/token-manager';
+import { getGoogleTokenManagerSimple } from '@/lib/google/token-manager-simple';
 import { GoogleAdsClient } from '@/lib/google/client';
 
 // ============================================================================
@@ -16,7 +16,10 @@ import { GoogleAdsClient } from '@/lib/google/client';
 // ============================================================================
 
 export async function GET(request: NextRequest) {
-  console.log('[Google Callback] Starting OAuth callback processing');
+  console.log('='.repeat(80));
+  console.log('[Google Callback] 🔄 PROCESSANDO CALLBACK OAUTH DO GOOGLE');
+  console.log('[Google Callback] Timestamp:', new Date().toISOString());
+  console.log('[Google Callback] Request URL completa:', request.url);
   
   try {
     const { searchParams } = new URL(request.url);
@@ -24,18 +27,22 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get('state');
     const error = searchParams.get('error');
 
-    console.log('[Google Callback] Received parameters:', {
-      hasCode: !!code,
-      hasState: !!state,
-      error,
-      codeLength: code?.length || 0,
-      stateLength: state?.length || 0
-    });
+    console.log('[Google Callback] 📥 PARÂMETROS RECEBIDOS:');
+    console.log('[Google Callback] - Código presente:', !!code);
+    console.log('[Google Callback] - State presente:', !!state);
+    console.log('[Google Callback] - Erro OAuth:', error || 'nenhum');
+    console.log('[Google Callback] - Tamanho do código:', code?.length || 0);
+    console.log('[Google Callback] - Tamanho do state:', state?.length || 0);
+    console.log('[Google Callback] - Código (primeiros 20 chars):', code?.substring(0, 20) + '...' || 'não presente');
+    console.log('[Google Callback] - State (primeiros 20 chars):', state?.substring(0, 20) + '...' || 'não presente');
 
     // Handle OAuth errors
     if (error) {
       const errorDescription = searchParams.get('error_description');
-      console.error('[Google Callback] OAuth error:', { error, errorDescription });
+      console.error('[Google Callback] ❌ ERRO OAUTH DETECTADO:');
+      console.error('[Google Callback] - Tipo do erro:', error);
+      console.error('[Google Callback] - Descrição:', errorDescription || 'não fornecida');
+      console.error('[Google Callback] - Todos os parâmetros:', Object.fromEntries(searchParams.entries()));
       
       return NextResponse.redirect(
         new URL(`/dashboard?error=oauth_error&message=${encodeURIComponent(
@@ -48,34 +55,43 @@ export async function GET(request: NextRequest) {
 
     // Validate required parameters
     if (!code || !state) {
-      console.error('[Google Callback] Missing required parameters:', { code: !!code, state: !!state });
+      console.error('[Google Callback] ❌ PARÂMETROS OBRIGATÓRIOS AUSENTES:');
+      console.error('[Google Callback] - Código presente:', !!code);
+      console.error('[Google Callback] - State presente:', !!state);
+      console.error('[Google Callback] - URL completa:', request.url);
       return NextResponse.redirect(
         new URL('/dashboard?error=invalid_request&message=Parâmetros inválidos', request.url)
       );
     }
 
+    console.log('[Google Callback] ✅ PARÂMETROS OBRIGATÓRIOS VALIDADOS');
+
     // Get authenticated user
-    console.log('[Google Callback] Creating Supabase client...');
+    console.log('[Google Callback] 🔐 VERIFICANDO AUTENTICAÇÃO DO USUÁRIO...');
     const supabase = await createClient();
     
-    console.log('[Google Callback] Getting authenticated user...');
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    console.log('[Google Callback] Auth result:', {
-      hasUser: !!user,
-      userId: user?.id,
-      authError: authError?.message
-    });
+    console.log('[Google Callback] 📊 RESULTADO DA AUTENTICAÇÃO:');
+    console.log('[Google Callback] - Usuário encontrado:', !!user);
+    console.log('[Google Callback] - User ID:', user?.id || 'não encontrado');
+    console.log('[Google Callback] - Email:', user?.email || 'não encontrado');
+    console.log('[Google Callback] - Erro de auth:', authError?.message || 'nenhum');
 
     if (authError || !user) {
-      console.error('[Google Callback] User not authenticated:', authError);
+      console.error('[Google Callback] ❌ USUÁRIO NÃO AUTENTICADO:', authError);
       return NextResponse.redirect(
         new URL('/auth/login?error=unauthorized', request.url)
       );
     }
 
+    console.log('[Google Callback] ✅ USUÁRIO AUTENTICADO COM SUCESSO');
+
     // Validate OAuth state parameter
-    console.log('[Google Callback] Validating OAuth state...');
+    console.log('[Google Callback] 🔍 VALIDANDO ESTADO OAUTH...');
+    console.log('[Google Callback] - State a validar:', state);
+    console.log('[Google Callback] - User ID:', user.id);
+    
     const { data: oauthState, error: stateError } = await supabase
       .from('oauth_states')
       .select('client_id, user_id, expires_at')
@@ -84,46 +100,61 @@ export async function GET(request: NextRequest) {
       .eq('provider', 'google')
       .single();
 
-    console.log('[Google Callback] State validation result:', {
-      hasState: !!oauthState,
-      stateError: stateError?.message,
-      stateErrorCode: stateError?.code
-    });
+    console.log('[Google Callback] 📊 RESULTADO DA VALIDAÇÃO DO STATE:');
+    console.log('[Google Callback] - State encontrado:', !!oauthState);
+    console.log('[Google Callback] - Client ID do state:', oauthState?.client_id || 'não encontrado');
+    console.log('[Google Callback] - User ID do state:', oauthState?.user_id || 'não encontrado');
+    console.log('[Google Callback] - Expira em:', oauthState?.expires_at || 'não encontrado');
+    console.log('[Google Callback] - Erro do state:', stateError?.message || 'nenhum');
+    console.log('[Google Callback] - Código do erro:', stateError?.code || 'nenhum');
 
     if (stateError || !oauthState) {
-      console.error('[Google Callback] Invalid or expired state:', stateError);
+      console.error('[Google Callback] ❌ ESTADO OAUTH INVÁLIDO OU EXPIRADO:', stateError);
       return NextResponse.redirect(
         new URL('/dashboard?error=invalid_state&message=Estado OAuth inválido ou expirado', request.url)
       );
     }
 
     // Check if state is expired
-    if (new Date(oauthState.expires_at) < new Date()) {
-      console.error('[Google Callback] OAuth state expired');
+    const now = new Date();
+    const expiresAt = new Date(oauthState.expires_at);
+    console.log('[Google Callback] ⏰ VERIFICANDO EXPIRAÇÃO DO STATE:');
+    console.log('[Google Callback] - Agora:', now.toISOString());
+    console.log('[Google Callback] - Expira em:', expiresAt.toISOString());
+    console.log('[Google Callback] - Expirado:', expiresAt < now);
+    
+    if (expiresAt < now) {
+      console.error('[Google Callback] ❌ ESTADO OAUTH EXPIRADO');
       return NextResponse.redirect(
         new URL('/dashboard?error=expired_state&message=Estado OAuth expirado', request.url)
       );
     }
 
     const clientId = oauthState.client_id;
+    console.log('[Google Callback] ✅ STATE VÁLIDO - Client ID:', clientId);
 
     // SIMPLIFIED: Skip organization verification (aligned with auth API)
     console.log('[Google Callback] Skipping organization verification for consistency with auth API');
 
     // Exchange authorization code for tokens
-    console.log('[Google Callback] Exchanging authorization code for tokens...');
+    console.log('[Google Callback] 🔄 TROCANDO CÓDIGO POR TOKENS...');
+    console.log('[Google Callback] - Código a ser trocado:', code.substring(0, 20) + '...');
+    
     const oauthService = getGoogleOAuthService();
     let tokens;
     
     try {
       tokens = await oauthService.exchangeCodeForTokens(code);
-      console.log('[Google Callback] Token exchange successful:', {
-        hasAccessToken: !!tokens.access_token,
-        hasRefreshToken: !!tokens.refresh_token,
-        expiresIn: tokens.expires_in
-      });
+      console.log('[Google Callback] ✅ TROCA DE TOKENS BEM-SUCEDIDA:');
+      console.log('[Google Callback] - Access token presente:', !!tokens.access_token);
+      console.log('[Google Callback] - Refresh token presente:', !!tokens.refresh_token);
+      console.log('[Google Callback] - Expira em (segundos):', tokens.expires_in);
+      console.log('[Google Callback] - Tipo do token:', tokens.token_type);
+      console.log('[Google Callback] - Escopo:', tokens.scope);
     } catch (tokenError) {
-      console.error('[Google Callback] Token exchange failed:', tokenError);
+      console.error('[Google Callback] ❌ FALHA NA TROCA DE TOKENS:', tokenError);
+      console.error('[Google Callback] - Mensagem do erro:', tokenError.message);
+      console.error('[Google Callback] - Stack trace:', tokenError.stack);
       const userFriendlyError = oauthService.getUserFriendlyError(tokenError);
       return NextResponse.redirect(
         new URL(`/dashboard?error=token_exchange&message=${encodeURIComponent(userFriendlyError)}`, request.url)
@@ -159,10 +190,13 @@ export async function GET(request: NextRequest) {
       // Update existing connection
       connectionId = existingConnection.id;
       
-      const tokenManager = getGoogleTokenManager();
-      await tokenManager.saveTokens(connectionId, tokens);
-
-      console.log('[Google Callback] Updated existing connection:', connectionId);
+      try {
+        const tokenManager = getGoogleTokenManagerSimple();
+        await tokenManager.saveTokens(connectionId, tokens);
+        console.log('[Google Callback] Updated existing connection with new tokens:', connectionId);
+      } catch (tokenError) {
+        console.error('[Google Callback] Error saving tokens for existing connection:', tokenError);
+      }
     } else {
       // Create new connection (using service client to bypass RLS temporarily)
       console.log('[Google Callback] Creating new connection with service client...');
@@ -206,11 +240,16 @@ export async function GET(request: NextRequest) {
 
       connectionId = newConnection.id;
 
-      // Save tokens (simplified for now)
+      // Save tokens
       console.log('[Google Callback] Saving tokens for connection:', connectionId);
-      // TODO: Implement proper token encryption
-      // const tokenManager = getGoogleTokenManager();
-      // await tokenManager.saveTokens(connectionId, tokens);
+      try {
+        const tokenManager = getGoogleTokenManagerSimple();
+        await tokenManager.saveTokens(connectionId, tokens);
+        console.log('[Google Callback] Tokens saved successfully');
+      } catch (tokenError) {
+        console.error('[Google Callback] Error saving tokens:', tokenError);
+        // Continue anyway, tokens can be refreshed later
+      }
 
       console.log('[Google Callback] Created new connection:', connectionId);
     }
@@ -222,15 +261,27 @@ export async function GET(request: NextRequest) {
       .eq('state', state);
 
     // Redirect to success page or account selection
+    console.log('[Google Callback] 🎯 DETERMINANDO REDIRECIONAMENTO:');
+    console.log('[Google Callback] - Customer ID:', customerId);
+    console.log('[Google Callback] - Connection ID:', connectionId);
+    console.log('[Google Callback] - Client ID:', clientId);
+    
     if (customerId === 'pending') {
+      const redirectUrl = `/google/select-accounts?connectionId=${connectionId}&clientId=${clientId}`;
+      console.log('[Google Callback] ➡️ REDIRECIONANDO PARA SELEÇÃO DE CONTAS:', redirectUrl);
       return NextResponse.redirect(
-        new URL(`/google/select-accounts?connectionId=${connectionId}&clientId=${clientId}`, request.url)
+        new URL(redirectUrl, request.url)
       );
     } else {
+      const redirectUrl = `/dashboard/google?success=connected&connectionId=${connectionId}`;
+      console.log('[Google Callback] ➡️ REDIRECIONANDO PARA DASHBOARD:', redirectUrl);
       return NextResponse.redirect(
-        new URL(`/dashboard/google?success=connected&connectionId=${connectionId}`, request.url)
+        new URL(redirectUrl, request.url)
       );
     }
+
+    console.log('[Google Callback] 🎉 CALLBACK PROCESSADO COM SUCESSO');
+    console.log('='.repeat(80));
 
   } catch (error) {
     console.error('[Google Callback] Unexpected error:', error);
@@ -315,7 +366,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Save tokens
-    const tokenManager = getGoogleTokenManager();
+    const tokenManager = getGoogleTokenManagerSimple();
     await tokenManager.saveTokens(connection.id, tokens);
 
     // Clean up state

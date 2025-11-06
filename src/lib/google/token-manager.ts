@@ -162,7 +162,7 @@ export class GoogleTokenManager {
         .update({
           access_token: encryptedAccessToken,
           refresh_token: encryptedRefreshToken,
-          token_expires_at: expiresAt.toISOString(),
+          expires_at: expiresAt.toISOString(),
           status: 'active',
           updated_at: new Date().toISOString(),
         })

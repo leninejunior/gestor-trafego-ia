@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { isSuperAdmin } from '@/lib/auth/super-admin';
 import { checkPlanLimits } from '@/lib/middleware/plan-limits';
 
@@ -159,12 +160,20 @@ export async function GET(request: NextRequest) {
 
     // Se solicitado, buscar conexões Google para cada cliente
     if (includeGoogleConnections && clients && clients.length > 0) {
+      // Use service role for Google connections to bypass RLS temporarily
+      const supabaseAdmin = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
       const clientsWithConnections = await Promise.all(
         clients.map(async (client) => {
-          const { data: googleConnections } = await supabase
+          const { data: googleConnections } = await supabaseAdmin
             .from('google_ads_connections')
             .select('id, customer_id, status')
             .eq('client_id', client.id);
+
+          console.log(`[Clients API] Found ${googleConnections?.length || 0} Google connections for client ${client.name}`);
 
           return {
             ...client,

@@ -24,7 +24,8 @@ import {
   CheckCircle,
   XCircle,
   Plus,
-  Edit
+  Edit,
+  Shield
 } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { useFeatureMatrix } from "@/hooks/use-feature-gate";
@@ -149,6 +150,11 @@ const navigationSections: NavigationSection[] = [
         name: "Configurações",
         href: "/dashboard/settings",
         icon: Settings,
+      },
+      {
+        name: "Política de Privacidade",
+        href: "/privacy-policy",
+        icon: Shield,
       },
     ]
   },

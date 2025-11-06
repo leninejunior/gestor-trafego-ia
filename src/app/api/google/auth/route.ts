@@ -57,13 +57,25 @@ function checkGoogleConfiguration() {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('[Google Auth POST] Starting authentication flow');
+    console.log('='.repeat(80));
+    console.log('[Google Auth POST] 🚀 INICIANDO FLUXO DE AUTENTICAÇÃO GOOGLE');
+    console.log('[Google Auth POST] Timestamp:', new Date().toISOString());
+    console.log('[Google Auth POST] Request URL:', request.url);
+    console.log('[Google Auth POST] Request method:', request.method);
 
     // Check configuration with detailed logging
     const configCheck = checkGoogleConfiguration();
+    console.log('[Google Auth POST] 🔧 VERIFICAÇÃO DE CONFIGURAÇÃO:');
+    console.log('[Google Auth POST] - Configuração válida:', configCheck.isValid);
+    console.log('[Google Auth POST] - Variáveis faltando:', configCheck.missing);
+    console.log('[Google Auth POST] - Variáveis inválidas:', configCheck.invalid);
+    console.log('[Google Auth POST] - GOOGLE_CLIENT_ID presente:', !!configCheck.config.GOOGLE_CLIENT_ID);
+    console.log('[Google Auth POST] - GOOGLE_CLIENT_SECRET presente:', !!configCheck.config.GOOGLE_CLIENT_SECRET);
+    console.log('[Google Auth POST] - GOOGLE_DEVELOPER_TOKEN presente:', !!configCheck.config.GOOGLE_DEVELOPER_TOKEN);
+    console.log('[Google Auth POST] - NEXT_PUBLIC_APP_URL:', configCheck.config.NEXT_PUBLIC_APP_URL);
     
     if (!configCheck.isValid) {
-      console.error('[Google Auth POST] Configuration invalid:', {
+      console.error('[Google Auth POST] ❌ CONFIGURAÇÃO INVÁLIDA:', {
         missing: configCheck.missing,
         invalid: configCheck.invalid
       });
@@ -82,30 +94,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[Google Auth POST] Configuration valid');
+    console.log('[Google Auth POST] ✅ CONFIGURAÇÃO VÁLIDA');
 
     // Parse and validate request body
     const body = await request.json();
-    console.log('[Google Auth POST] Request body parsed');
+    console.log('[Google Auth POST] 📝 DADOS DA REQUISIÇÃO:');
+    console.log('[Google Auth POST] - Body recebido:', JSON.stringify(body, null, 2));
     
     const { clientId, redirectUri } = AuthRequestSchema.parse(body);
-    console.log('[Google Auth POST] Request validated, clientId:', clientId);
+    console.log('[Google Auth POST] ✅ VALIDAÇÃO CONCLUÍDA:');
+    console.log('[Google Auth POST] - Client ID:', clientId);
+    console.log('[Google Auth POST] - Redirect URI:', redirectUri || 'não fornecido');
 
     // Get authenticated user
+    console.log('[Google Auth POST] 🔐 VERIFICANDO AUTENTICAÇÃO DO USUÁRIO...');
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
+    console.log('[Google Auth POST] 📊 RESULTADO DA AUTENTICAÇÃO:');
+    console.log('[Google Auth POST] - Usuário encontrado:', !!user);
+    console.log('[Google Auth POST] - User ID:', user?.id || 'não encontrado');
+    console.log('[Google Auth POST] - Email:', user?.email || 'não encontrado');
+    console.log('[Google Auth POST] - Erro de auth:', authError?.message || 'nenhum');
+
     if (authError || !user) {
-      console.error('[Google Auth POST] Authentication error:', authError);
+      console.error('[Google Auth POST] ❌ ERRO DE AUTENTICAÇÃO:', authError);
       return NextResponse.json(
         { error: 'Não autorizado' },
         { status: 401 }
       );
     }
 
-    console.log('[Google Auth POST] User authenticated:', user.id);
+    console.log('[Google Auth POST] ✅ USUÁRIO AUTENTICADO COM SUCESSO');
 
     // Generate OAuth authorization URL
+    console.log('[Google Auth POST] 🔗 GERANDO URL DE AUTORIZAÇÃO OAUTH...');
     const oauthService = getGoogleOAuthService();
     const { url, state } = oauthService.getAuthorizationUrl({
       accessType: 'offline',
@@ -113,9 +136,19 @@ export async function POST(request: NextRequest) {
       includeGrantedScopes: true,
     });
 
-    console.log('[Google Auth POST] OAuth URL generated');
+    console.log('[Google Auth POST] ✅ URL OAUTH GERADA:');
+    console.log('[Google Auth POST] - URL:', url);
+    console.log('[Google Auth POST] - State:', state);
+    console.log('[Google Auth POST] - URL length:', url.length);
 
     // Store state in database for validation
+    console.log('[Google Auth POST] 💾 SALVANDO ESTADO OAUTH NO BANCO...');
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    console.log('[Google Auth POST] - State a ser salvo:', state);
+    console.log('[Google Auth POST] - Client ID:', clientId);
+    console.log('[Google Auth POST] - User ID:', user.id);
+    console.log('[Google Auth POST] - Expira em:', expiresAt);
+    
     const { error: stateError } = await supabase
       .from('oauth_states')
       .insert({
@@ -123,18 +156,23 @@ export async function POST(request: NextRequest) {
         client_id: clientId,
         user_id: user.id,
         provider: 'google',
-        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        expires_at: expiresAt,
       });
 
     if (stateError) {
-      console.error('[Google Auth POST] Error storing OAuth state:', stateError);
+      console.error('[Google Auth POST] ❌ ERRO AO SALVAR ESTADO OAUTH:', stateError);
+      console.error('[Google Auth POST] - Código do erro:', stateError.code);
+      console.error('[Google Auth POST] - Mensagem:', stateError.message);
+      console.error('[Google Auth POST] - Detalhes:', stateError.details);
       return NextResponse.json(
         { error: 'Erro interno do servidor' },
         { status: 500 }
       );
     }
 
-    console.log('[Google Auth POST] OAuth state stored successfully');
+    console.log('[Google Auth POST] ✅ ESTADO OAUTH SALVO COM SUCESSO');
+    console.log('[Google Auth POST] 🎉 FLUXO DE AUTENTICAÇÃO CONCLUÍDO');
+    console.log('='.repeat(80));
 
     return NextResponse.json({
       authUrl: url,
