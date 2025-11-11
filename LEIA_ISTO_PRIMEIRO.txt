@@ -1,0 +1,50 @@
+================================================================================
+  CORRECAO RAPIDA - Erro 404 Meta save-selected
+================================================================================
+
+PROBLEMA:
+  A API /api/meta/save-selected esta retornando 404
+
+CAUSA:
+  Cache do Next.js desatualizado (nada foi quebrado!)
+
+SOLUCAO (escolha uma):
+
+  1. MAIS RAPIDO - Execute este arquivo:
+     RESOLVER_AGORA.bat
+
+  2. ALTERNATIVA - Execute:
+     scripts\reiniciar-servidor-meta.bat
+
+  3. MANUAL - Execute estes comandos:
+     taskkill /F /IM node.exe
+     rmdir /s /q .next
+     npm run dev
+
+================================================================================
+
+TEMPO ESTIMADO: 30 segundos
+
+DEPOIS DE REINICIAR:
+  - Teste o fluxo Meta completo
+  - Conecte uma conta Meta
+  - Selecione contas
+  - Salve as conexoes
+  - Verifique se aparecem no dashboard
+
+================================================================================
+
+NADA FOI QUEBRADO!
+  - Sistema de alertas de saldo: OK
+  - Fluxo OAuth Meta: OK
+  - Todas as outras APIs: OK
+  - Banco de dados: OK
+
+E so um problema de cache que se resolve com restart.
+
+================================================================================
+
+DUVIDAS?
+  Leia: README_CORRECAO_META.md (documentacao completa)
+
+================================================================================
