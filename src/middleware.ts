@@ -13,6 +13,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Skip authentication check for Google OAuth flow pages
+  if (request.nextUrl.pathname.startsWith('/google/')) {
+    console.log('🔄 [MIDDLEWARE] Permitindo acesso ao fluxo OAuth Google:', request.nextUrl.pathname);
+    return NextResponse.next()
+  }
+
   // update user's auth session
   const { supabase, response } = await updateSession(request) // Desestrutura supabase e response
 
@@ -43,8 +49,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
+     * - api/ (API routes - they handle their own auth)
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
   ],
 }

@@ -1,0 +1,62 @@
+/**
+ * Debug Callback - Logs em Tempo Real
+ * Monitora os logs do servidor durante o OAuth
+ */
+
+console.log('🔍 MONITOR DE LOGS DO CALLBACK OAUTH');
+console.log('='.repeat(60));
+console.log('');
+console.log('🎯 INSTRUÇÕES:');
+console.log('1. Certifique-se de que o servidor está rodando (npm run dev)');
+console.log('2. Abra o terminal do servidor e observe os logs');
+console.log('3. Faça o OAuth no navegador');
+console.log('4. Procure por estas mensagens no console do servidor:');
+console.log('');
+console.log('✅ MENSAGENS ESPERADAS:');
+console.log('   - [Google Callback] 🚀 PROCESSANDO CALLBACK OAUTH REAL');
+console.log('   - [Google Callback] ✅ STATE VÁLIDO');
+console.log('   - [Google Callback] 🔄 TROCANDO CÓDIGO POR TOKENS...');
+console.log('   - [Google Callback] ✅ TOKENS OBTIDOS');
+console.log('   - [Google Callback] 💾 CRIANDO CONEXÃO NO BANCO...');
+console.log('   - [Google Callback] ✅ CONEXÃO CRIADA');
+console.log('');
+console.log('❌ MENSAGENS DE ERRO POSSÍVEIS:');
+console.log('   - [Google Callback] ❌ ERRO AO TROCAR TOKENS');
+console.log('   - [Google Callback] ❌ ERRO AO CRIAR CONEXÃO');
+console.log('   - [Google Callback] ❌ STATE INVÁLIDO');
+console.log('');
+console.log('🔍 O QUE PROCURAR:');
+console.log('   1. Se aparecer "ERRO AO TROCAR TOKENS":');
+console.log('      → Problema nas credenciais do Google Cloud');
+console.log('      → Verifique GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET');
+console.log('');
+console.log('   2. Se aparecer "ERRO AO CRIAR CONEXÃO":');
+console.log('      → Problema no banco de dados');
+console.log('      → Verifique a estrutura da tabela google_ads_connections');
+console.log('');
+console.log('   3. Se aparecer "STATE INVÁLIDO":');
+console.log('      → State expirou ou não existe');
+console.log('      → Tente fazer o OAuth mais rápido');
+console.log('');
+console.log('   4. Se NÃO aparecer nenhuma mensagem:');
+console.log('      → O callback não está sendo chamado');
+console.log('      → Verifique a URL de callback no Google Cloud Console');
+console.log('');
+console.log('='.repeat(60));
+console.log('');
+console.log('📋 CHECKLIST ANTES DE TESTAR:');
+console.log('');
+console.log('□ Servidor está rodando (npm run dev)');
+console.log('□ Terminal do servidor está visível');
+console.log('□ Navegador está aberto em http://localhost:3000');
+console.log('□ Você está logado no sistema');
+console.log('□ Você tem um cliente criado');
+console.log('');
+console.log('🚀 AGORA FAÇA O TESTE:');
+console.log('1. Vá para o dashboard do cliente');
+console.log('2. Clique em "Conectar Google Ads"');
+console.log('3. Complete o OAuth com drive.engren@gmail.com');
+console.log('4. OBSERVE OS LOGS NO TERMINAL DO SERVIDOR');
+console.log('5. Copie e cole aqui qualquer erro que aparecer');
+console.log('');
+console.log('='.repeat(60));

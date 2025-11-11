@@ -342,8 +342,7 @@ export default function CampaignsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          status: newStatus,
-          clientId: selectedClient
+          status: newStatus
         })
       })
 

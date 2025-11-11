@@ -1,6 +1,5 @@
 /**
- * API: Histórico de gastos das contas
- * GET /api/admin/balance/history?days=30
+ * API para Histórico de Saldo e Gastos
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -9,99 +8,99 @@ import { createClient } from '@/lib/supabase/server'
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const searchParams = request.nextUrl.searchParams
     const days = parseInt(searchParams.get('days') || '30')
+    const accountId = searchParams.get('account_id')
 
-    // Verificar autenticação
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    }
-
-    // Buscar conexões Meta ativas
-    const { data: connections, error: connectionsError } = await supabase
-      .from('meta_ad_accounts')
-      .select('ad_account_id, access_token')
-      .eq('is_active', true)
-
-    if (connectionsError || !connections || connections.length === 0) {
-      return NextResponse.json({ history: [] })
-    }
-
-    // Buscar histórico de cada conta
-    const allHistory = await Promise.all(
-      connections.map(async (connection) => {
-        try {
-          const accountId = connection.ad_account_id
-          const accessToken = connection.access_token
-
-          // Buscar insights diários
-          const response = await fetch(
-            `https://graph.facebook.com/v18.0/${accountId}/insights?` +
-            `fields=spend,date_start&` +
-            `time_range={"since":"${getDateDaysAgo(days)}","until":"${getDateDaysAgo(0)}"}&` +
-            `time_increment=1&` +
-            `access_token=${accessToken}`,
-            { next: { revalidate: 3600 } } // Cache por 1 hora
+    // Buscar histórico de alertas (proxy para histórico de saldo)
+    let query = supabase
+      .from('alert_history')
+      .select(`
+        *,
+        balance_alerts (
+          ad_account_id,
+          ad_account_name,
+          client_id,
+          clients (
+            name
           )
+        )
+      `)
+      .gte('sent_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
+      .order('sent_at', { ascending: false })
 
-          if (!response.ok) {
-            console.error(`Error fetching history for ${accountId}`)
-            return []
-          }
+    if (accountId) {
+      query = query.eq('balance_alerts.ad_account_id', accountId)
+    }
 
-          const data = await response.json()
+    const { data: history, error: historyError } = await query
 
-          return (data.data || []).map((day: any) => ({
-            date: day.date_start,
-            spend: parseFloat(day.spend || 0),
-            account_id: accountId
-          }))
-        } catch (error) {
-          console.error(`Error processing history for ${connection.ad_account_id}:`, error)
-          return []
+    if (historyError) {
+      console.error('Error fetching history:', historyError)
+      return NextResponse.json({ error: 'Error fetching history' }, { status: 500 })
+    }
+
+    // Formatar dados para o frontend
+    const formattedHistory = (history || []).map(item => ({
+      date: item.sent_at,
+      account_id: item.balance_alerts?.ad_account_id,
+      account_name: item.balance_alerts?.ad_account_name,
+      client_name: item.balance_alerts?.clients?.name,
+      balance: item.balance_at_send,
+      threshold: item.threshold_at_send,
+      alert_type: item.sent_via,
+      status: item.status
+    }))
+
+    // Agrupar por data para gráficos
+    const dailyData = formattedHistory.reduce((acc: any, item) => {
+      const date = new Date(item.date).toISOString().split('T')[0]
+      
+      if (!acc[date]) {
+        acc[date] = {
+          date,
+          total_alerts: 0,
+          critical_alerts: 0,
+          warning_alerts: 0,
+          accounts: new Set()
         }
-      })
-    )
-
-    // Flatten e ordenar por data
-    const history = allHistory
-      .flat()
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
-    // Agregar por data (somar gastos de todas as contas)
-    const aggregated = history.reduce((acc: any[], item) => {
-      const existing = acc.find(h => h.date === item.date)
-      if (existing) {
-        existing.spend += item.spend
-        existing.accounts.push(item.account_id)
-      } else {
-        acc.push({
-          date: item.date,
-          spend: item.spend,
-          accounts: [item.account_id]
-        })
       }
-      return acc
-    }, [])
 
-    return NextResponse.json({ 
-      history: aggregated,
-      total_days: days,
-      total_spend: aggregated.reduce((sum, day) => sum + day.spend, 0)
+      acc[date].total_alerts++
+      if (item.balance <= 0) {
+        acc[date].critical_alerts++
+      } else {
+        acc[date].warning_alerts++
+      }
+      acc[date].accounts.add(item.account_id)
+
+      return acc
+    }, {})
+
+    const chartData = Object.values(dailyData).map((day: any) => ({
+      ...day,
+      accounts: day.accounts.size
+    }))
+
+    return NextResponse.json({
+      history: formattedHistory,
+      chart_data: chartData,
+      summary: {
+        total_alerts: formattedHistory.length,
+        unique_accounts: new Set(formattedHistory.map(h => h.account_id)).size,
+        critical_alerts: formattedHistory.filter(h => h.balance <= 0).length,
+        warning_alerts: formattedHistory.filter(h => h.balance > 0).length
+      }
     })
 
   } catch (error) {
     console.error('Error in balance history API:', error)
-    return NextResponse.json(
-      { error: 'Erro ao buscar histórico de gastos' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
-
-function getDateDaysAgo(days: number): string {
-  const date = new Date()
-  date.setDate(date.getDate() - days)
-  return date.toISOString().split('T')[0]
 }

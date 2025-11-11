@@ -1,5 +1,5 @@
 /**
- * API para Alerta Individual de Saldo - Admin
+ * API para Gerenciar Alerta Específico
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -7,17 +7,17 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ alertId: string }> }
+  { params }: { params: { alertId: string } }
 ) {
   try {
     const supabase = await createClient()
-    const { data: { user }, error } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (error || !user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { alertId } = await params
+    const alertId = params.alertId
     const body = await request.json()
 
     // Atualizar alerta no banco
@@ -39,29 +39,28 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      message: 'Alert updated successfully',
       alert: updatedAlert
     })
 
   } catch (error) {
-    console.error('Error updating alert:', error)
+    console.error('Error in PATCH alert:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ alertId: string }> }
+  request: NextRequest,
+  { params }: { params: { alertId: string } }
 ) {
   try {
     const supabase = await createClient()
-    const { data: { user }, error } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (error || !user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { alertId } = await params
+    const alertId = params.alertId
 
     // Deletar alerta do banco
     const { error: deleteError } = await supabase
@@ -76,12 +75,11 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'Alert deleted successfully',
-      alertId
+      message: 'Alert deleted successfully'
     })
 
   } catch (error) {
-    console.error('Error deleting alert:', error)
+    console.error('Error in DELETE alert:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

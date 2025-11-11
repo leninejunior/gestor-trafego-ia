@@ -208,15 +208,15 @@ export class GracefulDegradationManager {
    */
   private async checkDatabaseHealth(): Promise<boolean> {
     try {
-      const { createClient } = await import('@/lib/supabase/server');
-      const client = await createClient();
+      // Usa uma query simples que não depende de RLS
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/`, {
+        method: 'HEAD',
+        headers: {
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+        },
+      });
       
-      const { error } = await client
-        .from('subscription_plans')
-        .select('id')
-        .limit(1);
-      
-      return !error;
+      return response.ok;
     } catch (error) {
       return false;
     }

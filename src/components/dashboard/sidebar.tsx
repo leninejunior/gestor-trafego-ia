@@ -67,6 +67,11 @@ const navigationSections: NavigationSection[] = [
         icon: Users,
       },
       {
+        name: "Alertas de Saldo",
+        href: "/dashboard/balance-alerts",
+        icon: AlertCircle,
+      },
+      {
         name: "Relatórios",
         href: "/dashboard/reports",
         icon: Database,
@@ -160,6 +165,17 @@ const navigationSections: NavigationSection[] = [
         name: "Termos de Uso",
         href: "/terms-of-service",
         icon: Lock,
+      },
+    ]
+  },
+  {
+    title: "Financeiro",
+    items: [
+      {
+        name: "Saldo das Contas",
+        href: "/admin/balance",
+        icon: DollarSign,
+        adminOnly: true,
       },
     ]
   },

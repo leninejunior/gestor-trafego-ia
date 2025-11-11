@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
         clients (
           id,
           name,
-          organization_id
+          org_id
         )
       `)
       .order('created_at', { ascending: false })
@@ -36,17 +36,12 @@ export async function GET(request: NextRequest) {
     const formattedAlerts = (alerts || []).map(alert => ({
       id: alert.id,
       account_id: alert.ad_account_id,
-      account_name: alert.ad_account_name,
-      threshold_percentage: 20, // Calcular baseado no threshold_amount
       threshold_amount: alert.threshold_amount,
       is_active: alert.is_active,
-      notification_email: true,
-      notification_push: true,
-      notification_sms: false,
+      alert_type: alert.alert_type,
       created_at: alert.created_at,
       last_triggered: alert.last_alert_sent_at,
-      current_balance: alert.current_balance,
-      alert_type: alert.alert_type,
+      client_id: alert.client_id,
       client_name: alert.clients?.name
     }))
 
@@ -93,20 +88,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Buscar informações da conta
-    const { data: metaAccount } = await supabase
-      .from('meta_ad_accounts')
-      .select('ad_account_name')
-      .eq('ad_account_id', account_id)
-      .single()
-
     // Criar alerta no banco
     const { data: newAlert, error: insertError } = await supabase
       .from('balance_alerts')
       .insert({
         client_id,
         ad_account_id: account_id,
-        ad_account_name: metaAccount?.ad_account_name || 'Conta sem nome',
         threshold_amount,
         alert_type: 'low_balance',
         is_active: true

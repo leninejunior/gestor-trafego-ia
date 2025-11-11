@@ -75,6 +75,28 @@ export interface GoogleAdsApiResponse<T> {
 // Google Ads Client Class
 // ============================================================================
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Create Google Ads client with simplified config
+ */
+export function getGoogleAdsClient(config: {
+  accessToken: string;
+  refreshToken: string;
+  developerToken: string;
+  customerId?: string;
+}): GoogleAdsClient {
+  return new GoogleAdsClient({
+    clientId: process.env.GOOGLE_CLIENT_ID!,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    developerToken: config.developerToken,
+    refreshToken: config.refreshToken,
+    customerId: config.customerId || '',
+  });
+}
+
 export class GoogleAdsClient {
   private config: GoogleAdsClientConfig;
   private accessToken: string | null = null;
@@ -301,6 +323,52 @@ export class GoogleAdsClient {
     );
 
     return this.parseAccountInfoResponse(response);
+  }
+
+  /**
+   * List accessible customers
+   */
+  async listAccessibleCustomers(): Promise<GoogleAdsAccountInfo[]> {
+    try {
+      // First, get the list of accessible customer IDs
+      const token = await this.ensureValidToken();
+      
+      const response = await fetch(`${this.BASE_URL}/${this.API_VERSION}/customers:listAccessibleCustomers`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'developer-token': this.config.developerToken,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw error;
+      }
+
+      const data = await response.json();
+      const customerIds = data.resourceNames?.map((name: string) => 
+        name.replace('customers/', '')
+      ) || [];
+
+      // Get detailed info for each customer
+      const customers: GoogleAdsAccountInfo[] = [];
+      
+      for (const customerId of customerIds) {
+        try {
+          const customerInfo = await this.getAccountInfo(customerId);
+          customers.push(customerInfo);
+        } catch (error) {
+          // Skip customers we can't access
+          console.warn(`Could not access customer ${customerId}:`, error);
+        }
+      }
+
+      return customers;
+    } catch (error) {
+      throw this.errorHandler.handleError(error);
+    }
   }
 
   // ==========================================================================

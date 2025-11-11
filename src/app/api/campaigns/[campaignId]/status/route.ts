@@ -8,11 +8,11 @@ export async function PATCH(
   try {
     const supabase = await createClient()
     const { campaignId } = params
-    const { status, clientId } = await request.json()
+    const { status } = await request.json()
 
-    if (!campaignId || !status || !clientId) {
+    if (!campaignId || !status) {
       return NextResponse.json({
-        error: 'campaignId, status e clientId são obrigatórios'
+        error: 'campaignId e status são obrigatórios'
       }, { status: 400 })
     }
 
@@ -23,18 +23,35 @@ export async function PATCH(
       }, { status: 400 })
     }
 
-    // Buscar conexão Meta ativa do cliente
-    const { data: connection } = await supabase
-      .from('client_meta_connections')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('is_active', true)
+    // Buscar a campanha e sua conexão através do external_id (campaignId do Meta)
+    const { data: campaign, error: campaignError } = await supabase
+      .from('meta_campaigns')
+      .select(`
+        id,
+        external_id,
+        connection_id,
+        client_meta_connections!inner (
+          id,
+          client_id,
+          access_token,
+          is_active
+        )
+      `)
+      .eq('external_id', campaignId)
       .single()
 
-    if (!connection) {
+    if (campaignError || !campaign) {
       return NextResponse.json({
-        error: 'Cliente não possui conexão ativa com Meta Ads'
+        error: 'Campanha não encontrada'
       }, { status: 404 })
+    }
+
+    const connection = campaign.client_meta_connections as any
+
+    if (!connection.is_active) {
+      return NextResponse.json({
+        error: 'Conexão Meta Ads não está ativa'
+      }, { status: 400 })
     }
 
     // Atualizar status na Meta API
@@ -51,14 +68,26 @@ export async function PATCH(
       })
     })
 
+    console.log('Meta API Response Status:', response.status)
+
     const data = await response.json()
 
     if (!response.ok || data.error) {
       console.error('Erro da Meta API:', data.error)
       return NextResponse.json({
-        error: data.error?.message || 'Erro ao atualizar status na Meta API'
+        error: data.error?.message || 'Erro ao atualizar status na Meta API',
+        details: data.error
       }, { status: 400 })
     }
+
+    // Atualizar status localmente no banco de dados
+    await supabase
+      .from('meta_campaigns')
+      .update({ 
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('external_id', campaignId)
 
     return NextResponse.json({
       success: true,
