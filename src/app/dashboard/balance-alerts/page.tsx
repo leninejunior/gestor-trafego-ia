@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, RefreshCw, Edit, Trash2, Facebook, Plus, AlertCircle, Copy, Bell } from 'lucide-react';
+import { Search, RefreshCw, Edit, Trash2, Facebook, Plus, AlertCircle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -95,7 +95,56 @@ export default function BalanceAlertsPage() {
   useEffect(() => {
     loadAlerts();
     loadAccounts();
+    // Auto-verificar alertas ao entrar na página
+    checkAlertsInBackground();
   }, []);
+
+  const checkAlertsInBackground = async () => {
+    try {
+      console.log('🔔 Verificando alertas em background...');
+      await fetch('/api/cron/check-balance-alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      console.log('✅ Verificação de alertas concluída');
+    } catch (error) {
+      console.error('Erro ao verificar alertas:', error);
+      // Não mostrar erro ao usuário, é background
+    }
+  };
+
+  const checkAlertsManually = async () => {
+    try {
+      toast({
+        title: 'Verificando alertas...',
+        description: 'Aguarde enquanto verificamos os saldos',
+      });
+
+      const response = await fetch('/api/cron/check-balance-alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast({
+          title: 'Verificação concluída',
+          description: `${data.result?.checked || 0} conta(s) verificada(s), ${data.result?.triggered || 0} alerta(s) disparado(s)`,
+        });
+        loadAlerts();
+        loadAccounts();
+      } else {
+        throw new Error('Erro na verificação');
+      }
+    } catch (error) {
+      console.error('Erro ao verificar alertas:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível verificar os alertas',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const toggleAlert = async (alertId: string, currentStatus: boolean) => {
     try {
@@ -243,17 +292,23 @@ export default function BalanceAlertsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Bell className="h-8 w-8" />
+            <AlertCircle className="h-8 w-8" />
             Alertas de Saldo
           </h1>
           <p className="text-muted-foreground mt-1">
             {accounts.length} conta(s) conectada(s) • {alerts.length} alerta(s) configurado(s)
           </p>
         </div>
-        <Button onClick={() => { loadAlerts(); loadAccounts(); }} disabled={loading || loadingAccounts}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${(loading || loadingAccounts) ? 'animate-spin' : ''}`} />
-          Atualizar
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={checkAlertsManually} variant="default">
+            <AlertCircle className="h-4 w-4 mr-2" />
+            Verificar Agora
+          </Button>
+          <Button onClick={() => { loadAlerts(); loadAccounts(); }} disabled={loading || loadingAccounts} variant="outline">
+            <RefreshCw className={`h-4 w-4 mr-2 ${(loading || loadingAccounts) ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="accounts" className="w-full">
@@ -263,7 +318,7 @@ export default function BalanceAlertsPage() {
             Contas Conectadas ({accounts.length})
           </TabsTrigger>
           <TabsTrigger value="alerts">
-            <Bell className="h-4 w-4 mr-2" />
+            <AlertCircle className="h-4 w-4 mr-2" />
             Alertas Configurados ({alerts.length})
           </TabsTrigger>
         </TabsList>
@@ -341,7 +396,7 @@ export default function BalanceAlertsPage() {
                           <td className="p-3">
                             {account.has_alert ? (
                               <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
-                                <Bell className="h-3 w-3 mr-1" />
+                                <AlertCircle className="h-3 w-3 mr-1" />
                                 Alerta Ativo
                               </Badge>
                             ) : (
@@ -362,7 +417,7 @@ export default function BalanceAlertsPage() {
                                 </Button>
                               ) : (
                                 <Button variant="outline" size="sm" disabled>
-                                  <Bell className="h-4 w-4 mr-1" />
+                                  <AlertCircle className="h-4 w-4 mr-1" />
                                   Configurado
                                 </Button>
                               )}
@@ -432,7 +487,7 @@ export default function BalanceAlertsPage() {
                 </div>
               ) : filteredAlerts.length === 0 ? (
                 <div className="text-center py-12">
-                  <Bell className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <AlertCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-muted-foreground font-medium mb-2">Nenhum alerta configurado</p>
                   <p className="text-sm text-muted-foreground">
                     Vá para a aba "Contas Conectadas" para criar alertas
@@ -484,7 +539,7 @@ export default function BalanceAlertsPage() {
                                   });
                                 }}
                               >
-                                <Copy className="h-3 w-3" />
+                                📋
                               </Button>
                             </div>
                           </td>
@@ -522,7 +577,7 @@ export default function BalanceAlertsPage() {
                                 <RefreshCw className="h-4 w-4" />
                               </Button>
                               <Button variant="ghost" size="sm" title="Copiar">
-                                <Copy className="h-4 w-4" />
+                                📋
                               </Button>
                               <Button variant="ghost" size="sm" title="Editar">
                                 <Edit className="h-4 w-4" />

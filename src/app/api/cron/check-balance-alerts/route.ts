@@ -1,10 +1,12 @@
 /**
  * Cron Job: Verificar Alertas de Saldo
- * Executa a cada 1 hora para verificar saldos e disparar alertas
+ * Executa 1x por dia para verificar saldos e disparar alertas
  * 
  * Configurar no Vercel:
  * - Path: /api/cron/check-balance-alerts
- * - Schedule: 0 * * * * (a cada hora)
+ * - Schedule: 0 2 * * * (diariamente às 2h AM UTC)
+ * 
+ * Nota: Também pode ser executado manualmente via admin ou ao acessar a página
  */
 
 import { NextRequest, NextResponse } from 'next/server'
