@@ -13,6 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MetaCampaign } from "@/lib/meta/types";
 import { toast } from "sonner";
+import { BudgetEditDialog } from "./budget-edit-dialog";
+import { AdSetsList } from "./adsets-list";
+import { Play, Pause, DollarSign, ChevronDown, ChevronRight } from "lucide-react";
 
 interface CampaignsListProps {
   clientId: string;
@@ -22,6 +25,10 @@ interface CampaignsListProps {
 export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
   const [campaigns, setCampaigns] = useState<MetaCampaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<MetaCampaign | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchCampaigns();
@@ -87,6 +94,52 @@ export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
     }).format(parseFloat(value) / 100);
   };
 
+  const handleToggleStatus = async (campaign: MetaCampaign) => {
+    const newStatus = campaign.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+    setUpdatingStatus(campaign.id);
+
+    try {
+      const response = await fetch(`/api/campaigns/${campaign.id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(data.message);
+        fetchCampaigns(); // Recarregar lista
+      } else {
+        toast.error(data.error || 'Erro ao atualizar status');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      toast.error('Erro ao atualizar status');
+    } finally {
+      setUpdatingStatus(null);
+    }
+  };
+
+  const handleEditBudget = (campaign: MetaCampaign) => {
+    setSelectedCampaign(campaign);
+    setBudgetDialogOpen(true);
+  };
+
+  const toggleCampaignExpansion = (campaignId: string) => {
+    setExpandedCampaigns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(campaignId)) {
+        newSet.delete(campaignId);
+      } else {
+        newSet.add(campaignId);
+      }
+      return newSet;
+    });
+  };
+
   if (isLoading) {
     return <div className="text-center py-4">Carregando campanhas...</div>;
   }
@@ -124,30 +177,91 @@ export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
         </TableHeader>
         <TableBody>
           {campaigns.map((campaign) => (
-            <TableRow key={campaign.id}>
-              <TableCell className="font-medium">{campaign.name}</TableCell>
-              <TableCell>{getStatusBadge(campaign.status)}</TableCell>
-              <TableCell>{campaign.objective}</TableCell>
-              <TableCell>{formatCurrency(campaign.daily_budget)}</TableCell>
-              <TableCell>
-                {new Date(campaign.created_time).toLocaleDateString('pt-BR')}
-              </TableCell>
-              <TableCell>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    // TODO: Implementar visualização de insights
-                    toast.info('Visualização de insights em desenvolvimento');
-                  }}
-                >
-                  Ver Insights
-                </Button>
-              </TableCell>
-            </TableRow>
+            <>
+              <TableRow key={campaign.id}>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleCampaignExpansion(campaign.id)}
+                      className="h-6 w-6 p-0"
+                    >
+                      {expandedCampaigns.has(campaign.id) ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </Button>
+                    {campaign.name}
+                  </div>
+                </TableCell>
+                <TableCell>{getStatusBadge(campaign.status)}</TableCell>
+                <TableCell>{campaign.objective}</TableCell>
+                <TableCell>{formatCurrency(campaign.daily_budget)}</TableCell>
+                <TableCell>
+                  {new Date(campaign.created_time).toLocaleDateString('pt-BR')}
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={campaign.status === 'ACTIVE' ? 'outline' : 'default'}
+                      size="sm"
+                      onClick={() => handleToggleStatus(campaign)}
+                      disabled={updatingStatus === campaign.id}
+                    >
+                      {updatingStatus === campaign.id ? (
+                        'Atualizando...'
+                      ) : campaign.status === 'ACTIVE' ? (
+                        <>
+                          <Pause className="h-4 w-4 mr-1" />
+                          Pausar
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4 mr-1" />
+                          Ativar
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditBudget(campaign)}
+                    >
+                      <DollarSign className="h-4 w-4 mr-1" />
+                      Orçamento
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+              {expandedCampaigns.has(campaign.id) && (
+                <TableRow>
+                  <TableCell colSpan={6} className="p-0">
+                    <AdSetsList 
+                      campaignId={campaign.id} 
+                      campaignName={campaign.name}
+                    />
+                  </TableCell>
+                </TableRow>
+              )}
+            </>
           ))}
         </TableBody>
       </Table>
+
+      {selectedCampaign && (
+        <BudgetEditDialog
+          open={budgetDialogOpen}
+          onOpenChange={setBudgetDialogOpen}
+          itemId={selectedCampaign.id}
+          itemName={selectedCampaign.name}
+          itemType="campaign"
+          currentDailyBudget={selectedCampaign.daily_budget}
+          currentLifetimeBudget={selectedCampaign.lifetime_budget}
+          onSuccess={fetchCampaigns}
+        />
+      )}
     </div>
   );
 }
