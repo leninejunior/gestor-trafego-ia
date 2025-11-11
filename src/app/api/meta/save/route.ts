@@ -1,10 +1,10 @@
 /**
  * API para salvar contas Meta selecionadas
  * Rota: POST /api/meta/save-selected
- * Versão: 2.0 - Produção
+ * Versão: 3.0 - Service Client Direto
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
   console.log('=== INÍCIO save-selected ===');
@@ -34,51 +34,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Dados obrigatórios ausentes' }, { status: 400 });
     }
     
-    console.log('2. Dados validados, criando cliente Supabase...');
+    console.log('2. Dados validados, criando cliente Supabase com service role...');
 
-    const supabase = await createClient();
-    console.log('3. Cliente Supabase criado');
-
-    // Verificar autenticação do usuário
-    console.log('4. Verificando autenticação...');
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.log('Erro de autenticação:', userError);
-      console.log('Headers da requisição:', Object.fromEntries(request.headers.entries()));
-      
-      // Tentar obter usuário via service client como fallback
-      try {
-        const { createServiceClient } = require('@/lib/supabase/server');
-        const serviceSupabase = createServiceClient();
-        
-        // Buscar cliente para verificar se existe
-        const { data: clientCheck } = await serviceSupabase
-          .from('clients')
-          .select('id')
-          .eq('id', client_id)
-          .single();
-          
-        if (!clientCheck) {
-          return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
+    // Usar service client direto (bypass RLS)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
         }
-        
-        console.log('5. Usando service client como fallback para cliente:', client_id);
-      } catch (fallbackError) {
-        console.error('Erro no fallback:', fallbackError);
-        return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
       }
-    } else {
-      console.log('5. Usuário autenticado:', user.id);
-    }
-
-    console.log('6. Verificando cliente:', client_id);
-
-    // Usar service client para operações no banco
-    const { createServiceClient } = require('@/lib/supabase/server');
-    const serviceSupabase = createServiceClient();
+    );
+    
+    console.log('3. Service client criado');
+    console.log('4. Verificando cliente:', client_id);
 
     // Verificar se o cliente existe
-    const { data: client, error: clientError } = await serviceSupabase
+    const { data: client, error: clientError} = await supabase
       .from('clients')
       .select('id, org_id')
       .eq('id', client_id)
@@ -97,7 +71,7 @@ export async function POST(request: NextRequest) {
     // Remover conexões existentes para este cliente
     console.log('Removendo conexões existentes para cliente:', client_id);
     
-    const { error: deleteError } = await serviceSupabase
+    const { error: deleteError } = await supabase
       .from('client_meta_connections')
       .delete()
       .eq('client_id', client_id);
@@ -127,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Inserindo conexões:', connectionsToInsert.length, 'contas');
     
-    const { error: insertError } = await serviceSupabase
+    const { error: insertError } = await supabase
       .from('client_meta_connections')
       .upsert(connectionsToInsert, { 
         onConflict: 'client_id,ad_account_id',
