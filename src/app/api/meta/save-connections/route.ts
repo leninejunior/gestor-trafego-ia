@@ -49,9 +49,9 @@ export async function POST(request: NextRequest) {
       return {
         client_id,
         ad_account_id: accountId,
-        ad_account_name: account?.name || 'Unknown',
+        account_name: account?.name || 'Unknown',
         access_token,
-        status: 'active'
+        is_active: true
       };
     });
 
