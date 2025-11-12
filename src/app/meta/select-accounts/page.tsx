@@ -135,14 +135,15 @@ function SelectAccountsContent() {
         ad_accounts: adAccounts.length
       });
       
-      // Usar a rota /api/clients que sabemos que funciona
-      const response = await fetch(`/api/clients/${clientId}/meta-connections`, {
+      // Usar rota alternativa sem parâmetros dinâmicos
+      const response = await fetch('/api/meta/save-connections', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
         body: JSON.stringify({
+          client_id: clientId,
           access_token: accessToken,
           selected_accounts: selectedAccounts,
           selected_pages: selectedPages,
