@@ -22,6 +22,8 @@
 
 ### Meta Ads
 - `client_meta_connections` - Conexões Meta Ads por cliente
+  - Campos: `id`, `client_id`, `ad_account_id`, `account_name` (NÃO `ad_account_name`!), `access_token`, `is_active`
+  - ⚠️ IMPORTANTE: Use `account_name` e não `ad_account_name`
 - `meta_campaigns` - Campanhas do Meta
 - `meta_adsets` - Conjuntos de anúncios
 - `meta_ads` - Anúncios individuais
@@ -70,4 +72,31 @@ CREATE POLICY "policy_name"
       WHERE m.user_id = auth.uid()
     )
   );
+```
+
+
+## ⚠️ Padrões Críticos Next.js 15
+
+### Supabase Client (SEMPRE use await!)
+```typescript
+// ❌ ERRADO - Causa erro "Cannot read properties of undefined"
+const supabase = createClient();
+
+// ✅ CORRETO - Next.js 15 requer await
+const supabase = await createClient();
+```
+
+### Tabela client_meta_connections
+```typescript
+// ❌ ERRADO - Coluna não existe
+{
+  ad_account_name: 'Nome da conta',
+  status: 'active'
+}
+
+// ✅ CORRETO - Nomes corretos das colunas
+{
+  account_name: 'Nome da conta',
+  is_active: true
+}
 ```

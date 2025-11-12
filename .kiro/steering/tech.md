@@ -5,6 +5,11 @@
 - **React 19** - UI library with latest features
 - **TypeScript 5** - Type-safe development
 
+## ⚠️ Next.js 15 Breaking Changes
+- `createClient()` do Supabase é **assíncrono** - SEMPRE use `await`
+- `cookies()` é assíncrono - use `await cookies()`
+- Todas as funções de server-side precisam de `await` para acessar headers/cookies
+
 ## Database & Backend
 - **Supabase** - PostgreSQL database with built-in auth
 - **Row Level Security (RLS)** - Database-level security policies

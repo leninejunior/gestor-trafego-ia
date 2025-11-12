@@ -337,3 +337,119 @@ ON client_meta_connections FOR UPDATE USING (
     )
 );
 ```
+
+---
+
+#
+# ⚠️ IMPORTANTE: Padrões de Código
+
+### 1. Next.js 15 - Supabase Client (SEMPRE use await!)
+```typescript
+// ❌ ERRADO - Causa erro "Cannot read properties of undefined (reading 'getUser')"
+export async function POST(request: NextRequest) {
+  const supabase = createClient(); // ERRO!
+  const { data: { user } } = await supabase.auth.getUser();
+}
+
+// ✅ CORRETO - Next.js 15 requer await
+export async function POST(request: NextRequest) {
+  const supabase = await createClient(); // CORRETO!
+  const { data: { user } } = await supabase.auth.getUser();
+}
+```
+
+### 2. Tabela client_meta_connections - Nomes Corretos
+```typescript
+// ❌ ERRADO - Coluna não existe no banco
+const connection = {
+  client_id: clientId,
+  ad_account_id: accountId,
+  ad_account_name: 'Nome',  // ❌ COLUNA ERRADA!
+  status: 'active'           // ❌ COLUNA ERRADA!
+};
+
+// ✅ CORRETO - Nomes reais das colunas
+const connection = {
+  client_id: clientId,
+  ad_account_id: accountId,
+  account_name: 'Nome',      // ✅ CORRETO!
+  is_active: true            // ✅ CORRETO!
+};
+```
+
+### 3. Schema da Tabela client_meta_connections
+```sql
+CREATE TABLE client_meta_connections (
+  id UUID PRIMARY KEY,
+  client_id UUID NOT NULL,
+  ad_account_id TEXT NOT NULL,
+  account_name TEXT,           -- ⚠️ NÃO é "ad_account_name"!
+  access_token TEXT NOT NULL,
+  currency TEXT DEFAULT 'BRL',
+  is_active BOOLEAN DEFAULT true,  -- ⚠️ NÃO é "status"!
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  UNIQUE(client_id, ad_account_id)
+);
+```
+
+### 4. Exemplo Completo de Rota API
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { client_id, access_token, selected_accounts, ad_accounts } = body;
+
+    // ✅ SEMPRE use await com createClient()
+    const supabase = await createClient();
+
+    // Verificar autenticação
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+
+    // ✅ Usar nomes corretos das colunas
+    const connections = selected_accounts.map((accountId: string) => {
+      const account = ad_accounts.find((acc: any) => acc.id === accountId);
+      return {
+        client_id,
+        ad_account_id: accountId,
+        account_name: account?.name || 'Unknown',  // ✅ account_name
+        access_token,
+        is_active: true  // ✅ is_active
+      };
+    });
+
+    const { data, error } = await supabase
+      .from('client_meta_connections')
+      .insert(connections)
+      .select();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, connections: data });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+```
+
+## 🐛 Erros Comuns e Soluções
+
+### Erro: "Cannot read properties of undefined (reading 'getUser')"
+**Causa:** Faltou `await` no `createClient()`
+**Solução:** Sempre use `const supabase = await createClient();`
+
+### Erro: "Could not find the 'ad_account_name' column"
+**Causa:** Nome da coluna errado
+**Solução:** Use `account_name` ao invés de `ad_account_name`
+
+### Erro: "Could not find the 'status' column"
+**Causa:** Nome da coluna errado
+**Solução:** Use `is_active` (boolean) ao invés de `status` (string)
