@@ -129,16 +129,20 @@ function SelectAccountsContent() {
     setIsSaving(true);
     try {
       console.log('💾 [SELECT ACCOUNTS] Salvando conexões selecionadas...');
+      console.log('📦 [SELECT ACCOUNTS] Dados:', {
+        client_id: clientId,
+        selected_accounts: selectedAccounts.length,
+        ad_accounts: adAccounts.length
+      });
       
-      // Tentar primeira API
-      let response = await fetch('/api/meta/save-selected', {
+      // Usar a rota /api/clients que sabemos que funciona
+      const response = await fetch(`/api/clients/${clientId}/meta-connections`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
         body: JSON.stringify({
-          client_id: clientId,
           access_token: accessToken,
           selected_accounts: selectedAccounts,
           selected_pages: selectedPages,
@@ -147,26 +151,7 @@ function SelectAccountsContent() {
         }),
       });
 
-      console.log('📡 [SELECT ACCOUNTS] Resposta do save-selected:', response.status);
-
-      // Se der 404, tentar API alternativa
-      if (response.status === 404) {
-        console.log('⚠️ [SELECT ACCOUNTS] API save-selected não encontrada, tentando alternativa...');
-        response = await fetch('/api/meta/save', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            client_id: clientId,
-            access_token: accessToken,
-            selected_accounts: selectedAccounts,
-            ad_accounts: adAccounts
-          }),
-        });
-        console.log('📡 [SELECT ACCOUNTS] Resposta do save alternativo:', response.status);
-      }
+      console.log('📡 [SELECT ACCOUNTS] Resposta:', response.status);
 
       if (response.ok) {
         const data = await response.json();
