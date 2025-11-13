@@ -15,9 +15,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Buscar saldos usando a view com status calculado
+    // Buscar saldos diretamente da tabela
     const { data: balances, error: balancesError } = await supabase
-      .from('ad_account_balances_with_status')
+      .from('ad_account_balances')
       .select('*')
       .order('status', { ascending: false }) // Críticos primeiro
       .order('balance', { ascending: true })

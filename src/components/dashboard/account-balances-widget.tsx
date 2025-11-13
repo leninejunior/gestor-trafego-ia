@@ -22,15 +22,17 @@ interface AccountBalance {
   id: string
   ad_account_id: string
   ad_account_name: string
-  platform: string
   balance: number
   currency: string
-  spend_cap: number
+  account_spend_limit: number
   daily_spend: number
-  balance_percentage: number
-  estimated_days_remaining: number
   status: 'healthy' | 'warning' | 'critical'
-  client_name: string
+  client_id: string
+  last_checked_at: string
+  spend_cap?: number
+  amount_spent?: number
+  funding_source_type?: number
+  funding_source_display?: string
 }
 
 interface BalanceSummary {
@@ -201,30 +203,45 @@ export function AccountBalancesWidget() {
                   {getStatusIcon(account.status)}
                   <div>
                     <p className="text-sm font-medium">{account.ad_account_name}</p>
-                    <p className="text-xs text-muted-foreground">{account.client_name}</p>
+                    <p className="text-xs text-muted-foreground">{account.ad_account_id}</p>
+                    {account.funding_source_display && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        💳 {account.funding_source_display}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold">
                     {formatCurrency(account.balance, account.currency)}
                   </p>
-                  {account.estimated_days_remaining < 999 && (
+                  {account.daily_spend > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      ~{Math.floor(account.estimated_days_remaining)} dias
+                      ~{Math.floor(account.balance / account.daily_spend)} dias
                     </p>
                   )}
                 </div>
               </div>
               
-              {account.spend_cap > 0 && (
-                <div>
+              {account.spend_cap && account.spend_cap > 0 && (
+                <div className="space-y-1">
                   <Progress 
-                    value={Math.min(account.balance_percentage, 100)} 
+                    value={Math.min((account.balance / account.spend_cap) * 100, 100)} 
                     className="h-1"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {account.balance_percentage.toFixed(0)}% do limite
-                  </p>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>
+                      {((account.balance / account.spend_cap) * 100).toFixed(0)}% do limite
+                    </span>
+                    <span>
+                      Limite: {formatCurrency(account.spend_cap, account.currency)}
+                    </span>
+                  </div>
+                  {account.amount_spent && account.amount_spent > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Gasto total: {formatCurrency(account.amount_spent, account.currency)}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

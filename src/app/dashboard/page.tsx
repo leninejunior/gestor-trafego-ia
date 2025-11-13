@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RealTimeInsights } from "@/components/dashboard/real-time-insights";
 import { PlanLimitsIndicator } from "@/components/dashboard/plan-limits-indicator";
+import { AccountBalancesWidget } from "@/components/dashboard/account-balances-widget";
 import { UnifiedMetricsCards } from "@/components/unified";
 import { PlatformComparisonChart } from "@/components/unified";
 import { ExportButton } from "@/components/exports/export-button";
@@ -193,15 +194,20 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Plan Limits and Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Plan Limits Indicator */}
-        <div className="lg:col-span-1">
+      {/* Saldo das Contas e Plan Limits */}
+      {totalConnections > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Saldo das Contas */}
+          <AccountBalancesWidget />
+          
+          {/* Plan Limits Indicator */}
           <PlanLimitsIndicator />
         </div>
+      )}
 
-        {/* Quick Actions */}
-        <Card className="lg:col-span-2">
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 gap-6">
+        <Card>
           <CardHeader>
             <CardTitle>Ações Rápidas</CardTitle>
             <CardDescription>

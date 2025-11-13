@@ -14,22 +14,22 @@ const supabaseAdmin = createClient(
 export async function POST(request: NextRequest) {
   try {
     console.log('🔄 Iniciando sincronização de saldo...')
+    console.log('📊 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+    console.log('🔑 Service Role Key configurada:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
 
-    // Buscar todas as conexões Meta ativas
+    // Buscar todas as conexões Meta ativas (SEM JOIN para evitar erros)
     const { data: connections, error: connError } = await supabaseAdmin
       .from('client_meta_connections')
-      .select(`
-        *,
-        clients (
-          id,
-          name
-        )
-      `)
-      .eq('status', 'active')
+      .select('*')
+      .eq('is_active', true)
 
     if (connError) {
-      console.error('Erro ao buscar conexões:', connError)
-      return NextResponse.json({ error: 'Erro ao buscar conexões' }, { status: 500 })
+      console.error('❌ Erro ao buscar conexões:', connError)
+      return NextResponse.json({ 
+        error: 'Erro ao buscar conexões',
+        details: connError.message,
+        code: connError.code
+      }, { status: 500 })
     }
 
     if (!connections || connections.length === 0) {
@@ -45,48 +45,59 @@ export async function POST(request: NextRequest) {
     let synced = 0
     let errors = 0
 
-    // Para cada conexão, buscar saldo das contas
+    // Para cada conexão, buscar saldo da conta
     for (const connection of connections) {
       try {
-        const accountIds = connection.selected_ad_account_ids || []
+        // Cada conexão tem UMA conta em ad_account_id
+        const accountId = connection.ad_account_id
         
-        for (const accountId of accountIds) {
-          try {
-            // Buscar saldo REAL do Meta Ads
-            const balance = await fetchRealBalance(accountId, connection.access_token)
-            
-            if (balance) {
-              // Salvar no banco
-              const { error: upsertError } = await supabaseAdmin
-                .from('ad_account_balances')
-                .upsert({
-                  client_id: connection.clients.id,
-                  ad_account_id: accountId,
-                  ad_account_name: balance.name,
-                  balance: balance.balance,
-                  spend_cap: balance.spend_cap,
-                  daily_spend_limit: balance.daily_spend_limit,
-                  currency: balance.currency,
-                  daily_spend: balance.daily_spend,
-                  projected_days_remaining: balance.projected_days,
-                  status: balance.status,
-                  last_updated: new Date().toISOString()
-                }, {
-                  onConflict: 'client_id,ad_account_id'
-                })
+        if (!accountId) {
+          console.log(`⚠️ Conexão ${connection.id} sem ad_account_id`)
+          continue
+        }
+        
+        console.log(`📊 Processando conta ${accountId} da conexão ${connection.id}`)
+        
+        try {
+          // Buscar saldo REAL do Meta Ads
+          const balance = await fetchRealBalance(accountId, connection.access_token)
+          
+          if (balance) {
+            // Salvar no banco
+            // Deletar registro existente
+            await supabaseAdmin
+              .from('ad_account_balances')
+              .delete()
+              .eq('client_id', connection.client_id)
+              .eq('ad_account_id', accountId)
 
-              if (upsertError) {
-                console.error(`Erro ao salvar saldo de ${accountId}:`, upsertError)
-                errors++
-              } else {
-                console.log(`✅ Saldo sincronizado: ${accountId} - R$ ${balance.balance}`)
-                synced++
-              }
+            // Inserir novo registro
+            const { error: insertError } = await supabaseAdmin
+              .from('ad_account_balances')
+              .insert({
+                client_id: connection.client_id,
+                ad_account_id: accountId,
+                ad_account_name: balance.name,
+                balance: balance.balance,
+                currency: balance.currency,
+                status: balance.status,
+                spend_cap: balance.spend_cap,
+                amount_spent: balance.amount_spent,
+                funding_source_type: balance.funding_source_type,
+                funding_source_display: balance.funding_source_display
+              })
+
+            if (insertError) {
+              console.error(`Erro ao salvar saldo de ${accountId}:`, insertError)
+              errors++
+            } else {
+              console.log(`✅ Saldo sincronizado: ${accountId} - ${balance.currency} ${balance.balance}`)
+              synced++
             }
-          } catch (error) {
-            console.error(`Erro ao processar conta ${accountId}:`, error)
-            errors++
           }
+        } catch (error) {
+          console.error(`Erro ao processar conta ${accountId}:`, error)
+          errors++
         }
       } catch (error) {
         console.error(`Erro ao processar conexão ${connection.id}:`, error)
@@ -113,8 +124,8 @@ export async function POST(request: NextRequest) {
 
 async function fetchRealBalance(accountId: string, accessToken: string) {
   try {
-    // Buscar dados da conta do Meta Ads
-    const url = `https://graph.facebook.com/v18.0/${accountId}?fields=name,currency,balance,amount_spent,spend_cap,daily_spend_limit&access_token=${accessToken}`
+    // Buscar dados da conta do Meta Ads incluindo funding_source_details
+    const url = `https://graph.facebook.com/v18.0/${accountId}?fields=name,currency,balance,amount_spent,spend_cap,funding_source_details&access_token=${accessToken}`
     
     const response = await fetch(url)
     
@@ -126,10 +137,29 @@ async function fetchRealBalance(accountId: string, accessToken: string) {
 
     const data = await response.json()
 
+    // Extrair saldo real do display_string se disponível (inclui cupons/créditos)
+    let realBalance = parseFloat(data.balance || '0') / 100
+    let fundingSourceType = null
+    let fundingSourceDisplay = null
+    
+    if (data.funding_source_details) {
+      fundingSourceType = data.funding_source_details.type
+      fundingSourceDisplay = data.funding_source_details.display_string
+      
+      // Tentar extrair o saldo do display_string (ex: "Saldo disponível (R$2.856,03 BRL)")
+      const match = fundingSourceDisplay?.match(/R\$\s*([\d.,]+)/i)
+      if (match) {
+        const displayBalance = parseFloat(match[1].replace(/\./g, '').replace(',', '.'))
+        if (!isNaN(displayBalance) && displayBalance > realBalance) {
+          console.log(`💰 Saldo ajustado de R$ ${realBalance} para R$ ${displayBalance} (incluindo créditos)`)
+          realBalance = displayBalance
+        }
+      }
+    }
+
     // Converter valores (Meta retorna em centavos)
-    const balance = parseFloat(data.balance || '0') / 100
+    const balance = realBalance
     const spendCap = parseFloat(data.spend_cap || '0') / 100
-    const dailySpendLimit = parseFloat(data.daily_spend_limit || '0') / 100
     const amountSpent = parseFloat(data.amount_spent || '0') / 100
 
     // Buscar gasto dos últimos 7 dias
@@ -168,11 +198,13 @@ async function fetchRealBalance(accountId: string, accessToken: string) {
       currency: data.currency || 'BRL',
       balance,
       spend_cap: spendCap,
-      daily_spend_limit: dailySpendLimit,
+      daily_spend_limit: 0, // Campo não existe na API do Meta
       amount_spent: amountSpent,
       daily_spend: dailySpend,
       projected_days: projectedDays,
-      status
+      status,
+      funding_source_type: fundingSourceType,
+      funding_source_display: fundingSourceDisplay
     }
 
   } catch (error) {
