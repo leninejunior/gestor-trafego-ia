@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { META_CONFIG } from '@/lib/meta/config'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { adsetId: string } }
+  { params }: { params: Promise<{ adsetId: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { adsetId } = params
+    const { adsetId } = await params
     const { daily_budget, lifetime_budget } = await request.json()
 
     if (!adsetId) {
@@ -22,8 +23,11 @@ export async function PATCH(
       }, { status: 400 })
     }
 
-    // Buscar o adset e sua conexão
-    const { data: adset, error: adsetError } = await supabase
+    // Buscar o adset e sua conexão (pode ser external_id ou id interno)
+    console.log('🔍 Buscando adset com ID:', adsetId)
+    
+    // Tentar primeiro por external_id
+    let { data: adset, error: adsetError } = await supabase
       .from('meta_adsets')
       .select(`
         id,
@@ -40,9 +44,35 @@ export async function PATCH(
         )
       `)
       .eq('external_id', adsetId)
-      .single()
+      .maybeSingle()
+
+    // Se não encontrou, tentar por id interno
+    if (!adset && !adsetError) {
+      const result = await supabase
+        .from('meta_adsets')
+        .select(`
+          id,
+          external_id,
+          campaign_id,
+          meta_campaigns!inner (
+            connection_id,
+            client_meta_connections!inner (
+              id,
+              client_id,
+              access_token,
+              is_active
+            )
+          )
+        `)
+        .eq('id', adsetId)
+        .maybeSingle()
+      
+      adset = result.data
+      adsetError = result.error
+    }
 
     if (adsetError || !adset) {
+      console.error('❌ Erro ao buscar adset:', { adsetError, adsetId })
       return NextResponse.json({
         error: 'Conjunto de anúncios não encontrado'
       }, { status: 404 })
@@ -71,8 +101,11 @@ export async function PATCH(
       updateData.lifetime_budget = Math.round(parseFloat(lifetime_budget) * 100)
     }
 
-    // Atualizar orçamento na Meta API
-    const metaApiUrl = `https://graph.facebook.com/v18.0/${adsetId}`
+    // Usar o external_id para chamar a Meta API
+    const metaExternalId = adset.external_id
+    const metaApiUrl = `${META_CONFIG.BASE_URL}/${META_CONFIG.API_VERSION}/${metaExternalId}`
+    
+    console.log('Atualizando orçamento do adset na Meta API:', { metaExternalId, updateData })
     
     const response = await fetch(metaApiUrl, {
       method: 'POST',
@@ -92,7 +125,7 @@ export async function PATCH(
       }, { status: 400 })
     }
 
-    // Atualizar orçamento localmente no banco de dados
+    // Atualizar orçamento localmente no banco de dados usando o id interno
     const dbUpdate: any = { updated_at: new Date().toISOString() }
     if (daily_budget) dbUpdate.daily_budget = updateData.daily_budget.toString()
     if (lifetime_budget) dbUpdate.lifetime_budget = updateData.lifetime_budget.toString()
@@ -100,7 +133,7 @@ export async function PATCH(
     await supabase
       .from('meta_adsets')
       .update(dbUpdate)
-      .eq('external_id', adsetId)
+      .eq('id', adset.id)
 
     return NextResponse.json({
       success: true,

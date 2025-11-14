@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { META_CONFIG } from '@/lib/meta/config'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { campaignId: string } }
+  { params }: { params: Promise<{ campaignId: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { campaignId } = params
-    const { daily_budget, lifetime_budget } = await request.json()
+    const { campaignId } = await params
+    const { daily_budget, lifetime_budget, clientId, adAccountId } = await request.json()
 
     if (!campaignId) {
       return NextResponse.json({
@@ -22,35 +23,43 @@ export async function PATCH(
       }, { status: 400 })
     }
 
-    // Buscar a campanha e sua conexão
-    const { data: campaign, error: campaignError } = await supabase
-      .from('meta_campaigns')
-      .select(`
-        id,
-        external_id,
-        connection_id,
-        client_meta_connections!inner (
-          id,
-          client_id,
-          access_token,
-          is_active
-        )
-      `)
-      .eq('external_id', campaignId)
-      .single()
-
-    if (campaignError || !campaign) {
-      return NextResponse.json({
-        error: 'Campanha não encontrada'
-      }, { status: 404 })
+    // Buscar conexão ativa do cliente (não precisa da campanha no banco!)
+    let connection;
+    
+    if (clientId) {
+      const { data } = await supabase
+        .from('client_meta_connections')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('is_active', true)
+        .maybeSingle()
+      connection = data
     }
 
-    const connection = campaign.client_meta_connections as any
+    if (!connection && adAccountId) {
+      const { data } = await supabase
+        .from('client_meta_connections')
+        .select('*')
+        .eq('ad_account_id', adAccountId)
+        .eq('is_active', true)
+        .maybeSingle()
+      connection = data
+    }
 
-    if (!connection.is_active) {
+    if (!connection) {
+      const { data } = await supabase
+        .from('client_meta_connections')
+        .select('*')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle()
+      connection = data
+    }
+
+    if (!connection) {
       return NextResponse.json({
-        error: 'Conexão Meta Ads não está ativa'
-      }, { status: 400 })
+        error: 'Nenhuma conexão Meta Ads ativa encontrada'
+      }, { status: 404 })
     }
 
     // Preparar dados para atualização
@@ -67,8 +76,10 @@ export async function PATCH(
       updateData.lifetime_budget = Math.round(parseFloat(lifetime_budget) * 100)
     }
 
-    // Atualizar orçamento na Meta API
-    const metaApiUrl = `https://graph.facebook.com/v18.0/${campaignId}`
+    // Chamar Meta API diretamente com o campaignId (que é o external_id)
+    const metaApiUrl = `${META_CONFIG.BASE_URL}/${META_CONFIG.API_VERSION}/${campaignId}`
+    
+    console.log('🚀 Atualizando orçamento na Meta API:', { campaignId, updateData })
     
     const response = await fetch(metaApiUrl, {
       method: 'POST',
@@ -81,22 +92,14 @@ export async function PATCH(
     const data = await response.json()
 
     if (!response.ok || data.error) {
-      console.error('Erro da Meta API:', data.error)
+      console.error('❌ Erro da Meta API:', data.error)
       return NextResponse.json({
         error: data.error?.message || 'Erro ao atualizar orçamento na Meta API',
         details: data.error
       }, { status: 400 })
     }
 
-    // Atualizar orçamento localmente no banco de dados
-    const dbUpdate: any = { updated_at: new Date().toISOString() }
-    if (daily_budget) dbUpdate.daily_budget = updateData.daily_budget.toString()
-    if (lifetime_budget) dbUpdate.lifetime_budget = updateData.lifetime_budget.toString()
-
-    await supabase
-      .from('meta_campaigns')
-      .update(dbUpdate)
-      .eq('external_id', campaignId)
+    console.log('✅ Orçamento atualizado com sucesso!')
 
     return NextResponse.json({
       success: true,

@@ -95,63 +95,67 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Buscar contas usando Google Ads API
-    console.log('[Google Accounts API] 📡 BUSCANDO CONTAS VIA GOOGLE ADS API...');
+    // Buscar contas reais usando Google Ads API
+    console.log('[Google Accounts API] 🚀 BUSCANDO CONTAS REAIS VIA GOOGLE ADS API...');
     
     try {
       const googleAdsClient = getGoogleAdsClient({
         accessToken: connection.access_token,
         refreshToken: connection.refresh_token,
-        developerToken: process.env.GOOGLE_DEVELOPER_TOKEN!
+        developerToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN!,
+        customerId: connection.login_customer_id || undefined
       });
       
-      // Buscar contas acessíveis
+      console.log('[Google Accounts API] 📡 Cliente Google Ads inicializado');
+      console.log('[Google Accounts API] 📊 Buscando contas acessíveis...');
+      
+      // Usar o método listAccessibleCustomers do cliente
       const accounts = await googleAdsClient.listAccessibleCustomers();
-      console.log('[Google Accounts API] ✅ CONTAS OBTIDAS:', {
-        total: accounts.length,
-        accounts: accounts.map(acc => ({
-          id: acc.customerId,
-          name: acc.descriptiveName
-        }))
+      
+      console.log('[Google Accounts API] ✅ Resposta recebida:', {
+        totalResults: accounts?.length || 0
       });
+      
+      if (!accounts || accounts.length === 0) {
+        console.log('[Google Accounts API] ⚠️ NENHUMA CONTA ENCONTRADA');
+        return NextResponse.json({
+          success: true,
+          accounts: [],
+          message: 'Nenhuma conta Google Ads encontrada para este usuário'
+        });
+      }
+      
+      // Formatar contas para o formato esperado pelo frontend
+      const formattedAccounts = accounts.map((account) => ({
+        customerId: account.customerId,
+        descriptiveName: account.descriptiveName || 'Sem nome',
+        currencyCode: account.currencyCode || 'BRL',
+        timeZone: account.timeZone || 'America/Sao_Paulo',
+        canManageClients: account.canManageClients || false
+      }));
+      
+      console.log('[Google Accounts API] ✅ CONTAS REAIS CARREGADAS:', formattedAccounts.length);
       
       return NextResponse.json({
         success: true,
-        accounts: accounts,
-        message: `${accounts.length} contas encontradas`,
-        isReal: true
+        accounts: formattedAccounts,
+        message: `${formattedAccounts.length} conta(s) Google Ads encontrada(s)`,
+        isTest: false
       });
       
     } catch (apiError: any) {
-      console.error('[Google Accounts API] ❌ ERRO NA API GOOGLE ADS:', apiError);
-      
-      // Se der erro na API, retornar contas mockadas como fallback
-      console.log('[Google Accounts API] 🧪 RETORNANDO CONTAS MOCKADAS COMO FALLBACK');
-      
-      const fallbackAccounts = [
-        {
-          customerId: '123-456-7890',
-          descriptiveName: 'Conta Real 1 (API Indisponível)',
-          currencyCode: 'BRL',
-          timeZone: 'America/Sao_Paulo',
-          canManageClients: false
-        },
-        {
-          customerId: '987-654-3210',
-          descriptiveName: 'Conta Real 2 (API Indisponível)',
-          currencyCode: 'BRL',
-          timeZone: 'America/Sao_Paulo',
-          canManageClients: true
-        }
-      ];
+      console.error('[Google Accounts API] ❌ ERRO AO BUSCAR CONTAS NA API:', {
+        message: apiError.message,
+        code: apiError.code,
+        details: apiError.details,
+        stack: apiError.stack
+      });
       
       return NextResponse.json({
-        success: true,
-        accounts: fallbackAccounts,
-        message: 'API temporariamente indisponível, usando dados de fallback',
-        isFallback: true,
-        apiError: apiError.message
-      });
+        error: 'Erro ao buscar contas no Google Ads',
+        details: apiError.message,
+        code: apiError.code
+      }, { status: 500 });
     }
     
   } catch (error: any) {

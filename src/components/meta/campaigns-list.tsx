@@ -98,25 +98,40 @@ export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
     const newStatus = campaign.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
     setUpdatingStatus(campaign.id);
 
+    console.log('🔄 Alterando status da campanha:', {
+      campaignId: campaign.id,
+      currentStatus: campaign.status,
+      newStatus,
+      clientId,
+      adAccountId
+    });
+
     try {
       const response = await fetch(`/api/campaigns/${campaign.id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ 
+          status: newStatus,
+          clientId,
+          adAccountId
+        })
       });
 
       const data = await response.json();
+
+      console.log('📊 Resposta da API:', { status: response.status, data });
 
       if (response.ok) {
         toast.success(data.message);
         fetchCampaigns(); // Recarregar lista
       } else {
+        console.error('❌ Erro ao atualizar status:', data);
         toast.error(data.error || 'Erro ao atualizar status');
       }
     } catch (error) {
-      console.error('Erro ao atualizar status:', error);
+      console.error('💥 Erro ao atualizar status:', error);
       toast.error('Erro ao atualizar status');
     } finally {
       setUpdatingStatus(null);
@@ -124,7 +139,13 @@ export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
   };
 
   const handleEditBudget = (campaign: MetaCampaign) => {
-    setSelectedCampaign(campaign);
+    // Adicionar clientId e adAccountId à campanha para o diálogo
+    const campaignWithContext = {
+      ...campaign,
+      clientId,
+      adAccountId
+    } as any;
+    setSelectedCampaign(campaignWithContext);
     setBudgetDialogOpen(true);
   };
 
@@ -259,6 +280,8 @@ export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
           itemType="campaign"
           currentDailyBudget={selectedCampaign.daily_budget}
           currentLifetimeBudget={selectedCampaign.lifetime_budget}
+          clientId={clientId}
+          adAccountId={adAccountId}
           onSuccess={fetchCampaigns}
         />
       )}

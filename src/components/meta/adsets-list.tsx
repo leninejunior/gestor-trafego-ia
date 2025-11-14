@@ -68,6 +68,12 @@ export function AdSetsList({ campaignId, campaignName }: AdSetsListProps) {
     const newStatus = adset.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
     setUpdatingStatus(adset.id);
 
+    console.log('🔄 Alterando status do adset:', {
+      adsetId: adset.id,
+      currentStatus: adset.status,
+      newStatus
+    });
+
     try {
       const response = await fetch(`/api/adsets/${adset.id}/status`, {
         method: 'PATCH',
@@ -79,14 +85,17 @@ export function AdSetsList({ campaignId, campaignName }: AdSetsListProps) {
 
       const data = await response.json();
 
+      console.log('📊 Resposta da API:', { status: response.status, data });
+
       if (response.ok) {
         toast.success(data.message);
         fetchAdSets();
       } else {
+        console.error('❌ Erro ao atualizar status:', data);
         toast.error(data.error || 'Erro ao atualizar status');
       }
     } catch (error) {
-      console.error('Erro ao atualizar status:', error);
+      console.error('💥 Erro ao atualizar status:', error);
       toast.error('Erro ao atualizar status');
     } finally {
       setUpdatingStatus(null);

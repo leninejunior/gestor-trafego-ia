@@ -1,73 +1,98 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Users, 
-  Building2, 
-  Calendar,
-  CheckCircle,
-  XCircle,
-  Clock
-} from "lucide-react";
-import { AcceptInviteButton } from "@/components/invite/accept-invite-button";
+'use client';
 
-export const dynamic = 'force-dynamic';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
-interface InvitePageProps {
-  params: Promise<{
-    token: string;
-  }>;
-}
+export default function AcceptInvitePage({ params }: { params: { token: string } }) {
+  const [loading, setLoading] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const [error, setError] = useState('');
+  const router = useRouter();
+  const { toast } = useToast();
 
-export default async function InvitePage({ params }: InvitePageProps) {
-  const { token } = await params;
-  const supabase = await createClient();
+  async function handleAcceptInvite() {
+    try {
+      setLoading(true);
+      setError('');
 
-  // Verificar se usuário está logado
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+      const response = await fetch('/api/organization/invites/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: params.token })
+      });
 
-  if (!user) {
-    // Redirecionar para login com redirect para esta página
-    return redirect(`/login?redirect=/invite/${token}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to accept invite');
+      }
+
+      setAccepted(true);
+      toast({
+        title: 'Sucesso!',
+        description: 'Você foi adicionado à organização'
+      });
+
+      // Redirecionar para dashboard após 2 segundos
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 2000);
+
+    } catch (error: any) {
+      console.error('Error accepting invite:', error);
+      setError(error.message || 'Falha ao aceitar convite');
+      toast({
+        title: 'Erro',
+        description: error.message || 'Falha ao aceitar convite',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
-  // Buscar informações do convite
-  const { data: invite, error } = await supabase
-    .from("organization_invites")
-    .select(`
-      *,
-      organizations (
-        id,
-        name
-      ),
-      user_roles (
-        name,
-        description
-      ),
-      invited_by_user:auth.users!organization_invites_invited_by_fkey (
-        email
-      )
-    `)
-    .eq("token", token)
-    .single();
-
-  if (error || !invite) {
+  if (accepted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <CardTitle>Convite Inválido</CardTitle>
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+              <CheckCircle className="h-6 w-6 text-green-600" />
+            </div>
+            <CardTitle>Convite Aceito!</CardTitle>
             <CardDescription>
-              Este convite não foi encontrado ou é inválido.
+              Você foi adicionado à organização com sucesso
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <Button onClick={() => window.location.href = '/dashboard'}>
+            <p className="text-sm text-muted-foreground">
+              Redirecionando para o dashboard...
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+              <XCircle className="h-6 w-6 text-red-600" />
+            </div>
+            <CardTitle>Erro ao Aceitar Convite</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-sm text-muted-foreground">
+              O convite pode estar expirado ou inválido.
+            </p>
+            <Button onClick={() => router.push('/dashboard')} className="w-full">
               Ir para Dashboard
             </Button>
           </CardContent>
@@ -76,144 +101,27 @@ export default async function InvitePage({ params }: InvitePageProps) {
     );
   }
 
-  // Verificar se convite expirou
-  const isExpired = new Date(invite.expires_at) < new Date();
-  
-  // Verificar se convite já foi aceito
-  const isAccepted = invite.status === 'accepted';
-
-  // Verificar se usuário já é membro da organização
-  const { data: existingMembership } = await supabase
-    .from("memberships")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("org_id", invite.org_id)
-    .single();
-
-  // Verificar se email do usuário confere
-  const emailMatches = user.email === invite.email;
-
-  const canAccept = !isExpired && !isAccepted && !existingMembership && emailMatches;
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <Card className="w-full max-w-lg">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            {canAccept ? (
-              <Users className="h-12 w-12 text-blue-500" />
-            ) : isAccepted || existingMembership ? (
-              <CheckCircle className="h-12 w-12 text-green-500" />
-            ) : (
-              <XCircle className="h-12 w-12 text-red-500" />
-            )}
-          </div>
-          
-          <CardTitle className="text-2xl">
-            {canAccept ? "Convite para Equipe" : 
-             isAccepted || existingMembership ? "Convite Aceito" : 
-             "Convite Inválido"}
-          </CardTitle>
-          
+          <CardTitle>Convite para Organização</CardTitle>
           <CardDescription>
-            {canAccept ? "Você foi convidado para participar de uma organização" :
-             isAccepted ? "Este convite já foi aceito" :
-             existingMembership ? "Você já é membro desta organização" :
-             isExpired ? "Este convite expirou" :
-             !emailMatches ? "Este convite foi enviado para outro email" :
-             "Este convite não pode ser aceito"}
+            Você foi convidado para participar de uma organização
           </CardDescription>
         </CardHeader>
-
-        <CardContent className="space-y-6">
-          {/* Informações do convite */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-gray-500" />
-                <span className="text-sm font-medium">Organização</span>
-              </div>
-              <span className="text-sm">{invite.organizations?.name}</span>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-gray-500" />
-                <span className="text-sm font-medium">Função</span>
-              </div>
-              <Badge variant="outline">
-                {invite.user_roles?.name || 'Não definida'}
-              </Badge>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-gray-500" />
-                <span className="text-sm font-medium">Expira em</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="h-3 w-3 text-gray-500" />
-                <span className="text-sm">
-                  {new Date(invite.expires_at).toLocaleDateString('pt-BR')}
-                </span>
-              </div>
-            </div>
-
-            {invite.user_roles?.description && (
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  <strong>Sobre esta função:</strong> {invite.user_roles.description}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Status e ações */}
-          <div className="space-y-4">
-            {canAccept && (
-              <AcceptInviteButton token={token} />
-            )}
-
-            {isExpired && (
-              <div className="text-center">
-                <p className="text-sm text-red-600 mb-4">
-                  Este convite expirou. Entre em contato com o administrador da organização para solicitar um novo convite.
-                </p>
-                <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
-                  Ir para Dashboard
-                </Button>
-              </div>
-            )}
-
-            {(isAccepted || existingMembership) && (
-              <div className="text-center">
-                <Button onClick={() => window.location.href = '/dashboard'}>
-                  Ir para Dashboard
-                </Button>
-              </div>
-            )}
-
-            {!emailMatches && (
-              <div className="text-center">
-                <p className="text-sm text-red-600 mb-4">
-                  Este convite foi enviado para {invite.email}, mas você está logado como {user.email}.
-                </p>
-                <div className="space-y-2">
-                  <Button variant="outline" onClick={() => window.location.href = '/logout'}>
-                    Fazer Login com Outra Conta
-                  </Button>
-                  <Button variant="ghost" onClick={() => window.location.href = '/dashboard'}>
-                    Ir para Dashboard
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Informações adicionais */}
-          <div className="text-center text-xs text-gray-500 pt-4 border-t">
-            Convidado por: {invite.invited_by_user?.email || 'Administrador'}
-          </div>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground text-center">
+            Clique no botão abaixo para aceitar o convite e começar a colaborar.
+          </p>
+          <Button
+            onClick={handleAcceptInvite}
+            disabled={loading}
+            className="w-full"
+          >
+            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Aceitar Convite
+          </Button>
         </CardContent>
       </Card>
     </div>

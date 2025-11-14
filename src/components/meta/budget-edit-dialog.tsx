@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,8 @@ interface BudgetEditDialogProps {
   itemType: 'campaign' | 'adset';
   currentDailyBudget?: string;
   currentLifetimeBudget?: string;
+  clientId?: string;
+  adAccountId?: string;
   onSuccess?: () => void;
 }
 
@@ -33,15 +35,25 @@ export function BudgetEditDialog({
   itemType,
   currentDailyBudget,
   currentLifetimeBudget,
+  clientId,
+  adAccountId,
   onSuccess
 }: BudgetEditDialogProps) {
-  const [dailyBudget, setDailyBudget] = useState(
-    currentDailyBudget ? (parseFloat(currentDailyBudget) / 100).toFixed(2) : ''
-  );
-  const [lifetimeBudget, setLifetimeBudget] = useState(
-    currentLifetimeBudget ? (parseFloat(currentLifetimeBudget) / 100).toFixed(2) : ''
-  );
+  const [dailyBudget, setDailyBudget] = useState('');
+  const [lifetimeBudget, setLifetimeBudget] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Resetar valores quando o diálogo abrir ou os valores mudarem
+  useEffect(() => {
+    if (open) {
+      setDailyBudget(
+        currentDailyBudget ? (parseFloat(currentDailyBudget) / 100).toFixed(2) : ''
+      );
+      setLifetimeBudget(
+        currentLifetimeBudget ? (parseFloat(currentLifetimeBudget) / 100).toFixed(2) : ''
+      );
+    }
+  }, [open, currentDailyBudget, currentLifetimeBudget]);
 
   const handleSubmit = async () => {
     if (!dailyBudget && !lifetimeBudget) {
@@ -59,6 +71,10 @@ export function BudgetEditDialog({
       const body: any = {};
       if (dailyBudget) body.daily_budget = dailyBudget;
       if (lifetimeBudget) body.lifetime_budget = lifetimeBudget;
+      
+      // Adicionar contexto para rotas que não usam banco
+      if (clientId) body.clientId = clientId;
+      if (adAccountId) body.adAccountId = adAccountId;
 
       const response = await fetch(endpoint, {
         method: 'PATCH',

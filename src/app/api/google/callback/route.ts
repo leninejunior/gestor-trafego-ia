@@ -36,8 +36,29 @@ export async function GET(request: NextRequest) {
     
     // Buscar state no banco para validar e obter dados
     console.log('[Google Callback] 🔍 VALIDANDO STATE NO BANCO...');
+    console.log('[Google Callback] - State recebido:', state);
+    console.log('[Google Callback] - Timestamp atual:', new Date().toISOString());
+    
     const supabase = await createClient();
     
+    // Primeiro, buscar sem filtro de expiração para debug
+    const { data: allStates, error: allError } = await supabase
+      .from('oauth_states')
+      .select('*')
+      .eq('state', state)
+      .eq('provider', 'google');
+    
+    console.log('[Google Callback] - States encontrados (sem filtro):', allStates?.length || 0);
+    if (allStates && allStates.length > 0) {
+      console.log('[Google Callback] - State encontrado:', {
+        id: allStates[0].id,
+        created: allStates[0].created_at,
+        expires: allStates[0].expires_at,
+        isExpired: new Date(allStates[0].expires_at) <= new Date()
+      });
+    }
+    
+    // Agora buscar com filtro de expiração
     const { data: oauthState, error: stateError } = await supabase
       .from('oauth_states')
       .select('*')
@@ -47,7 +68,23 @@ export async function GET(request: NextRequest) {
       .single();
     
     if (stateError || !oauthState) {
-      console.error('[Google Callback] ❌ STATE INVÁLIDO:', stateError);
+      console.error('[Google Callback] ❌ STATE INVÁLIDO OU EXPIRADO');
+      console.error('[Google Callback] - Erro:', stateError?.message);
+      console.error('[Google Callback] - Código:', stateError?.code);
+      console.error('[Google Callback] - Detalhes:', stateError?.details);
+      
+      // Se encontrou o state mas está expirado, informar isso
+      if (allStates && allStates.length > 0) {
+        const expiredState = allStates[0];
+        const expiresAt = new Date(expiredState.expires_at);
+        const now = new Date();
+        const diffMinutes = Math.round((now.getTime() - expiresAt.getTime()) / 60000);
+        
+        console.error('[Google Callback] - State EXPIRADO há', diffMinutes, 'minutos');
+        const redirectUrl = `/google/select-accounts?error=expired_state&message=State expirou há ${diffMinutes} minutos. Tente novamente.`;
+        return createRedirectResponse(redirectUrl);
+      }
+      
       const redirectUrl = `/google/select-accounts?error=invalid_state&message=State OAuth inválido ou expirado`;
       return createRedirectResponse(redirectUrl);
     }

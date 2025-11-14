@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { META_CONFIG } from '@/lib/meta/config'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { campaignId: string } }
+  { params }: { params: Promise<{ campaignId: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { campaignId } = params
-    const { status } = await request.json()
+    const { campaignId } = await params
+    const { status, clientId, adAccountId } = await request.json()
+
+    console.log('🔍 Recebido:', { campaignId, status, clientId, adAccountId })
 
     if (!campaignId || !status) {
       return NextResponse.json({
@@ -23,39 +26,58 @@ export async function PATCH(
       }, { status: 400 })
     }
 
-    // Buscar a campanha e sua conexão através do external_id (campaignId do Meta)
-    const { data: campaign, error: campaignError } = await supabase
-      .from('meta_campaigns')
-      .select(`
-        id,
-        external_id,
-        connection_id,
-        client_meta_connections!inner (
-          id,
-          client_id,
-          access_token,
-          is_active
-        )
-      `)
-      .eq('external_id', campaignId)
-      .single()
+    // Buscar conexão ativa do cliente (não precisa da campanha no banco!)
+    let connection;
+    
+    if (clientId) {
+      // Se temos clientId, buscar a conexão ativa
+      const { data, error } = await supabase
+        .from('client_meta_connections')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('is_active', true)
+        .maybeSingle()
+      
+      connection = data
+      console.log('📊 Conexão por clientId:', { found: !!connection, error })
+    }
 
-    if (campaignError || !campaign) {
+    if (!connection && adAccountId) {
+      // Se não encontrou por clientId, tentar por adAccountId
+      const { data, error } = await supabase
+        .from('client_meta_connections')
+        .select('*')
+        .eq('ad_account_id', adAccountId)
+        .eq('is_active', true)
+        .maybeSingle()
+      
+      connection = data
+      console.log('📊 Conexão por adAccountId:', { found: !!connection, error })
+    }
+
+    if (!connection) {
+      // Última tentativa: buscar qualquer conexão ativa
+      const { data, error } = await supabase
+        .from('client_meta_connections')
+        .select('*')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle()
+      
+      connection = data
+      console.log('📊 Conexão ativa qualquer:', { found: !!connection, error })
+    }
+
+    if (!connection) {
       return NextResponse.json({
-        error: 'Campanha não encontrada'
+        error: 'Nenhuma conexão Meta Ads ativa encontrada'
       }, { status: 404 })
     }
 
-    const connection = campaign.client_meta_connections as any
-
-    if (!connection.is_active) {
-      return NextResponse.json({
-        error: 'Conexão Meta Ads não está ativa'
-      }, { status: 400 })
-    }
-
-    // Atualizar status na Meta API
-    const metaApiUrl = `https://graph.facebook.com/v18.0/${campaignId}`
+    // Chamar Meta API diretamente com o campaignId (que é o external_id)
+    const metaApiUrl = `${META_CONFIG.BASE_URL}/${META_CONFIG.API_VERSION}/${campaignId}`
+    
+    console.log('🚀 Atualizando status na Meta API:', { campaignId, status })
     
     const response = await fetch(metaApiUrl, {
       method: 'POST',
@@ -68,26 +90,17 @@ export async function PATCH(
       })
     })
 
-    console.log('Meta API Response Status:', response.status)
-
     const data = await response.json()
 
     if (!response.ok || data.error) {
-      console.error('Erro da Meta API:', data.error)
+      console.error('❌ Erro da Meta API:', data.error)
       return NextResponse.json({
         error: data.error?.message || 'Erro ao atualizar status na Meta API',
         details: data.error
       }, { status: 400 })
     }
 
-    // Atualizar status localmente no banco de dados
-    await supabase
-      .from('meta_campaigns')
-      .update({ 
-        status,
-        updated_at: new Date().toISOString()
-      })
-      .eq('external_id', campaignId)
+    console.log('✅ Status atualizado com sucesso!')
 
     return NextResponse.json({
       success: true,
@@ -97,7 +110,7 @@ export async function PATCH(
     })
 
   } catch (error) {
-    console.error('Erro ao atualizar status da campanha:', error)
+    console.error('💥 Erro ao atualizar status da campanha:', error)
     return NextResponse.json({
       error: 'Erro interno do servidor'
     }, { status: 500 })

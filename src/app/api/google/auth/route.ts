@@ -141,13 +141,14 @@ export async function POST(request: NextRequest) {
     console.log('[Google Auth POST] - State:', state);
     console.log('[Google Auth POST] - URL length:', url.length);
 
-    // Store state in database for validation
+    // Store state in database for validation (30 minutos de validade)
     console.log('[Google Auth POST] 💾 SALVANDO ESTADO OAUTH NO BANCO...');
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     console.log('[Google Auth POST] - State a ser salvo:', state);
     console.log('[Google Auth POST] - Client ID:', clientId);
     console.log('[Google Auth POST] - User ID:', user.id);
     console.log('[Google Auth POST] - Expira em:', expiresAt);
+    console.log('[Google Auth POST] - Agora:', new Date().toISOString());
     
     const { error: stateError } = await supabase
       .from('oauth_states')
@@ -171,6 +172,23 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[Google Auth POST] ✅ ESTADO OAUTH SALVO COM SUCESSO');
+    
+    // Verificar imediatamente se o state foi salvo
+    const { data: verifyState, error: verifyError } = await supabase
+      .from('oauth_states')
+      .select('*')
+      .eq('state', state)
+      .single();
+    
+    if (verifyError || !verifyState) {
+      console.error('[Google Auth POST] ⚠️ VERIFICAÇÃO FALHOU - State não encontrado após salvar!');
+      console.error('[Google Auth POST] - Erro de verificação:', verifyError);
+    } else {
+      console.log('[Google Auth POST] ✅ VERIFICAÇÃO OK - State confirmado no banco');
+      console.log('[Google Auth POST] - ID:', verifyState.id);
+      console.log('[Google Auth POST] - Expira em:', verifyState.expires_at);
+    }
+    
     console.log('[Google Auth POST] 🎉 FLUXO DE AUTENTICAÇÃO CONCLUÍDO');
     console.log('='.repeat(80));
 
@@ -179,7 +197,7 @@ export async function POST(request: NextRequest) {
       state,
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Google Auth POST] Unexpected error:', error);
 
     if (error instanceof z.ZodError) {
@@ -193,7 +211,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'Falha ao iniciar autenticação' },
+      { 
+        error: 'Falha ao iniciar autenticação',
+        details: error.message 
+      },
       { status: 500 }
     );
   }
@@ -275,7 +296,7 @@ export async function GET(request: NextRequest) {
 
     console.log('[Google Auth GET] OAuth URL generated');
 
-    // Store state in database for validation
+    // Store state in database for validation (30 minutos de validade)
     const { error: stateError } = await supabase
       .from('oauth_states')
       .insert({
@@ -283,7 +304,7 @@ export async function GET(request: NextRequest) {
         client_id: clientId,
         user_id: user.id,
         provider: 'google',
-        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       });
 
     if (stateError) {

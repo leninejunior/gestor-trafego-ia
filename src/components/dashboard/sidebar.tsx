@@ -142,6 +142,11 @@ const navigationSections: NavigationSection[] = [
     title: "Gestão",
     items: [
       {
+        name: "Usuários",
+        href: "/dashboard/users",
+        icon: Users,
+      },
+      {
         name: "Equipe",
         href: "/dashboard/team",
         icon: Users,
