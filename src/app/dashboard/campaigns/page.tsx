@@ -760,75 +760,74 @@ export default function CampaignsPage() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {filteredCampaigns.map((campaign) => (
-                    <div key={campaign.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div className="flex items-center gap-2">
-                            {togglingCampaign === campaign.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : (
+                    <div key={campaign.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-4 items-center">
+                          {/* Nome e Status */}
+                          <div className="md:col-span-2">
+                            <div className="flex items-center space-x-3">
                               <Switch
                                 checked={campaign.status === 'ACTIVE'}
                                 onCheckedChange={() => toggleCampaignStatus(campaign.id, campaign.status)}
-                                disabled={togglingCampaign !== null || campaign.status === 'ARCHIVED'}
-                                title={campaign.status === 'ARCHIVED' ? 'Campanhas arquivadas não podem ser alteradas' : 'Ativar/Pausar campanha'}
+                                disabled={togglingCampaign === campaign.id}
+                                className="data-[state=checked]:bg-green-600"
                               />
-                            )}
+                              <div>
+                                <h3 className="font-medium">{campaign.name}</h3>
+                                <p className="text-sm text-gray-500">{campaign.account_name}</p>
+                              </div>
+                            </div>
                           </div>
-                          <h3 className="font-semibold">{campaign.name}</h3>
-                          <Badge className={getStatusColor(campaign.status)}>
-                            {campaign.status}
-                          </Badge>
-                          <span className="text-sm text-muted-foreground">
-                            {campaign.account_name}
-                          </span>
+
+                          {/* Métricas */}
+                          <div className="text-center">
+                            <div className="text-sm text-gray-500">Gasto</div>
+                            <div className="font-semibold">{formatCurrency(campaign.spend)}</div>
+                          </div>
+
+                          <div className="text-center">
+                            <div className="text-sm text-gray-500">Impressões</div>
+                            <div className="font-semibold">{formatNumber(campaign.impressions)}</div>
+                          </div>
+
+                          <div className="text-center">
+                            <div className="text-sm text-gray-500">Cliques</div>
+                            <div className="font-semibold">{formatNumber(campaign.clicks)}</div>
+                            <div className={`text-xs ${getMetricColor(campaign.ctr, 'ctr')}`}>
+                              CTR: {campaign.ctr.toFixed(2)}%
+                            </div>
+                          </div>
+
+                          <div className="text-center">
+                            <div className="text-sm text-gray-500">ROAS</div>
+                            <div className={`font-semibold ${getMetricColor(campaign.roas, 'roas')}`}>
+                              {campaign.roas.toFixed(2)}x
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {campaign.objective}
-                        </div>
+
+                        {/* Botão Ver Detalhes */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                        >
+                          <Link href={`/dashboard/clients/${selectedClient}`}>
+                            Ver Hierarquia
+                          </Link>
+                        </Button>
                       </div>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Gasto</span>
-                          <div className="font-semibold">{formatCurrency(campaign.spend)}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Impressões</span>
-                          <div className="font-semibold">{formatNumber(campaign.impressions)}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Cliques</span>
-                          <div className="font-semibold">{formatNumber(campaign.clicks)}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Conversões</span>
-                          <div className="font-semibold">{formatNumber(campaign.conversions)}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">CTR</span>
-                          <div className={`font-semibold ${getMetricColor(campaign.ctr, 'ctr')}`}>
-                            {campaign.ctr.toFixed(2)}%
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">CPC</span>
-                          <div className={`font-semibold ${getMetricColor(campaign.cpc, 'cpc')}`}>
-                            {formatCurrency(campaign.cpc)}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">ROAS</span>
-                          <div className={`font-semibold ${getMetricColor(campaign.roas, 'roas')}`}>
-                            {campaign.roas.toFixed(2)}x
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Frequência</span>
-                          <div className="font-semibold">{campaign.frequency.toFixed(2)}</div>
-                        </div>
+
+                      {/* Badge de Status e Objetivo */}
+                      <div className="flex items-center space-x-2 mt-3">
+                        <Badge className={getStatusColor(campaign.status)}>
+                          {campaign.status}
+                        </Badge>
+                        <Badge variant="outline">
+                          {objectiveLabels[campaign.objective] || campaign.objective}
+                        </Badge>
                       </div>
                     </div>
                   ))}

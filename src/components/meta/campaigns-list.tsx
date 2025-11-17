@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -19,22 +19,50 @@ import { Play, Pause, DollarSign, ChevronDown, ChevronRight } from "lucide-react
 
 interface CampaignsListProps {
   clientId: string;
-  adAccountId: string;
+  adAccountId?: string;
+  campaigns?: any[]; // Campanhas externas (da página de dashboard)
+  onRefresh?: () => void; // Callback para refresh externo
 }
 
-export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
+export function CampaignsList({ clientId, adAccountId, campaigns: externalCampaigns, onRefresh }: CampaignsListProps) {
   const [campaigns, setCampaigns] = useState<MetaCampaign[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!externalCampaigns);
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<MetaCampaign | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
 
+  // Se campanhas externas forem fornecidas, usar elas
   useEffect(() => {
-    fetchCampaigns();
-  }, [clientId, adAccountId]);
+    if (externalCampaigns) {
+      // Converter campanhas do dashboard para o formato esperado
+      const convertedCampaigns: MetaCampaign[] = externalCampaigns.map(c => ({
+        id: c.id,
+        name: c.name,
+        status: c.status as 'ACTIVE' | 'PAUSED' | 'DELETED' | 'ARCHIVED',
+        objective: c.objective,
+        daily_budget: String(Math.round(c.spend * 100)), // Converter para centavos
+        lifetime_budget: undefined,
+        created_time: c.created_time,
+        updated_time: c.created_time // Usar created_time como fallback
+      }));
+      setCampaigns(convertedCampaigns);
+      setIsLoading(false);
+    } else if (adAccountId) {
+      fetchCampaigns();
+    }
+  }, [clientId, adAccountId, externalCampaigns]);
 
   const fetchCampaigns = async () => {
+    // Se há callback externo, usar ele
+    if (onRefresh) {
+      onRefresh();
+      return;
+    }
+
+    // Caso contrário, buscar internamente
+    if (!adAccountId) return;
+
     console.log('🚀 [CAMPAIGNS LIST] Iniciando busca de campanhas...');
     console.log('📋 [CAMPAIGNS LIST] Parâmetros:', { clientId, adAccountId });
     
@@ -125,7 +153,18 @@ export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
 
       if (response.ok) {
         toast.success(data.message);
-        fetchCampaigns(); // Recarregar lista
+        
+        // Atualizar localmente
+        setCampaigns(prev => prev.map(c => 
+          c.id === campaign.id ? { ...c, status: newStatus } : c
+        ));
+        
+        // Se há callback externo, chamar também
+        if (onRefresh) {
+          onRefresh();
+        } else {
+          fetchCampaigns();
+        }
       } else {
         console.error('❌ Erro ao atualizar status:', data);
         toast.error(data.error || 'Erro ao atualizar status');
@@ -143,7 +182,7 @@ export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
     const campaignWithContext = {
       ...campaign,
       clientId,
-      adAccountId
+      adAccountId: adAccountId || ''
     } as any;
     setSelectedCampaign(campaignWithContext);
     setBudgetDialogOpen(true);
@@ -198,20 +237,21 @@ export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
         </TableHeader>
         <TableBody>
           {campaigns.map((campaign) => (
-            <>
-              <TableRow key={campaign.id}>
+            <React.Fragment key={campaign.id}>
+              <TableRow>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-2">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => toggleCampaignExpansion(campaign.id)}
-                      className="h-6 w-6 p-0"
+                      className="h-8 w-8 p-0 hover:bg-gray-100"
+                      title={expandedCampaigns.has(campaign.id) ? "Colapsar" : "Expandir"}
                     >
                       {expandedCampaigns.has(campaign.id) ? (
-                        <ChevronDown className="h-4 w-4" />
+                        <ChevronDown className="h-5 w-5" />
                       ) : (
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-5 w-5" />
                       )}
                     </Button>
                     {campaign.name}
@@ -262,11 +302,13 @@ export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
                     <AdSetsList 
                       campaignId={campaign.id} 
                       campaignName={campaign.name}
+                      clientId={clientId}
+                      adAccountId={adAccountId || ''}
                     />
                   </TableCell>
                 </TableRow>
               )}
-            </>
+            </React.Fragment>
           ))}
         </TableBody>
       </Table>
@@ -281,7 +323,7 @@ export function CampaignsList({ clientId, adAccountId }: CampaignsListProps) {
           currentDailyBudget={selectedCampaign.daily_budget}
           currentLifetimeBudget={selectedCampaign.lifetime_budget}
           clientId={clientId}
-          adAccountId={adAccountId}
+          adAccountId={adAccountId || ''}
           onSuccess={fetchCampaigns}
         />
       )}
