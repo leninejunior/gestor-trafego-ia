@@ -1,46 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { MetaAdsClient } from '@/lib/meta/client';
-
-// Dados de teste para campanhas
-const testCampaigns = [
-  {
-    id: 'test_campaign_1',
-    name: 'Campanha de Teste - Vendas Q4',
-    status: 'ACTIVE',
-    objective: 'CONVERSIONS',
-    spend: '1250.50',
-    impressions: '45000',
-    clicks: '890',
-    ctr: '1.98',
-    cpc: '1.40',
-    created_time: '2024-01-15T10:00:00Z'
-  },
-  {
-    id: 'test_campaign_2',
-    name: 'Campanha de Teste - Brand Awareness',
-    status: 'ACTIVE',
-    objective: 'BRAND_AWARENESS',
-    spend: '850.75',
-    impressions: '32000',
-    clicks: '640',
-    ctr: '2.00',
-    cpc: '1.33',
-    created_time: '2024-01-10T14:30:00Z'
-  },
-  {
-    id: 'test_campaign_3',
-    name: 'Campanha de Teste - Lead Generation',
-    status: 'PAUSED',
-    objective: 'LEAD_GENERATION',
-    spend: '2100.25',
-    impressions: '78000',
-    clicks: '1560',
-    ctr: '2.00',
-    cpc: '1.35',
-    created_time: '2024-01-05T09:15:00Z'
-  }
-];
+// Dados de teste para campanhas - REMOVIDO
+// const testCampaigns = []; // Removido completamente
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -62,11 +21,11 @@ export async function GET(request: NextRequest) {
     // Verificar autenticação do usuário (modo permissivo para debug)
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-      console.log('⚠️ [CAMPAIGNS API] Usuário não autenticado, retornando dados de teste:', userError);
+      console.log('⚠️ [CAMPAIGNS API] Usuário não autenticado');
       return NextResponse.json({ 
-        campaigns: testCampaigns,
-        isTestData: true,
-        message: 'Usuário não autenticado. Exibindo dados de teste.'
+        campaigns: [],
+        isTestData: false,
+        message: 'Usuário não autenticado. Faça login para acessar os dados reais.'
       });
     }
     
@@ -85,13 +44,11 @@ export async function GET(request: NextRequest) {
     console.log('📊 [CAMPAIGNS API] Resultado da busca de conexão:', { connection, connectionError });
 
     if (connectionError || !connection) {
-      console.log('⚠️ [CAMPAIGNS API] Conexão não encontrada, retornando dados de teste');
-      console.log('🧪 [CAMPAIGNS API] Dados de teste:', testCampaigns);
-      
+      console.log('⚠️ [CAMPAIGNS API] Conexão não encontrada');
       return NextResponse.json({ 
-        campaigns: testCampaigns,
-        isTestData: true,
-        message: 'Conexão com Meta não encontrada. Exibindo dados de teste.'
+        campaigns: [],
+        isTestData: false,
+        message: 'Conexão com Meta não encontrada. Conecte sua conta do Meta Ads.'
       });
     }
 
@@ -104,29 +61,67 @@ export async function GET(request: NextRequest) {
       
       const campaigns = await metaClient.getCampaigns(adAccountId);
       console.log('✅ [CAMPAIGNS API] Campanhas reais obtidas:', campaigns);
+      
+      // Verificar se há campanhas
+      if (!campaigns || campaigns.length === 0) {
+        console.log('📭 [CAMPAIGNS API] Nenhuma campanha encontrada na conta');
+        return NextResponse.json({ 
+          campaigns: [],
+          isTestData: false,
+          message: 'Nenhuma campanha encontrada na conta Meta Ads. Verifique se a conta conectada tem campanhas ativas ou reconecte com uma conta diferente.'
+        });
+      }
 
       return NextResponse.json({ campaigns, isTestData: false });
-    } catch (metaError) {
+    } catch (metaError: any) {
       console.log('❌ [CAMPAIGNS API] Erro ao buscar campanhas reais:', metaError);
-      console.log('🧪 [CAMPAIGNS API] Retornando dados de teste devido ao erro');
+      
+      // Verificar se é erro de token expirado
+      const errorMessage = metaError.message || metaError.toString().toLowerCase();
+      
+      if (errorMessage && (
+        errorMessage.includes('token') || 
+        errorMessage.includes('session') ||
+        errorMessage.includes('access') ||
+        errorMessage.includes('authentication') ||
+        errorMessage.includes('invalid') ||
+        errorMessage.includes('expired') ||
+        errorMessage.includes('400') ||
+        errorMessage.includes('401') ||
+        errorMessage.includes('403') ||
+        errorMessage.includes('The session has been invalidated because the user changed their password or Facebook has changed the session for security reasons')
+      )) {
+        console.log('🔐 [CAMPAIGNS API] Erro possivelmente relacionado a token expirado');
+        return NextResponse.json({ 
+          campaigns: [],
+          isTestData: false,
+          requiresReconnection: true,
+          errorType: 'TOKEN_EXPIRED',
+          message: 'Sua conexão com o Meta Ads expirou. Por favor, reconecte sua conta para continuar acessando os dados.',
+          detailedMessage: 'O token de acesso do Facebook expirou ou foi invalidado. Isso acontece normalmente por motivos de segurança. Clique em "Reconectar Conta" para restaurar o acesso.',
+          action: 'RECONNECT',
+          actionLabel: 'Reconectar Conta'
+        });
+      }
+      
+      console.log('❌ [CAMPAIGNS API] Erro genérico ao buscar campanhas reais');
       
       return NextResponse.json({ 
-        campaigns: testCampaigns,
-        isTestData: true,
-        message: 'Erro ao buscar campanhas reais. Exibindo dados de teste.',
-        error: metaError
+        campaigns: [],
+        isTestData: false,
+        message: 'Erro ao buscar campanhas reais. Tente novamente ou reconecte sua conta.',
+        error: metaError.message
       });
     }
 
   } catch (error) {
     console.error('💥 [CAMPAIGNS API] Erro geral:', error);
-    console.log('🧪 [CAMPAIGNS API] Retornando dados de teste devido ao erro geral');
     
     return NextResponse.json({ 
-      campaigns: testCampaigns,
-      isTestData: true,
-      message: 'Erro interno. Exibindo dados de teste.',
-      error: error
+      campaigns: [],
+      isTestData: false,
+      message: 'Erro interno ao buscar campanhas. Tente novamente mais tarde.',
+      error: error instanceof Error ? error.message : 'Erro desconhecido'
     });
   }
 }

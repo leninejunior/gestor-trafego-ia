@@ -66,17 +66,17 @@ export function PlanLimitsIndicator({
 
       // Map the data to our component's expected format
       setLimits({
-        max_clients: data.limits.max_clients,
-        max_campaigns_per_client: data.limits.max_campaigns,
-        data_retention_days: 30, // Default value
-        sync_interval_hours: 1, // Default value
-        allow_csv_export: data.limits.features.customReports || false,
-        allow_json_export: data.limits.features.apiAccess || false
+        max_clients: data.limits?.max_clients || 5,
+        max_campaigns_per_client: data.limits?.max_campaigns || 25,
+        data_retention_days: data.limits?.data_retention_days || 30,
+        sync_interval_hours: data.limits?.sync_interval_hours || 1,
+        allow_csv_export: data.limits?.allow_csv_export || false,
+        allow_json_export: data.limits?.allow_json_export || false
       });
 
       setUsage({
-        current_clients: data.usage.clients || 0,
-        current_campaigns: data.usage.campaigns || 0,
+        current_clients: data.usage?.clients || 0,
+        current_campaigns: data.usage?.campaigns || 0,
         oldest_data_days: 30 // Default value
       });
     } catch (err) {

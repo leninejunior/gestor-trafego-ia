@@ -7,6 +7,7 @@
 
 import { GoogleAdsErrorHandler } from './error-handler';
 import { googleAdsLogger } from './logger';
+import { getGoogleTokenManager } from './token-manager';
 
 // ============================================================================
 // Types and Interfaces
@@ -19,6 +20,7 @@ export interface GoogleAdsClientConfig {
   refreshToken: string;
   customerId: string;
   loginCustomerId?: string;
+  connectionId?: string; // Para usar TokenManager
 }
 
 export interface GoogleAdsCampaign {
@@ -87,6 +89,8 @@ export function getGoogleAdsClient(config: {
   refreshToken: string;
   developerToken: string;
   customerId?: string;
+  loginCustomerId?: string;
+  connectionId?: string; // Para usar TokenManager com refresh automático
 }): GoogleAdsClient {
   return new GoogleAdsClient({
     clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -94,6 +98,8 @@ export function getGoogleAdsClient(config: {
     developerToken: config.developerToken,
     refreshToken: config.refreshToken,
     customerId: config.customerId || '',
+    loginCustomerId: config.loginCustomerId,
+    connectionId: config.connectionId,
   });
 }
 
@@ -102,6 +108,7 @@ export class GoogleAdsClient {
   private accessToken: string | null = null;
   private tokenExpiresAt: Date | null = null;
   private errorHandler: GoogleAdsErrorHandler;
+  private tokenManager = getGoogleTokenManager();
   private readonly API_VERSION = 'v16';
   private readonly BASE_URL = 'https://googleads.googleapis.com';
 
@@ -190,9 +197,22 @@ export class GoogleAdsClient {
   }
 
   /**
-   * Ensure we have a valid access token
+   * Ensure we have a valid access token using TokenManager
    */
   private async ensureValidToken(): Promise<string> {
+    // Se temos connectionId, usar TokenManager (RECOMENDADO)
+    if (this.config.connectionId) {
+      try {
+        const validToken = await this.tokenManager.ensureValidToken(this.config.connectionId);
+        this.accessToken = validToken;
+        return validToken;
+      } catch (error) {
+        console.error('[GoogleAdsClient] TokenManager failed, falling back to manual refresh:', error);
+        // Fallback para método manual
+      }
+    }
+    
+    // Fallback: método manual (legacy)
     if (!this.accessToken || !this.tokenExpiresAt || this.isTokenExpired()) {
       await this.refreshAccessToken();
     }
@@ -327,18 +347,22 @@ export class GoogleAdsClient {
 
   /**
    * List accessible customers
+   * Nota: Usa GET conforme documentação oficial do Google Ads API
    */
   async listAccessibleCustomers(): Promise<GoogleAdsAccountInfo[]> {
     try {
-      // First, get the list of accessible customer IDs
+      // Ensure valid token (com refresh automático se necessário)
       const token = await this.ensureValidToken();
       
+      console.log('[GoogleAdsClient] Listing accessible customers...');
+      
       const response = await fetch(`${this.BASE_URL}/${this.API_VERSION}/customers:listAccessibleCustomers`, {
-        method: 'GET',
+        method: 'GET', // GET é o método correto segundo a documentação
         headers: {
           'Authorization': `Bearer ${token}`,
           'developer-token': this.config.developerToken,
           'Content-Type': 'application/json',
+          // Nota: login-customer-id NÃO é usado em listAccessibleCustomers
         },
       });
 

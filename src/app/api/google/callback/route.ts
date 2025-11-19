@@ -8,7 +8,10 @@ import { createClient } from '@/lib/supabase/server';
 import { getGoogleOAuthService } from '@/lib/google/oauth';
 
 export async function GET(request: NextRequest) {
-  console.log('[Google Callback] 🚀 PROCESSANDO CALLBACK OAUTH REAL');
+  const timestamp = new Date().toISOString();
+  console.log('='.repeat(100));
+  console.log(`[Google Callback] 🚀 PROCESSANDO CALLBACK OAUTH REAL - ${timestamp}`);
+  console.log('[Google Callback] URL COMPLETA:', request.url);
   
   try {
     const { searchParams } = new URL(request.url);
@@ -16,9 +19,12 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get('error');
     const state = searchParams.get('state');
     
-    console.log('[Google Callback] - Code:', !!code);
+    console.log('[Google Callback] PARÂMETROS RECEBIDOS:');
+    console.log('[Google Callback] - Code presente:', !!code);
+    console.log('[Google Callback] - Code (primeiros 20 chars):', code?.substring(0, 20) + '...');
     console.log('[Google Callback] - Error:', error);
     console.log('[Google Callback] - State:', state);
+    console.log('[Google Callback] - Todos os params:', Object.fromEntries(searchParams.entries()));
     
     // Se houve erro no OAuth
     if (error) {
@@ -138,7 +144,9 @@ export async function GET(request: NextRequest) {
       
       // Redirecionar para seleção de contas com IDs reais
       const redirectUrl = `/google/select-accounts?connectionId=${connection.id}&clientId=${oauthState.client_id}&success=oauth_complete`;
-      console.log('[Google Callback] 🎯 REDIRECIONANDO PARA SELEÇÃO DE CONTAS:', redirectUrl);
+      console.log('[Google Callback] 🎯 REDIRECIONANDO PARA SELECT ACCOUNTS:', redirectUrl);
+      console.log('[Google Callback] - Connection ID:', connection.id);
+      console.log('[Google Callback] - Client ID:', oauthState.client_id);
       return createRedirectResponse(redirectUrl);
       
     } catch (tokenError) {

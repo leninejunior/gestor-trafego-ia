@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Calendar, RefreshCw, Users } from "lucide-react";
+import { Trash2, Calendar, RefreshCw, Users, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const Loader2 = RefreshCw;
@@ -24,6 +24,8 @@ import { ConnectMetaButton } from "./connect-meta-button";
 import { CampaignsList } from "@/components/meta/campaigns-list";
 import { ManageConnections } from "@/components/meta/manage-connections";
 import { GoogleAdsCard } from "@/components/google/google-ads-card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Filter } from "lucide-react";
 
 interface Client {
   id: string;
@@ -46,6 +48,272 @@ interface MetaConnection {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+interface Campaign {
+  id: string;
+  name: string;
+  status: string;
+  objective: string;
+  spend?: string;
+  impressions?: string;
+  clicks?: string;
+  ctr?: string;
+  cpc?: string;
+  created_time: string;
+}
+
+// Componente de Seção de Campanhas com Filtros
+function CampaignsSection({ 
+  clientId, 
+  adAccountId,
+  metaConnectionsCount 
+}: { 
+  clientId: string; 
+  adAccountId: string;
+  metaConnectionsCount: number;
+}) {
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [objectiveFilter, setObjectiveFilter] = useState<string>('all');
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Mapeamento de objetivos para português
+  const objectiveLabels: Record<string, string> = {
+    'APP_INSTALLS': 'Instalações de App',
+    'BRAND_AWARENESS': 'Reconhecimento de Marca',
+    'CONVERSIONS': 'Conversões',
+    'EVENT_RESPONSES': 'Respostas a Eventos',
+    'LEAD_GENERATION': 'Geração de Leads',
+    'LINK_CLICKS': 'Cliques no Link',
+    'LOCAL_AWARENESS': 'Reconhecimento Local',
+    'MESSAGES': 'Mensagens',
+    'OFFER_CLAIMS': 'Reivindicações de Ofertas',
+    'OUTCOME_APP_PROMOTION': 'Promoção de App',
+    'OUTCOME_AWARENESS': 'Reconhecimento',
+    'OUTCOME_ENGAGEMENT': 'Engajamento',
+    'OUTCOME_LEADS': 'Leads',
+    'OUTCOME_SALES': 'Vendas',
+    'OUTCOME_TRAFFIC': 'Tráfego',
+    'PAGE_LIKES': 'Curtidas na Página',
+    'POST_ENGAGEMENT': 'Engajamento com Publicação',
+    'PRODUCT_CATALOG_SALES': 'Vendas do Catálogo',
+    'REACH': 'Alcance',
+    'STORE_VISITS': 'Visitas à Loja',
+    'VIDEO_VIEWS': 'Visualizações de Vídeo'
+  };
+
+  useEffect(() => {
+    loadCampaigns();
+  }, [clientId, adAccountId]);
+
+  const loadCampaigns = async () => {
+    try {
+      setLoading(true);
+      const url = `/api/meta/campaigns?clientId=${clientId}&adAccountId=${adAccountId}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Não mostrar dados de teste - apenas dados reais
+        if (data.isTestData) {
+          setCampaigns([]);
+        } else {
+          setCampaigns(data.campaigns || []);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar campanhas:', error);
+      setCampaigns([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Extrair objetivos únicos das campanhas carregadas
+  const availableObjectives = Array.from(new Set(campaigns.map(c => c.objective))).sort();
+
+  // Filtrar campanhas
+  const filteredCampaigns = campaigns.filter(campaign => {
+    const matchesStatus = statusFilter === 'all' || campaign.status === statusFilter;
+    const matchesObjective = objectiveFilter === 'all' || campaign.objective === objectiveFilter;
+    return matchesStatus && matchesObjective;
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Campanhas Meta Ads</CardTitle>
+        <CardDescription>
+          Visualize e gerencie as campanhas do Meta Ads do seu cliente.
+          {metaConnectionsCount > 1 && (
+            <span className="block text-sm text-orange-600 mt-1">
+              ⚠️ {metaConnectionsCount} contas conectadas - considere usar "Reconectar" para selecionar apenas as necessárias
+            </span>
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Filtros */}
+        <Card className="bg-gray-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center">
+              <Filter className="h-4 w-4 mr-2" />
+              Filtros
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Status</label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos ({campaigns.length})</SelectItem>
+                    <SelectItem value="ACTIVE">
+                      Ativo ({campaigns.filter(c => c.status === 'ACTIVE').length})
+                    </SelectItem>
+                    <SelectItem value="PAUSED">
+                      Pausado ({campaigns.filter(c => c.status === 'PAUSED').length})
+                    </SelectItem>
+                    <SelectItem value="ARCHIVED">
+                      Arquivado ({campaigns.filter(c => c.status === 'ARCHIVED').length})
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Objetivo</label>
+                <Select value={objectiveFilter} onValueChange={setObjectiveFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os objetivos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos ({campaigns.length})</SelectItem>
+                    {availableObjectives.length > 0 ? (
+                      availableObjectives.map(objective => {
+                        const count = campaigns.filter(c => c.objective === objective).length;
+                        return (
+                          <SelectItem key={objective} value={objective}>
+                            {objectiveLabels[objective] || objective} ({count})
+                          </SelectItem>
+                        );
+                      })
+                    ) : (
+                      <SelectItem value="none" disabled>
+                        Nenhum objetivo disponível
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Resumo dos filtros */}
+            {(statusFilter !== 'all' || objectiveFilter !== 'all') && (
+              <div className="mt-3 flex items-center justify-between text-sm">
+                <span className="text-gray-600">
+                  Mostrando {filteredCampaigns.length} de {campaigns.length} campanhas
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setStatusFilter('all');
+                    setObjectiveFilter('all');
+                  }}
+                >
+                  Limpar filtros
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Lista de Campanhas ou Mensagem de Reconexão */}
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+            Carregando campanhas...
+          </div>
+        ) : campaigns.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="max-w-md mx-auto">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 shadow-sm">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12z"/>
+                  </svg>
+                </div>
+                
+                <h3 className="text-xl font-semibold text-blue-800 mb-2">Nenhuma Campanha Encontrada</h3>
+                <p className="text-blue-700 mb-4">
+                  Não encontramos campanhas ativas na sua conta do Meta Ads.
+                </p>
+                
+                <div className="text-left bg-white/50 rounded-lg p-4 mb-6">
+                  <h4 className="font-medium text-blue-800 mb-2 flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Possíveis motivos:
+                  </h4>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-blue-600">
+                    <li>Sua conta não tem campanhas ativas no momento</li>
+                    <li>Você pode ter conectado uma conta diferente</li>
+                    <li>O token de acesso pode ter expirado</li>
+                  </ul>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button 
+                    onClick={() => window.location.href = '/dashboard/clients'} 
+                    variant="default"
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Reconectar Conta
+                  </Button>
+                  <Button 
+                    onClick={loadCampaigns} 
+                    variant="outline"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                  >
+                    Tentar Novamente
+                  </Button>
+                </div>
+                
+                <p className="text-xs text-blue-500 mt-4">
+                  Ao reconectar, você poderá selecionar contas diferentes ou atualizar as permissões.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <CampaignsList 
+            clientId={clientId} 
+            adAccountId={adAccountId}
+            campaigns={filteredCampaigns}
+            onRefresh={loadCampaigns}
+          />
+        )}
+
+        {metaConnectionsCount > 1 && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Dica:</strong> Você tem {metaConnectionsCount} contas conectadas. 
+              Para melhor performance, use o botão "Reconectar" para selecionar apenas as contas que realmente precisa.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function ClientDetailPage() {
@@ -353,36 +621,43 @@ export default function ClientDetailPage() {
         <GoogleAdsCard clientId={clientId} />
       </div>
 
-      {/* Lista de Campanhas Meta */}
-      {hasMetaConnection && metaConnections && metaConnections.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Campanhas Meta Ads</CardTitle>
-            <CardDescription>
-              Visualize e gerencie as campanhas do Meta Ads do seu cliente.
-              {metaConnections.length > 1 && (
-                <span className="block text-sm text-orange-600 mt-1">
-                  ⚠️ {metaConnections.length} contas conectadas - considere usar "Reconectar" para selecionar apenas as necessárias
-                </span>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Mostrar apenas a primeira conexão para evitar muitas chamadas */}
-            <CampaignsList 
-              clientId={client.id} 
-              adAccountId={metaConnections[0].ad_account_id} 
-            />
-            {metaConnections.length > 1 && (
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  <strong>Dica:</strong> Você tem {metaConnections.length} contas conectadas. 
-                  Para melhor performance, use o botão "Reconectar" para selecionar apenas as contas que realmente precisa.
+      {/* Aviso de Problemas de Conexão */}
+      {!hasMetaConnection && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-orange-600 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-medium text-orange-800 mb-1">
+                  Conexão com Meta Ads Necessária
+                </h3>
+                <p className="text-sm text-orange-700 mb-3">
+                  Este cliente ainda não tem uma conexão ativa com o Meta Ads. Para visualizar e gerenciar campanhas, 
+                  é necessário conectar uma conta do Meta Ads.
                 </p>
+                <div className="bg-white/50 rounded-lg p-3 mb-3">
+                  <h4 className="font-medium text-orange-800 mb-1">Próximos passos:</h4>
+                  <ol className="text-sm text-orange-700 list-decimal list-inside space-y-1">
+                    <li>Clique no botão "Conectar Meta Ads" acima</li>
+                    <li>Autentique-se com sua conta do Facebook/Meta</li>
+                    <li>Selecione as contas de anúncios desejadas</li>
+                    <li>Conclua o processo de conexão</li>
+                  </ol>
+                </div>
+                <ConnectMetaButton clientId={client.id} />
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Lista de Campanhas Meta com Filtros */}
+      {hasMetaConnection && metaConnections && metaConnections.length > 0 && (
+        <CampaignsSection 
+          clientId={client.id} 
+          adAccountId={metaConnections[0].ad_account_id}
+          metaConnectionsCount={metaConnections.length}
+        />
       )}
     </div>
   );

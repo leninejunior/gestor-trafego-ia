@@ -21,6 +21,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Verificar se clientId é um UUID válido (opcional, mas recomendado)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (clientId !== 'test' && !uuidRegex.test(clientId)) {
+      console.warn('[Google Auth Simple] ⚠️ Client ID inválido:', clientId);
+      // Não vamos rejeitar, mas vamos registrar o aviso
+    }
+
     // Verificar configuração do Google
     const isConfigured = !!(
       process.env.GOOGLE_CLIENT_ID && 
@@ -42,11 +49,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verificar se o usuário está autenticado (opcional para esta versão)
+    // Verificar se o usuário está autenticado (OBRIGATÓRIO)
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    // Se não conseguir verificar o usuário, retorna URL de auth mesmo assim
+    if (!user) {
+      console.error('[Google Auth Simple] ❌ Usuário não autenticado');
+      return NextResponse.json(
+        { 
+          error: 'Usuário não autenticado',
+          message: 'Você precisa estar logado para conectar o Google Ads'
+        },
+        { status: 401 }
+      );
+    }
+
+    console.log('[Google Auth Simple] ✅ Usuário autenticado:', user.id);
+
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const redirectUri = `${baseUrl}/api/google/callback`;
     
@@ -55,7 +74,38 @@ export async function GET(request: NextRequest) {
       'https://www.googleapis.com/auth/adwords'
     ].join(' ');
 
-    const state = `${Date.now()}-${clientId}`;
+    // Gerar state seguro
+    const state = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    
+    console.log('[Google Auth Simple] 💾 Salvando state no banco...');
+    console.log('[Google Auth Simple] - State:', state);
+    console.log('[Google Auth Simple] - Client ID:', clientId);
+    console.log('[Google Auth Simple] - User ID:', user.id);
+
+    // SALVAR O STATE NO BANCO ANTES DE REDIRECIONAR (OBRIGATÓRIO)
+    const { error: stateError } = await supabase
+      .from('oauth_states')
+      .insert({
+        state,
+        client_id: clientId,
+        user_id: user.id,
+        provider: 'google',
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      });
+
+    if (stateError) {
+      console.error('[Google Auth Simple] ❌ Erro ao salvar state:', stateError);
+      return NextResponse.json(
+        { 
+          error: 'Erro ao iniciar autenticação',
+          message: 'Não foi possível salvar o estado da autenticação',
+          details: stateError.message
+        },
+        { status: 500 }
+      );
+    }
+
+    console.log('[Google Auth Simple] ✅ State salvo com sucesso');
     
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', process.env.GOOGLE_CLIENT_ID!);
@@ -66,22 +116,8 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('prompt', 'consent');
     authUrl.searchParams.set('state', state);
 
-    // Tentar salvar o state no banco (se possível)
-    if (user) {
-      try {
-        await supabase
-          .from('oauth_states')
-          .insert({
-            state,
-            client_id: clientId,
-            user_id: user.id,
-            provider: 'google',
-            expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-          });
-      } catch (error) {
-        console.warn('[Google Auth Simple] Could not save state:', error);
-      }
-    }
+    console.log('[Google Auth Simple] 🚀 Gerando URL de autenticação');
+    console.log('[Google Auth Simple] - Redirect URI:', redirectUri);
 
     return NextResponse.json({
       authUrl: authUrl.toString(),

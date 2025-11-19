@@ -72,7 +72,39 @@ export default function BillingPage() {
   }, []);
 
   const handleUpgrade = async (planId: string) => {
-    alert(`Funcionalidade de upgrade para ${planId} será implementada em breve!`);
+    try {
+      setLoading(true);
+      const response = await fetch('/api/subscriptions/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Erro: ${error.error || 'Falha ao fazer upgrade'}`);
+        setLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+      alert(`Sucesso! ${data.message}`);
+      
+      // Recarregar dados do plano
+      const planResponse = await fetch('/api/plan-limits');
+      if (planResponse.ok) {
+        const planData = await planResponse.json();
+        setPlanLimits(planData.limits);
+        setUsage(planData.usage);
+        setCanAddClients(planData.canAddClients);
+        setWarnings(planData.warnings);
+      }
+    } catch (error) {
+      console.error('Erro ao fazer upgrade:', error);
+      alert('Erro ao processar upgrade');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancel = async () => {
@@ -303,7 +335,7 @@ export default function BillingPage() {
 
               {/* Action Buttons */}
               <div className="flex gap-3 pt-2">
-                <Button onClick={() => handleUpgrade('enterprise')} className="flex-1">
+                <Button onClick={() => handleUpgrade('Enterprise')} className="flex-1">
                   {getPlanName() === 'Enterprise' ? 'Plano Máximo' : 'Fazer Upgrade'}
                 </Button>
                 <Button variant="outline" onClick={handleCancel}>
@@ -337,7 +369,7 @@ export default function BillingPage() {
                 <Button 
                   className="w-full" 
                   disabled={getPlanName() === 'Básico'}
-                  onClick={() => handleUpgrade('basic')}
+                  onClick={() => handleUpgrade('Basic')}
                 >
                   {getPlanName() === 'Básico' ? 'Plano Atual' : 'Escolher Plano'}
                 </Button>
@@ -367,7 +399,7 @@ export default function BillingPage() {
                 <Button 
                   className="w-full" 
                   disabled={getPlanName() === 'Pro'}
-                  onClick={() => handleUpgrade('pro')}
+                  onClick={() => handleUpgrade('Pro')}
                 >
                   {getPlanName() === 'Pro' ? 'Plano Atual' : 'Escolher Plano'}
                 </Button>
@@ -397,7 +429,7 @@ export default function BillingPage() {
                 <Button 
                   className="w-full" 
                   disabled={getPlanName() === 'Enterprise'}
-                  onClick={() => handleUpgrade('enterprise')}
+                  onClick={() => handleUpgrade('Enterprise')}
                 >
                   {getPlanName() === 'Enterprise' ? 'Plano Atual' : 'Fazer Upgrade'}
                 </Button>

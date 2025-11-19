@@ -41,4 +41,17 @@ node scripts/dev-utils.js create-test-client
 - Supabase (PostgreSQL + Auth)
 - Tailwind CSS + shadcn/ui
 - Meta Marketing API
-- Google Ads API
+- Google Ads API v22 ✅
+
+## 🚀 Atualizações Recentes
+
+### Google Ads API v22 (19 de Novembro de 2025)
+- ✅ Migração concluída de v18 para v22
+- ✅ v18 foi descontinuada em 20 de agosto de 2025
+- 📖 [Documentação de Migração](./docs/GOOGLE_ADS_V22_MIGRATION.md)
+- 🧪 [Guia de Validação](./docs/GOOGLE_ADS_V22_VALIDATION.md)
+
+Para validar a migração:
+```bash
+node scripts/test-google-ads-v22.js
+```

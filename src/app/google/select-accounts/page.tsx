@@ -75,7 +75,8 @@ function SelectAccountsContent() {
       setLoading(true);
       setError(null);
 
-      const apiUrl = `/api/google/accounts?connectionId=${connectionId}&clientId=${clientId}`;
+      // MODO DESENVOLVIMENTO: Usar dados simulados se API falhar
+      const apiUrl = `/api/google/accounts-direct?connectionId=${connectionId}&clientId=${clientId}`;
       console.log('[Google Select Accounts] 📡 FAZENDO REQUISIÇÃO PARA:', apiUrl);
       
       const response = await fetch(apiUrl);
@@ -86,15 +87,44 @@ function SelectAccountsContent() {
       console.log('[Google Select Accounts] - Headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          errorData = { error: 'Erro desconhecido ao processar resposta' };
+        }
+        
         console.error('[Google Select Accounts] ❌ ERRO NA RESPOSTA:', errorData);
-        throw new Error(errorData.error || 'Erro ao buscar contas');
+        
+        // Tratar erro específico de Developer Token não aprovado
+        if (errorData.error === 'DEVELOPER_TOKEN_NAO_APROVADO' || response.status === 501) {
+          const nextSteps = errorData.nextSteps?.join('\n') || 'Aguarde 24-48 horas pela aprovação ou crie uma conta de teste do Google Ads.';
+          setError(`⚠️ Developer Token ainda não aprovado pelo Google. ${errorData.message || ''}\n\nPróximos passos:\n${nextSteps}`);
+        } else {
+          setError(errorData.error || 'Erro ao buscar contas');
+        }
+        
+        setLoading(false);
+        return;
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('[Google Select Accounts] ❌ ERRO AO PARSEAR RESPOSTA:', parseError);
+        throw new Error('Resposta inválida da API');
+      }
+      
       console.log('[Google Select Accounts] 📋 DADOS RECEBIDOS:');
       console.log('[Google Select Accounts] - Total de contas:', data.accounts?.length || 0);
       console.log('[Google Select Accounts] - Estrutura completa:', JSON.stringify(data, null, 2));
+      
+      // Verificar se a resposta tem a estrutura esperada
+      if (!data || typeof data !== 'object') {
+        console.error('[Google Select Accounts] ❌ RESPOSTA INVÁLIDA:', data);
+        throw new Error('Resposta inválida da API - formato inesperado');
+      }
       
       setAccounts(data.accounts || []);
 

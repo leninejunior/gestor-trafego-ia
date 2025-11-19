@@ -36,9 +36,19 @@ export function ConnectGoogleButton({
     try {
       setIsConnecting(true);
       
-      // Use simplified auth API
-      const response = await fetch(`/api/google/auth-simple?clientId=${clientId}`);
+      console.log('[Connect Google Button] Iniciando conexão para clientId:', clientId);
+      
+      // Use o endpoint correto de auth (POST)
+      const response = await fetch('/api/google/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ clientId }),
+      });
+      
       const data = await response.json();
+      console.log('[Connect Google Button] Resposta da API:', data);
 
       if (!response.ok) {
         if (response.status === 503 && !data.configured) {
@@ -49,15 +59,26 @@ export function ConnectGoogleButton({
           });
           return;
         }
-        throw new Error(data.message || 'Falha ao iniciar autenticação');
+        
+        if (response.status === 401) {
+          toast({
+            title: 'Não Autorizado',
+            description: 'Você precisa estar logado para conectar o Google Ads.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        
+        throw new Error(data.error || data.message || 'Falha ao iniciar autenticação');
       }
 
       const { authUrl } = data;
+      console.log('[Connect Google Button] Redirecionando para:', authUrl);
       
       // Redirect to Google OAuth
       window.location.href = authUrl;
     } catch (error) {
-      console.error('Erro ao conectar Google Ads:', error);
+      console.error('[Connect Google Button] Erro ao conectar Google Ads:', error);
       toast({
         title: 'Erro de Conexão',
         description: error instanceof Error ? error.message : 'Não foi possível conectar com o Google Ads. Tente novamente.',

@@ -286,7 +286,9 @@ export default function GooglePage() {
     // Check configuration status using simplified API
     const checkConfiguration = async () => {
       try {
-        const response = await fetch('/api/google/auth-simple?clientId=test');
+        // Usar um UUID válido para teste
+        const testClientId = '00000000-0000-0000-0000-000000000000';
+        const response = await fetch(`/api/google/auth-simple?clientId=${testClientId}`);
         const data = await response.json();
         setIsGoogleAdsConfigured(response.status !== 503 && data.configured);
       } catch (error) {

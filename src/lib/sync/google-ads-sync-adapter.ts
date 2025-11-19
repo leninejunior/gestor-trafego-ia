@@ -60,7 +60,7 @@ interface GoogleAdsInsight {
 export class GoogleAdsSyncAdapter extends BaseSyncAdapter {
   readonly platform = AdPlatform.GOOGLE;
 
-  private readonly API_VERSION = 'v18';
+  private readonly API_VERSION = 'v22';
   private readonly BASE_URL = 'https://googleads.googleapis.com';
   private readonly TOKEN_URL = 'https://oauth2.googleapis.com/token';
   

@@ -26,34 +26,7 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Se são valores temporários, retornar contas mockadas (fallback)
-    if (connectionId === 'temp-connection' || clientId === 'temp-client') {
-      console.log('[Google Accounts API] 🧪 RETORNANDO CONTAS DE TESTE (FALLBACK)');
-      
-      const mockAccounts = [
-        {
-          customerId: '123-456-7890',
-          descriptiveName: 'Conta de Teste 1 (Fallback)',
-          currencyCode: 'BRL',
-          timeZone: 'America/Sao_Paulo',
-          canManageClients: false
-        },
-        {
-          customerId: '987-654-3210',
-          descriptiveName: 'Conta de Teste 2 (Fallback)',
-          currencyCode: 'BRL',
-          timeZone: 'America/Sao_Paulo',
-          canManageClients: true
-        }
-      ];
-      
-      return NextResponse.json({
-        success: true,
-        accounts: mockAccounts,
-        message: 'Contas de teste carregadas (fallback)',
-        isFallback: true
-      });
-    }
+
     
     // Buscar conexão real no banco
     console.log('[Google Accounts API] 🔍 BUSCANDO CONEXÃO NO BANCO...');
@@ -103,7 +76,9 @@ export async function GET(request: NextRequest) {
         accessToken: connection.access_token,
         refreshToken: connection.refresh_token,
         developerToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN!,
-        customerId: connection.login_customer_id || undefined
+        customerId: connection.customer_id,
+        loginCustomerId: connection.login_customer_id || undefined,
+        connectionId: connectionId, // ✅ Para refresh automático de token
       });
       
       console.log('[Google Accounts API] 📡 Cliente Google Ads inicializado');

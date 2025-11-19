@@ -15,7 +15,7 @@ import { MetaCampaign } from "@/lib/meta/types";
 import { toast } from "sonner";
 import { BudgetEditDialog } from "./budget-edit-dialog";
 import { AdSetsList } from "./adsets-list";
-import { Play, Pause, DollarSign, ChevronDown, ChevronRight } from "lucide-react";
+import { Play, Pause, DollarSign, ChevronDown, ChevronRight, Facebook, RefreshCw } from "lucide-react";
 
 interface CampaignsListProps {
   clientId: string;
@@ -80,21 +80,36 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
       });
       
       if (response.ok) {
-        setCampaigns(data.campaigns || []);
-        
-        if (data.isTestData) {
-          toast.info(data.message || 'Exibindo dados de teste');
-          console.log('🧪 [CAMPAIGNS LIST] Dados de teste carregados');
-        } else {
-          console.log('✅ [CAMPAIGNS LIST] Dados reais carregados');
+        // Verificar se requer reconexão
+        if (data.requiresReconnection) {
+          toast.error(data.message, {
+            description: data.detailedMessage,
+            action: {
+              label: data.actionLabel,
+              onClick: () => window.location.href = '/dashboard/clients'
+            }
+          });
+          setCampaigns([]);
+          return;
         }
+        
+        // Não mostrar dados de teste - apenas dados reais
+        if (data.isTestData) {
+          setCampaigns([]);
+          return;
+        }
+        
+        setCampaigns(data.campaigns || []);
+        console.log('✅ [CAMPAIGNS LIST] Dados reais carregados');
       } else {
         console.error('❌ [CAMPAIGNS LIST] Erro na resposta:', data.error);
         toast.error(data.error || 'Erro ao carregar campanhas');
+        setCampaigns([]);
       }
     } catch (error) {
       console.error('💥 [CAMPAIGNS LIST] Erro na requisição:', error);
       toast.error('Erro ao carregar campanhas');
+      setCampaigns([]);
     } finally {
       setIsLoading(false);
       console.log('🏁 [CAMPAIGNS LIST] Busca finalizada');
@@ -207,10 +222,58 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
   if (campaigns.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-gray-500">Nenhuma campanha encontrada</p>
-        <Button onClick={fetchCampaigns} className="mt-4">
-          Recarregar
-        </Button>
+        <div className="max-w-md mx-auto">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 shadow-sm">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12z"/>
+              </svg>
+            </div>
+            
+            <h3 className="text-xl font-semibold text-blue-800 mb-2">Nenhuma Campanha Encontrada</h3>
+            <p className="text-blue-700 mb-4">
+              Não encontramos campanhas ativas na sua conta do Meta Ads.
+            </p>
+            
+            <div className="text-left bg-white/50 rounded-lg p-4 mb-6">
+              <h4 className="font-medium text-blue-800 mb-2 flex items-center">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Possíveis motivos:
+              </h4>
+              <ul className="list-disc list-inside space-y-1 text-sm text-blue-600">
+                <li>Sua conta não tem campanhas ativas no momento</li>
+                <li>Você pode ter conectado uma conta diferente</li>
+                <li>O token de acesso pode ter expirado</li>
+              </ul>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button 
+                onClick={() => window.location.href = '/dashboard/clients'} 
+                variant="default"
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reconectar Conta
+              </Button>
+              <Button 
+                onClick={fetchCampaigns} 
+                variant="outline"
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                Tentar Novamente
+              </Button>
+            </div>
+            
+            <p className="text-xs text-blue-500 mt-4">
+              Ao reconectar, você poderá selecionar contas diferentes ou atualizar as permissões.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
