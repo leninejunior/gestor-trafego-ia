@@ -162,7 +162,8 @@ function SelectAccountsContent() {
         // Aguardar um pouco para mostrar o toast e depois redirecionar
         setTimeout(() => {
           console.log('🔄 [SELECT ACCOUNTS] Redirecionando para cliente...');
-          router.push(`/dashboard/clients/${clientId}?success=meta_connected`);
+          // Usar replace para evitar problemas de histórico
+          window.location.href = `/dashboard/clients/${clientId}?success=meta_connected`;
         }, 1500);
       } else {
         const data = await response.json();
