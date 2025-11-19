@@ -33,9 +33,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/clients?error=authorization_failed`);
   }
 
-  // Extrair client_id do state
-  const clientId = state.split('_')[1];
+  // Extrair client_id e clientName do state
+  let clientId: string;
+  let clientName: string = 'Cliente';
+  
+  try {
+    const stateData = JSON.parse(decodeURIComponent(state));
+    clientId = stateData.clientId;
+    clientName = stateData.clientName || 'Cliente';
+  } catch (e) {
+    // Fallback para formato antigo
+    clientId = state.split('_')[1];
+  }
+  
   console.log('Client ID extraído:', clientId);
+  console.log('Client Name extraído:', clientName);
   
   if (!clientId) {
     console.error('Client ID inválido no state');
@@ -101,6 +113,7 @@ export async function GET(request: NextRequest) {
     const selectUrl = new URL('/meta/select-accounts', process.env.NEXT_PUBLIC_APP_URL);
     selectUrl.searchParams.set('access_token', access_token);
     selectUrl.searchParams.set('client_id', clientId);
+    selectUrl.searchParams.set('client_name', clientName);
     
     console.log('🔄 Redirecionando para seleção de contas:', selectUrl.toString());
     

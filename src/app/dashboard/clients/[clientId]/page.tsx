@@ -502,7 +502,7 @@ export default function ClientDetailPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold">{client.name}</h1>
+          <h1 className="text-3xl font-bold" data-client-name={client.name}>{client.name}</h1>
           <div className="flex items-center space-x-4 text-sm text-gray-600">
             <div className="flex items-center space-x-1">
               <Building2 className="h-4 w-4" />

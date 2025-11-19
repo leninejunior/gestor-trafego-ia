@@ -39,6 +39,7 @@ function SelectAccountsContent() {
 
   const accessToken = searchParams.get('access_token');
   const clientId = searchParams.get('client_id');
+  const clientName = searchParams.get('client_name') || 'Cliente';
 
   useEffect(() => {
     console.log('🔍 [SELECT ACCOUNTS] Parâmetros da URL:');
@@ -205,6 +206,12 @@ function SelectAccountsContent() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
+        {/* Header com nome do cliente */}
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-600">Cliente</p>
+          <h2 className="text-2xl font-bold text-blue-900">{clientName}</h2>
+        </div>
+
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Selecionar Contas Meta Ads

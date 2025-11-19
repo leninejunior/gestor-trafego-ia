@@ -5,12 +5,18 @@ import { META_CONFIG, META_SCOPES, META_OAUTH_URL } from '@/lib/meta/config';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const clientId = searchParams.get('clientId');
+  const clientName = searchParams.get('clientName');
   
   if (!clientId) {
     return NextResponse.json({ error: 'Client ID é obrigatório' }, { status: 400 });
   }
 
-  const state = `client_${clientId}_${Date.now()}`;
+  const state = encodeURIComponent(JSON.stringify({
+    clientId,
+    clientName: clientName || 'Cliente',
+    timestamp: Date.now()
+  }));
+  
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/meta/callback`;
   
   const authUrl = new URL(META_OAUTH_URL);

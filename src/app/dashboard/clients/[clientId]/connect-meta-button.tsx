@@ -46,7 +46,11 @@ export function ConnectMetaButton({ clientId, isConnected = false }: ConnectMeta
     
     try {
       console.log('📡 Calling Meta auth API...');
-      const response = await fetch(`/api/meta/auth?clientId=${clientId}`);
+      // Obter nome do cliente do DOM ou usar padrão
+      const clientNameElement = document.querySelector('[data-client-name]');
+      const clientName = clientNameElement?.getAttribute('data-client-name') || 'Cliente';
+      
+      const response = await fetch(`/api/meta/auth?clientId=${clientId}&clientName=${encodeURIComponent(clientName)}`);
       const data = await response.json();
       
       if (data.authUrl) {
