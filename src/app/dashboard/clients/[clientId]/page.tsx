@@ -26,6 +26,7 @@ import { ManageConnections } from "@/components/meta/manage-connections";
 import { GoogleAdsCard } from "@/components/google/google-ads-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Filter } from "lucide-react";
+import { translateMetaObjective } from "@/lib/utils/meta-translations";
 
 interface Client {
   id: string;
@@ -77,31 +78,6 @@ function CampaignsSection({
   const [objectiveFilter, setObjectiveFilter] = useState<string>('all');
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Mapeamento de objetivos para português
-  const objectiveLabels: Record<string, string> = {
-    'APP_INSTALLS': 'Instalações de App',
-    'BRAND_AWARENESS': 'Reconhecimento de Marca',
-    'CONVERSIONS': 'Conversões',
-    'EVENT_RESPONSES': 'Respostas a Eventos',
-    'LEAD_GENERATION': 'Geração de Leads',
-    'LINK_CLICKS': 'Cliques no Link',
-    'LOCAL_AWARENESS': 'Reconhecimento Local',
-    'MESSAGES': 'Mensagens',
-    'OFFER_CLAIMS': 'Reivindicações de Ofertas',
-    'OUTCOME_APP_PROMOTION': 'Promoção de App',
-    'OUTCOME_AWARENESS': 'Reconhecimento',
-    'OUTCOME_ENGAGEMENT': 'Engajamento',
-    'OUTCOME_LEADS': 'Leads',
-    'OUTCOME_SALES': 'Vendas',
-    'OUTCOME_TRAFFIC': 'Tráfego',
-    'PAGE_LIKES': 'Curtidas na Página',
-    'POST_ENGAGEMENT': 'Engajamento com Publicação',
-    'PRODUCT_CATALOG_SALES': 'Vendas do Catálogo',
-    'REACH': 'Alcance',
-    'STORE_VISITS': 'Visitas à Loja',
-    'VIDEO_VIEWS': 'Visualizações de Vídeo'
-  };
 
   useEffect(() => {
     loadCampaigns();
@@ -198,7 +174,7 @@ function CampaignsSection({
                         const count = campaigns.filter(c => c.objective === objective).length;
                         return (
                           <SelectItem key={objective} value={objective}>
-                            {objectiveLabels[objective] || objective} ({count})
+                            {translateMetaObjective(objective)} ({count})
                           </SelectItem>
                         );
                       })

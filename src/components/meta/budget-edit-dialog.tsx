@@ -46,11 +46,14 @@ export function BudgetEditDialog({
   // Resetar valores quando o diálogo abrir ou os valores mudarem
   useEffect(() => {
     if (open) {
+      const dailyValue = currentDailyBudget ? parseFloat(currentDailyBudget) : NaN;
+      const lifetimeValue = currentLifetimeBudget ? parseFloat(currentLifetimeBudget) : NaN;
+      
       setDailyBudget(
-        currentDailyBudget ? (parseFloat(currentDailyBudget) / 100).toFixed(2) : ''
+        !isNaN(dailyValue) ? (dailyValue / 100).toFixed(2) : ''
       );
       setLifetimeBudget(
-        currentLifetimeBudget ? (parseFloat(currentLifetimeBudget) / 100).toFixed(2) : ''
+        !isNaN(lifetimeValue) ? (lifetimeValue / 100).toFixed(2) : ''
       );
     }
   }, [open, currentDailyBudget, currentLifetimeBudget]);

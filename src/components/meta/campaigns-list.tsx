@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { BudgetEditDialog } from "./budget-edit-dialog";
 import { AdSetsList } from "./adsets-list";
 import { Play, Pause, DollarSign, ChevronDown, ChevronRight, Facebook, RefreshCw } from "lucide-react";
+import { translateMetaObjective } from "@/lib/utils/meta-translations";
 
 interface CampaignsListProps {
   clientId: string;
@@ -41,10 +42,10 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
         name: c.name,
         status: c.status as 'ACTIVE' | 'PAUSED' | 'DELETED' | 'ARCHIVED',
         objective: c.objective,
-        daily_budget: String(Math.round(c.spend * 100)), // Converter para centavos
-        lifetime_budget: undefined,
+        daily_budget: c.daily_budget, // Já vem no formato correto da API
+        lifetime_budget: c.lifetime_budget,
         created_time: c.created_time,
-        updated_time: c.created_time // Usar created_time como fallback
+        updated_time: c.updated_time || c.created_time
       }));
       setCampaigns(convertedCampaigns);
       setIsLoading(false);
@@ -131,10 +132,12 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
 
   const formatCurrency = (value: string | undefined) => {
     if (!value) return '-';
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) return '-';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
-    }).format(parseFloat(value) / 100);
+    }).format(numValue / 100);
   };
 
   const handleToggleStatus = async (campaign: MetaCampaign) => {
@@ -321,7 +324,7 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
                   </div>
                 </TableCell>
                 <TableCell>{getStatusBadge(campaign.status)}</TableCell>
-                <TableCell>{campaign.objective}</TableCell>
+                <TableCell>{translateMetaObjective(campaign.objective)}</TableCell>
                 <TableCell>{formatCurrency(campaign.daily_budget)}</TableCell>
                 <TableCell>
                   {new Date(campaign.created_time).toLocaleDateString('pt-BR')}

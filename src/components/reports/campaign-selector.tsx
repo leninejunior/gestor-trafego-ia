@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, RefreshCw } from "lucide-react";
+import { Calendar as CalendarIcon, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { translateMetaObjective, translateMetaStatus } from "@/lib/utils/meta-translations";
 
 interface Campaign {
   id: string;
@@ -82,7 +83,7 @@ export function CampaignSelector({ clientId, onCampaignSelect, isLoading = false
                   <div className="flex flex-col">
                     <span>{campaign.name}</span>
                     <span className="text-xs text-muted-foreground">
-                      {campaign.objective} • {campaign.status}
+                      {translateMetaObjective(campaign.objective)} • {translateMetaStatus(campaign.status)}
                     </span>
                   </div>
                 </SelectItem>
@@ -109,7 +110,7 @@ export function CampaignSelector({ clientId, onCampaignSelect, isLoading = false
                   className="w-full justify-start text-left font-normal"
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateRange.from ? format(dateRange.from, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar"}
+                  {dateRange.from ? format(dateRange.from, "dd/MM/yyyy") : "Selecionar"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
@@ -132,7 +133,7 @@ export function CampaignSelector({ clientId, onCampaignSelect, isLoading = false
                   className="w-full justify-start text-left font-normal"
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateRange.to ? format(dateRange.to, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar"}
+                  {dateRange.to ? format(dateRange.to, "dd/MM/yyyy") : "Selecionar"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">

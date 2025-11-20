@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ChevronDown, Search } from 'lucide-react';
 import { formatCurrency, formatNumber } from '@/lib/utils';
+import { translateMetaObjective, translateMetaStatus } from '@/lib/utils/meta-translations';
 
 interface Campaign {
   id: string;
@@ -68,7 +69,8 @@ export function CampaignSearch({
   const filteredCampaigns = campaigns.filter(campaign =>
     campaign.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     campaign.account_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    campaign.objective.toLowerCase().includes(searchTerm.toLowerCase())
+    campaign.objective.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    translateMetaObjective(campaign.objective).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleCampaignSelect = (campaignId: string) => {
@@ -129,7 +131,7 @@ export function CampaignSearch({
                   <div className="flex items-center justify-between w-full">
                     <div className="font-medium truncate">{campaign.name}</div>
                     <Badge className={getStatusColor(campaign.status)}>
-                      {campaign.status}
+                      {translateMetaStatus(campaign.status)}
                     </Badge>
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -148,7 +150,7 @@ export function CampaignSearch({
             <div className="flex items-center justify-between">
               <h4 className="font-medium">{selectedCampaignData.name}</h4>
               <Badge className={getStatusColor(selectedCampaignData.status)}>
-                {selectedCampaignData.status}
+                {translateMetaStatus(selectedCampaignData.status)}
               </Badge>
             </div>
             
@@ -172,7 +174,7 @@ export function CampaignSearch({
             </div>
             
             <div className="text-xs text-muted-foreground">
-              Conta: {selectedCampaignData.account_name} • Objetivo: {selectedCampaignData.objective}
+              Conta: {selectedCampaignData.account_name} • Objetivo: {translateMetaObjective(selectedCampaignData.objective)}
             </div>
           </div>
         </div>
