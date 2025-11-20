@@ -275,6 +275,8 @@ export function AdSetsList({ campaignId, campaignName, clientId, adAccountId }: 
           itemType="adset"
           currentDailyBudget={selectedAdSet.daily_budget}
           currentLifetimeBudget={selectedAdSet.lifetime_budget}
+          clientId={clientId}
+          adAccountId={adAccountId}
           onSuccess={fetchAdSets}
         />
       )}
