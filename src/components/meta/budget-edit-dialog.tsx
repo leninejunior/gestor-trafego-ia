@@ -67,17 +67,26 @@ export function BudgetEditDialog({
     setIsLoading(true);
 
     try {
-      const endpoint = itemType === 'campaign' 
-        ? `/api/campaigns/${itemId}/budget`
-        : `/api/adsets/${itemId}/budget`;
+      // Usar rota com query params quando temos clientId e adAccountId
+      let endpoint: string;
+      if (itemType === 'campaign') {
+        endpoint = `/api/campaigns/${itemId}/budget`;
+      } else if (clientId && adAccountId) {
+        // Rota alternativa para adsets com query params
+        endpoint = `/api/meta/adsets/budget?adsetId=${itemId}&clientId=${clientId}&adAccountId=${adAccountId}`;
+      } else {
+        endpoint = `/api/adsets/${itemId}/budget`;
+      }
 
       const body: any = {};
       if (dailyBudget) body.daily_budget = dailyBudget;
       if (lifetimeBudget) body.lifetime_budget = lifetimeBudget;
       
-      // Adicionar contexto para rotas que não usam banco
-      if (clientId) body.clientId = clientId;
-      if (adAccountId) body.adAccountId = adAccountId;
+      // Adicionar contexto para rotas que não usam banco (apenas para rotas antigas)
+      if (!clientId || !adAccountId) {
+        if (clientId) body.clientId = clientId;
+        if (adAccountId) body.adAccountId = adAccountId;
+      }
 
       const response = await fetch(endpoint, {
         method: 'PATCH',
