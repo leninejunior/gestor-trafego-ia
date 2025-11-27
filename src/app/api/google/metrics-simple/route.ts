@@ -117,34 +117,49 @@ export async function GET(request: NextRequest) {
 
     console.log('[Google Metrics Simple] Params validated, checking connection');
 
-    // Verificar se existe conexão Google para este cliente
+    // Verificar se existe conexão Google ATIVA para este cliente
     const supabase = await createClient();
     const { data: connection, error: connError } = await supabase
       .from('google_ads_connections')
       .select('*')
       .eq('client_id', clientId)
+      .eq('status', 'active')
       .not('access_token', 'like', 'mock_%')
-      .single();
+      .maybeSingle();
 
     if (connError || !connection) {
-      console.log('[Google Metrics Simple] No real connection found');
+      console.log('[Google Metrics Simple] No active connection found:', connError?.message);
+      
+      // Verificar se há conexões inativas
+      const { data: inactiveConns } = await supabase
+        .from('google_ads_connections')
+        .select('id, customer_id, status')
+        .eq('client_id', clientId);
+      
+      const hasInactiveConnections = inactiveConns && inactiveConns.length > 0;
       
       return NextResponse.json({
-        error: 'Conexão Google Ads não encontrada',
-        message: 'Conecte sua conta Google Ads primeiro',
+        error: hasInactiveConnections ? 'Conexão Google Ads expirada' : 'Conexão Google Ads não encontrada',
+        message: hasInactiveConnections 
+          ? 'Reconecte sua conta Google Ads para continuar' 
+          : 'Conecte sua conta Google Ads primeiro',
         clientId,
         dateRange: {
           from: startDate,
           to: endDate,
           days: daysDiff
         },
+        inactiveConnections: inactiveConns?.length || 0,
+        needsReconnection: hasInactiveConnections,
         mockData: {
           totalImpressions: 0,
           totalClicks: 0,
           totalConversions: 0,
           totalCost: 0,
           campaigns: [],
-          message: 'Clique em "Conectar Google Ads" para ver dados reais'
+          message: hasInactiveConnections 
+            ? 'Reconecte sua conta para ver dados reais'
+            : 'Clique em "Conectar Google Ads" para ver dados reais'
         },
         hasConnection: false,
         configured: true

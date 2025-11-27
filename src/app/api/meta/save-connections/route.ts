@@ -33,17 +33,75 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Limpar conexões antigas
-    const { error: deleteError } = await supabase
+    // 1. PRIMEIRO: Buscar conexões existentes para análise
+    const { data: existingConnections } = await supabase
       .from('client_meta_connections')
-      .delete()
+      .select('*')
       .eq('client_id', client_id);
 
-    if (deleteError) {
-      console.error('❌ Erro ao limpar conexões antigas:', deleteError);
+    console.log(`🔍 [SAVE] Conexões existentes: ${existingConnections?.length || 0}`);
+
+    // 2. SEGUNDO: Desativar todas as conexões antigas
+    const { error: deactivateError } = await supabase
+      .from('client_meta_connections')
+      .update({ 
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('client_id', client_id);
+
+    if (deactivateError) {
+      console.error('❌ Erro ao desativar conexões antigas:', deactivateError);
     }
 
-    // Salvar novas conexões
+    // 3. TERCEIRO: Remover duplicatas antigas (manter apenas 1 por ad_account_id)
+    if (existingConnections && existingConnections.length > 0) {
+      const accountGroups = existingConnections.reduce((acc, conn) => {
+        if (!acc[conn.ad_account_id]) {
+          acc[conn.ad_account_id] = [];
+        }
+        acc[conn.ad_account_id].push(conn);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      const idsToDelete: string[] = [];
+      
+      Object.values(accountGroups).forEach(group => {
+        if (group.length > 1) {
+          group.sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+          idsToDelete.push(...group.slice(1).map(c => c.id));
+        }
+      });
+
+      if (idsToDelete.length > 0) {
+        const { error: deleteDupsError } = await supabase
+          .from('client_meta_connections')
+          .delete()
+          .in('id', idsToDelete);
+
+        if (deleteDupsError) {
+          console.error('❌ Erro ao deletar duplicatas:', deleteDupsError);
+        } else {
+          console.log(`🗑️ [SAVE] Removidas ${idsToDelete.length} duplicatas`);
+        }
+      }
+    }
+
+    // 4. QUARTO: Deletar todas as conexões inativas antigas (mais de 7 dias)
+    const { error: deleteOldError } = await supabase
+      .from('client_meta_connections')
+      .delete()
+      .eq('client_id', client_id)
+      .eq('is_active', false)
+      .lt('updated_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+
+    if (deleteOldError) {
+      console.error('❌ Erro ao deletar conexões antigas:', deleteOldError);
+    }
+
+    // 5. QUINTO: Salvar novas conexões
     const connections = selected_accounts.map((accountId: string) => {
       const account = ad_accounts.find((acc: any) => acc.id === accountId);
       return {

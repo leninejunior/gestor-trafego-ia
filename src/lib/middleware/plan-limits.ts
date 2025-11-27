@@ -28,7 +28,7 @@ export class PlanLimitsService {
       // Get user's organization and subscription
       const { data: membership } = await supabase
         .from('memberships')
-        .select('organization_id')
+        .select('org_id')
         .eq('user_id', userId)
         .limit(1)
         .single();
@@ -42,7 +42,7 @@ export class PlanLimitsService {
           status,
           plan_id
         `)
-        .eq('organization_id', membership.organization_id)
+        .eq('organization_id', membership.org_id)
         .eq('status', 'active')
         .limit(1)
         .single();
@@ -125,13 +125,13 @@ export class PlanLimitsService {
       // Get user's organization
       const { data: membership } = await supabase
         .from('memberships')
-        .select('organization_id')
+        .select('org_id')
         .eq('user_id', userId)
         .single();
 
       if (!membership) return null;
 
-      const organizationId = membership.organization_id;
+      const organizationId = membership.org_id;
 
       // Get current usage
       const [clientsResult, usersResult] = await Promise.all([
@@ -142,7 +142,7 @@ export class PlanLimitsService {
         supabase
           .from('memberships')
           .select('id')
-          .eq('organization_id', organizationId)
+          .eq('org_id', organizationId)
       ]);
 
       return {

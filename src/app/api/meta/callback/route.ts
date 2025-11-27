@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     console.log('Trocando código por access token...');
     
     // Trocar código por access token
-    const tokenResponse = await axios.get('https://graph.facebook.com/v21.0/oauth/access_token', {
+    const tokenResponse = await axios.get('https://graph.facebook.com/v22.0/oauth/access_token', {
       params: {
         client_id: process.env.META_APP_ID,
         client_secret: process.env.META_APP_SECRET,
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
 
     // Obter informações da conta de anúncios
     console.log('Buscando contas de anúncios...');
-    const accountsResponse = await axios.get('https://graph.facebook.com/v21.0/me/adaccounts', {
+    const accountsResponse = await axios.get('https://graph.facebook.com/v22.0/me/adaccounts', {
       params: {
         access_token: access_token,
         fields: 'id,name,account_status,currency'

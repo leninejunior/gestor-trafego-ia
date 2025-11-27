@@ -7,6 +7,7 @@
 
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync, createHash } from 'crypto';
 import { createServiceClient } from '@/lib/supabase/server';
+import { getGoogleAdsAuditService } from './audit-service';
 
 // ============================================================================
 // Types and Interfaces
@@ -51,9 +52,58 @@ export class GoogleAdsCryptoService {
   // Cache for encryption keys
   private keyCache: Map<number, Buffer> = new Map();
   private currentKeyVersion: number | null = null;
+  
+  // Initialization state
+  private initializationPromise: Promise<void> | null = null;
+  private isInitialized: boolean = false;
+  private initializationError: Error | null = null;
 
   constructor() {
-    this.initializeKeyRotation();
+    // Start initialization but don't wait for it
+    // This allows the constructor to complete synchronously
+    this.initializationPromise = this.initializeKeyRotation();
+  }
+
+  // ==========================================================================
+  // Initialization Management
+  // ==========================================================================
+
+  /**
+   * Ensure the crypto service is initialized before use
+   * This method should be called before any encryption/decryption operations
+   */
+  async ensureInitialized(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    if (this.initializationPromise) {
+      console.log('[Crypto Service] Waiting for initialization to complete...');
+      await this.initializationPromise;
+    }
+
+    if (this.initializationError) {
+      console.warn('[Crypto Service] ⚠️ Initialization had errors, but continuing with fallback', {
+        error: this.initializationError.message,
+      });
+    }
+  }
+
+  /**
+   * Get initialization status
+   */
+  getInitializationStatus(): {
+    isInitialized: boolean;
+    hasError: boolean;
+    error?: string;
+    currentKeyVersion: number | null;
+  } {
+    return {
+      isInitialized: this.isInitialized,
+      hasError: !!this.initializationError,
+      error: this.initializationError?.message,
+      currentKeyVersion: this.currentKeyVersion,
+    };
   }
 
   // ==========================================================================
@@ -65,20 +115,125 @@ export class GoogleAdsCryptoService {
    */
   private async initializeKeyRotation(): Promise<void> {
     try {
+      console.log('[Crypto Service] ========================================');
+      console.log('[Crypto Service] Starting initialization...', {
+        timestamp: new Date().toISOString(),
+      });
+
+      // Check if database schema is ready
+      const schemaReady = await this.checkDatabaseSchema();
+      
+      if (!schemaReady) {
+        console.warn('[Crypto Service] ⚠️ Database schema not ready, using fallback', {
+          reason: 'Missing required columns in google_ads_encryption_keys table',
+          recommendation: 'Run database migration: database/migrations/001-fix-google-ads-encryption-keys.sql',
+        });
+        
+        // Use fallback immediately
+        this.currentKeyVersion = 0;
+        this.isInitialized = true;
+        this.initializationError = new Error('Database schema not ready - using fallback');
+        
+        console.log('[Crypto Service] ✅ Initialized with fallback environment key (version 0)');
+        console.log('[Crypto Service] ========================================');
+        return;
+      }
+
       // Check if we have a current active key
       const activeKey = await this.getCurrentEncryptionKey();
       
       if (!activeKey || this.isKeyExpired(activeKey)) {
-        console.log('[Crypto Service] No active key found or key expired, generating new key');
+        console.log('[Crypto Service] No active key found or key expired, generating new key', {
+          hasActiveKey: !!activeKey,
+          isExpired: activeKey ? this.isKeyExpired(activeKey) : null,
+        });
         await this.rotateEncryptionKey();
       } else {
         this.currentKeyVersion = activeKey.version;
-        console.log('[Crypto Service] Using existing active key version:', activeKey.version);
+        console.log('[Crypto Service] ✅ Using existing active key:', {
+          version: activeKey.version,
+          algorithm: activeKey.algorithm,
+          createdAt: activeKey.createdAt.toISOString(),
+        });
       }
+      
+      this.isInitialized = true;
+      this.initializationError = null;
+      
+      console.log('[Crypto Service] ✅ Initialization completed successfully', {
+        currentKeyVersion: this.currentKeyVersion,
+        timestamp: new Date().toISOString(),
+      });
+      console.log('[Crypto Service] ========================================');
     } catch (error) {
-      console.error('[Crypto Service] Error initializing key rotation:', error);
+      const err = error instanceof Error ? error : new Error('Unknown initialization error');
+      this.initializationError = err;
+      
+      console.error('[Crypto Service] ❌ Error initializing key rotation:', {
+        error: err.message,
+        errorType: err.constructor.name,
+        stack: err.stack,
+        timestamp: new Date().toISOString(),
+      });
+      
       // Fallback to environment key if database keys fail
       this.currentKeyVersion = 0;
+      this.isInitialized = true; // Mark as initialized even with fallback
+      
+      console.warn('[Crypto Service] ⚠️ Using fallback environment key (version 0)', {
+        reason: 'Database initialization failed',
+        error: err.message,
+      });
+      console.log('[Crypto Service] ========================================');
+    }
+  }
+
+  /**
+   * Check if database schema has required columns
+   * Returns false if schema is not ready, true if ready
+   */
+  private async checkDatabaseSchema(): Promise<boolean> {
+    try {
+      const supabase = createServiceClient();
+      
+      // Try to query all required columns
+      const { data, error } = await supabase
+        .from('google_ads_encryption_keys')
+        .select('id, key_data, algorithm, version, key_hash, is_active, created_at, expires_at')
+        .limit(1);
+
+      if (error) {
+        // Check if error is due to missing columns
+        if (error.message.includes('algorithm') || 
+            error.message.includes('version') || 
+            error.message.includes('key_hash')) {
+          console.warn('[Crypto Service] ⚠️ Database schema missing required columns:', {
+            error: error.message,
+            missingColumns: [
+              error.message.includes('algorithm') ? 'algorithm' : null,
+              error.message.includes('version') ? 'version' : null,
+              error.message.includes('key_hash') ? 'key_hash' : null,
+            ].filter(Boolean),
+          });
+          return false;
+        }
+        
+        // Other errors might be transient, log but don't fail
+        console.warn('[Crypto Service] ⚠️ Database query error (non-schema):', {
+          error: error.message,
+          code: error.code,
+        });
+        return true; // Assume schema is OK, error is something else
+      }
+
+      console.log('[Crypto Service] ✅ Database schema validated successfully');
+      return true;
+    } catch (error) {
+      console.error('[Crypto Service] ❌ Error checking database schema:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      // On exception, assume schema might not be ready
+      return false;
     }
   }
 
@@ -128,50 +283,247 @@ export class GoogleAdsCryptoService {
    * Generate new encryption key and rotate
    */
   async rotateEncryptionKey(): Promise<void> {
+    const startTime = Date.now();
+    let newKey: Buffer | null = null;
+    let newVersion: number | null = null;
+    let encryptedKey: string | null = null;
+    let deactivationSucceeded = false;
+    
     try {
-      console.log('[Crypto Service] Starting key rotation...');
+      console.log('[Crypto Service] ========================================');
+      console.log('[Crypto Service] Starting key rotation...', {
+        timestamp: new Date().toISOString(),
+        currentKeyVersion: this.currentKeyVersion,
+      });
       
-      // Generate new key
-      const newKey = randomBytes(this.KEY_LENGTH);
-      const newVersion = await this.getNextKeyVersion();
+      // Step 1: Generate new key
+      try {
+        newKey = randomBytes(this.KEY_LENGTH);
+        console.log('[Crypto Service] ✅ Generated new random key:', {
+          keyLength: newKey.length,
+        });
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        console.error('[Crypto Service] ❌ Failed to generate random key:', {
+          error: err.message,
+          errorType: err.constructor.name,
+        });
+        throw new Error(`Key generation failed: ${err.message}`);
+      }
       
-      // Encrypt the key itself using master key
-      const encryptedKey = this.encryptKeyWithMaster(newKey);
+      // Step 2: Get next version number
+      try {
+        newVersion = await this.getNextKeyVersion();
+        console.log('[Crypto Service] ✅ Determined next key version:', {
+          version: newVersion,
+        });
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        console.error('[Crypto Service] ❌ Failed to get next key version:', {
+          error: err.message,
+          errorType: err.constructor.name,
+        });
+        // Fallback: use timestamp-based version
+        newVersion = Math.floor(Date.now() / 1000);
+        console.warn('[Crypto Service] ⚠️ Using timestamp-based version as fallback:', {
+          version: newVersion,
+        });
+      }
+      
+      // Step 3: Encrypt the key with master key
+      try {
+        encryptedKey = this.encryptKeyWithMaster(newKey);
+        console.log('[Crypto Service] ✅ Encrypted new key with master key');
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        console.error('[Crypto Service] ❌ Failed to encrypt key with master key:', {
+          error: err.message,
+          errorType: err.constructor.name,
+        });
+        throw new Error(`Key encryption failed: ${err.message}`);
+      }
       
       const supabase = createServiceClient();
       
-      // Deactivate current active key
-      await supabase
-        .from('google_ads_encryption_keys')
-        .update({ is_active: false })
-        .eq('is_active', true);
+      // Step 4: Deactivate current active keys
+      console.log('[Crypto Service] Deactivating current active keys...');
+      try {
+        const { error: deactivateError } = await supabase
+          .from('google_ads_encryption_keys')
+          .update({ is_active: false })
+          .eq('is_active', true);
 
-      // Insert new active key
-      const { error } = await supabase
-        .from('google_ads_encryption_keys')
-        .insert({
-          version: newVersion,
-          key_hash: encryptedKey,
-          algorithm: this.ALGORITHM,
-          is_active: true,
-          created_at: new Date().toISOString(),
+        if (deactivateError) {
+          console.error('[Crypto Service] ⚠️ Error deactivating old keys (non-critical):', {
+            error: deactivateError.message,
+            code: deactivateError.code,
+          });
+          // Continue anyway - this is not critical
+        } else {
+          deactivationSucceeded = true;
+          console.log('[Crypto Service] ✅ Deactivated old keys successfully');
+        }
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        console.warn('[Crypto Service] ⚠️ Exception during key deactivation (non-critical):', {
+          error: err.message,
+          errorType: err.constructor.name,
         });
-
-      if (error) {
-        throw error;
+        // Continue anyway - this is not critical
       }
 
-      // Update cache
-      this.keyCache.set(newVersion, newKey);
-      this.currentKeyVersion = newVersion;
+      // Step 5: Insert new active key
+      console.log('[Crypto Service] Inserting new encryption key...');
+      try {
+        const { error: insertError } = await supabase
+          .from('google_ads_encryption_keys')
+          .insert({
+            version: newVersion,
+            key_hash: encryptedKey,
+            algorithm: this.ALGORITHM,
+            is_active: true,
+            created_at: new Date().toISOString(),
+          });
+
+        if (insertError) {
+          console.error('[Crypto Service] ❌ Failed to insert new key:', {
+            error: insertError.message,
+            code: insertError.code,
+            version: newVersion,
+            hint: insertError.hint,
+            details: insertError.details,
+          });
+          
+          // If we deactivated keys but failed to insert, try to rollback
+          if (deactivationSucceeded) {
+            console.log('[Crypto Service] Attempting to rollback key deactivation...');
+            try {
+              await this.rollbackKeyDeactivation(supabase);
+            } catch (rollbackError) {
+              console.error('[Crypto Service] ❌ Rollback failed:', {
+                error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
+              });
+            }
+          }
+          
+          throw new Error(`Database insert failed: ${insertError.message}`);
+        }
+        
+        console.log('[Crypto Service] ✅ New key inserted successfully');
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('Database insert failed:')) {
+          throw error; // Re-throw database errors
+        }
+        
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        console.error('[Crypto Service] ❌ Exception during key insertion:', {
+          error: err.message,
+          errorType: err.constructor.name,
+        });
+        throw new Error(`Key insertion failed: ${err.message}`);
+      }
+
+      // Step 6: Update cache and current version
+      try {
+        this.keyCache.set(newVersion, newKey);
+        this.currentKeyVersion = newVersion;
+        console.log('[Crypto Service] ✅ Key cached and version updated:', {
+          version: newVersion,
+          cacheSize: this.keyCache.size,
+        });
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        console.error('[Crypto Service] ❌ Failed to update cache:', {
+          error: err.message,
+          errorType: err.constructor.name,
+        });
+        // This is critical - we inserted the key but can't use it
+        throw new Error(`Cache update failed: ${err.message}`);
+      }
       
-      // Clean up old keys
-      await this.cleanupOldKeys();
+      // Step 7: Clean up old keys (non-critical, don't fail if this errors)
+      try {
+        await this.cleanupOldKeys();
+        console.log('[Crypto Service] ✅ Old keys cleaned up successfully');
+      } catch (cleanupError) {
+        console.warn('[Crypto Service] ⚠️ Error cleaning up old keys (non-critical):', {
+          error: cleanupError instanceof Error ? cleanupError.message : 'Unknown error',
+        });
+      }
       
-      console.log('[Crypto Service] Key rotation completed. New version:', newVersion);
+      const duration = Date.now() - startTime;
+      
+      console.log('[Crypto Service] ✅ Key rotation completed successfully:', {
+        newVersion,
+        durationMs: duration,
+        timestamp: new Date().toISOString(),
+        deactivationSucceeded,
+      });
+      console.log('[Crypto Service] ========================================');
     } catch (error) {
-      console.error('[Crypto Service] Error during key rotation:', error);
-      throw new Error('Failed to rotate encryption key');
+      const duration = Date.now() - startTime;
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      
+      console.error('[Crypto Service] ❌ Key rotation failed:', {
+        error: err.message,
+        errorType: err.constructor.name,
+        durationMs: duration,
+        stack: err.stack,
+        timestamp: new Date().toISOString(),
+        newVersion,
+        deactivationSucceeded,
+      });
+      console.log('[Crypto Service] ========================================');
+      
+      // Don't throw if we're in initialization - allow fallback to environment key
+      if (this.initializationPromise) {
+        console.warn('[Crypto Service] ⚠️ Key rotation failed during initialization, will use fallback');
+        // Set to version 0 (environment key fallback)
+        this.currentKeyVersion = 0;
+        return;
+      }
+      
+      throw new Error(`Failed to rotate encryption key: ${err.message}`);
+    }
+  }
+
+  /**
+   * Rollback key deactivation in case of insertion failure
+   */
+  private async rollbackKeyDeactivation(supabase: any): Promise<void> {
+    try {
+      // Re-activate the most recent key
+      const { data: latestKey, error: fetchError } = await supabase
+        .from('google_ads_encryption_keys')
+        .select('id, version')
+        .eq('is_active', false)
+        .order('version', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (fetchError || !latestKey) {
+        console.error('[Crypto Service] ❌ Could not find key to rollback');
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from('google_ads_encryption_keys')
+        .update({ is_active: true })
+        .eq('id', latestKey.id);
+
+      if (updateError) {
+        console.error('[Crypto Service] ❌ Failed to rollback key deactivation:', {
+          error: updateError.message,
+        });
+      } else {
+        console.log('[Crypto Service] ✅ Rolled back key deactivation:', {
+          version: latestKey.version,
+        });
+      }
+    } catch (error) {
+      console.error('[Crypto Service] ❌ Exception during rollback:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   }
 
@@ -354,14 +706,31 @@ export class GoogleAdsCryptoService {
   /**
    * Encrypt a token with current active key
    */
-  async encryptToken(token: string): Promise<EncryptionResult> {
+  async encryptToken(token: string, connectionId?: string, clientId?: string): Promise<EncryptionResult> {
+    const startTime = Date.now();
+    const tokenHash = GoogleAdsCryptoService.generateTokenHash(token);
+    
     try {
+      // Ensure initialization is complete
+      await this.ensureInitialized();
+
       // Ensure we have a current key
       if (this.currentKeyVersion === null) {
+        console.warn('[Crypto Service] ⚠️ No current key version after initialization, re-initializing...');
         await this.initializeKeyRotation();
       }
 
       const keyVersion = this.currentKeyVersion!;
+      
+      console.log('[Crypto Service] Encrypting token:', {
+        keyVersion,
+        algorithm: this.ALGORITHM,
+        tokenLength: token.length,
+        tokenHash,
+        connectionId,
+        clientId,
+      });
+      
       const encryptionKey = await this.getEncryptionKey(keyVersion);
       
       const salt = randomBytes(this.SALT_LENGTH);
@@ -389,27 +758,167 @@ export class GoogleAdsCryptoService {
         Buffer.from(encrypted, 'hex')
       ]);
 
-      return {
+      const result = {
         encryptedData: combined.toString('base64'),
         keyVersion,
         algorithm: this.ALGORITHM,
       };
+
+      const duration = Date.now() - startTime;
+
+      console.log('[Crypto Service] ✅ Token encrypted successfully:', {
+        keyVersion,
+        encryptedLength: result.encryptedData.length,
+        durationMs: duration,
+        tokenHash,
+      });
+
+      // Log to audit service
+      if (connectionId && clientId) {
+        try {
+          const auditService = getGoogleAdsAuditService();
+          await auditService.logTokenOperation(
+            'token_encrypt',
+            connectionId,
+            clientId,
+            true,
+            undefined,
+            {
+              keyVersion,
+              algorithm: this.ALGORITHM,
+              tokenHash,
+              durationMs: duration,
+              encryptedLength: result.encryptedData.length,
+            }
+          );
+        } catch (auditError) {
+          console.warn('[Crypto Service] ⚠️ Failed to log encryption to audit:', {
+            error: auditError instanceof Error ? auditError.message : 'Unknown error',
+          });
+          // Don't fail encryption if audit logging fails
+        }
+      }
+
+      return result;
     } catch (error) {
-      console.error('[Crypto Service] Token encryption error:', error);
-      throw new Error('Failed to encrypt token');
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      const duration = Date.now() - startTime;
+      
+      console.error('[Crypto Service] ❌ Token encryption error:', {
+        error: err.message,
+        errorType: err.constructor.name,
+        currentKeyVersion: this.currentKeyVersion,
+        isInitialized: this.isInitialized,
+        durationMs: duration,
+        tokenHash,
+        stack: err.stack,
+      });
+
+      // Log failure to audit service
+      if (connectionId && clientId) {
+        try {
+          const auditService = getGoogleAdsAuditService();
+          await auditService.logTokenOperation(
+            'token_encrypt',
+            connectionId,
+            clientId,
+            false,
+            err.message,
+            {
+              tokenHash,
+              durationMs: duration,
+              errorType: err.constructor.name,
+            }
+          );
+        } catch (auditError) {
+          console.warn('[Crypto Service] ⚠️ Failed to log encryption failure to audit:', {
+            error: auditError instanceof Error ? auditError.message : 'Unknown error',
+          });
+        }
+      }
+      
+      throw new Error(`Failed to encrypt token: ${err.message}`);
     }
   }
 
   /**
    * Decrypt a token (supports multiple key versions)
+   * Handles both encrypted and plain text tokens for backward compatibility
    */
-  async decryptToken(encryptedData: string): Promise<DecryptionResult> {
+  async decryptToken(encryptedData: string, connectionId?: string, clientId?: string): Promise<DecryptionResult> {
+    const startTime = Date.now();
+    const encryptedDataHash = GoogleAdsCryptoService.generateTokenHash(encryptedData);
+    let isPlainText = false;
+    let keyVersion: number | undefined;
+    
     try {
+      // Ensure initialization is complete
+      await this.ensureInitialized();
+
+      // Check if token is plain text (migration fallback)
+      // Google tokens have specific prefixes
+      if (
+        encryptedData.startsWith('ya29.') || // Access token
+        encryptedData.startsWith('1//') ||   // Refresh token
+        encryptedData.length < 100           // Too short to be encrypted
+      ) {
+        isPlainText = true;
+        const duration = Date.now() - startTime;
+        
+        console.log('[Crypto Service] ⚠️ Token appears to be plain text, returning as-is (migration fallback):', {
+          tokenPrefix: encryptedData.substring(0, 10) + '...',
+          tokenLength: encryptedData.length,
+          durationMs: duration,
+          encryptedDataHash,
+        });
+
+        const result = {
+          decryptedData: encryptedData,
+          keyVersion: 0, // Plain text = version 0
+        };
+
+        // Log plain text token to audit
+        if (connectionId && clientId) {
+          try {
+            const auditService = getGoogleAdsAuditService();
+            await auditService.logTokenOperation(
+              'token_decrypt',
+              connectionId,
+              clientId,
+              true,
+              undefined,
+              {
+                keyVersion: 0,
+                isPlainText: true,
+                tokenHash: encryptedDataHash,
+                durationMs: duration,
+                migrationFallback: true,
+              }
+            );
+          } catch (auditError) {
+            console.warn('[Crypto Service] ⚠️ Failed to log plain text decryption to audit:', {
+              error: auditError instanceof Error ? auditError.message : 'Unknown error',
+            });
+          }
+        }
+        
+        return result;
+      }
+
+      console.log('[Crypto Service] Decrypting token:', {
+        encryptedLength: encryptedData.length,
+        encryptedDataHash,
+        connectionId,
+        clientId,
+      });
+
       // Decode from base64
       const combined = Buffer.from(encryptedData, 'base64');
 
       // Extract version (first 4 bytes)
-      const keyVersion = combined.readUInt32BE(0);
+      keyVersion = combined.readUInt32BE(0);
+      
+      console.log('[Crypto Service] Token encrypted with key version:', keyVersion);
       
       // Extract components
       const salt = combined.subarray(4, 4 + this.SALT_LENGTH);
@@ -436,13 +945,99 @@ export class GoogleAdsCryptoService {
       let decrypted = decipher.update(encrypted.toString('hex'), 'hex', 'utf8');
       decrypted += decipher.final('utf8');
 
-      return {
+      const duration = Date.now() - startTime;
+      const decryptedHash = GoogleAdsCryptoService.generateTokenHash(decrypted);
+
+      console.log('[Crypto Service] ✅ Token decrypted successfully:', {
+        keyVersion,
+        decryptedLength: decrypted.length,
+        durationMs: duration,
+        encryptedDataHash,
+        decryptedHash,
+      });
+
+      const result = {
         decryptedData: decrypted,
         keyVersion,
       };
+
+      // Log to audit service
+      if (connectionId && clientId) {
+        try {
+          const auditService = getGoogleAdsAuditService();
+          await auditService.logTokenOperation(
+            'token_decrypt',
+            connectionId,
+            clientId,
+            true,
+            undefined,
+            {
+              keyVersion,
+              tokenHash: encryptedDataHash,
+              durationMs: duration,
+              decryptedLength: decrypted.length,
+            }
+          );
+        } catch (auditError) {
+          console.warn('[Crypto Service] ⚠️ Failed to log decryption to audit:', {
+            error: auditError instanceof Error ? auditError.message : 'Unknown error',
+          });
+          // Don't fail decryption if audit logging fails
+        }
+      }
+
+      return result;
     } catch (error) {
-      console.error('[Crypto Service] Token decryption error:', error);
-      throw new Error('Failed to decrypt token');
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      const duration = Date.now() - startTime;
+      
+      console.error('[Crypto Service] ❌ Token decryption error:', {
+        error: err.message,
+        errorType: err.constructor.name,
+        encryptedDataLength: encryptedData.length,
+        encryptedDataPrefix: encryptedData.substring(0, 20) + '...',
+        isInitialized: this.isInitialized,
+        currentKeyVersion: this.currentKeyVersion,
+        keyVersion,
+        durationMs: duration,
+        encryptedDataHash,
+        stack: err.stack,
+      });
+      
+      // If decryption fails, try returning as plain text (migration fallback)
+      console.warn('[Crypto Service] ⚠️ Decryption failed, attempting plain text fallback...');
+
+      const result = {
+        decryptedData: encryptedData,
+        keyVersion: 0,
+      };
+
+      // Log failure to audit service
+      if (connectionId && clientId) {
+        try {
+          const auditService = getGoogleAdsAuditService();
+          await auditService.logTokenOperation(
+            'token_decrypt',
+            connectionId,
+            clientId,
+            false,
+            err.message,
+            {
+              keyVersion: keyVersion || 0,
+              tokenHash: encryptedDataHash,
+              durationMs: duration,
+              errorType: err.constructor.name,
+              fallbackToPlainText: true,
+            }
+          );
+        } catch (auditError) {
+          console.warn('[Crypto Service] ⚠️ Failed to log decryption failure to audit:', {
+            error: auditError instanceof Error ? auditError.message : 'Unknown error',
+          });
+        }
+      }
+      
+      return result;
     }
   }
 
@@ -457,24 +1052,57 @@ export class GoogleAdsCryptoService {
     success: boolean;
     keyVersion?: number;
     error?: string;
+    initializationStatus?: any;
   }> {
     try {
+      console.log('[Crypto Service] ========================================');
+      console.log('[Crypto Service] Starting encryption test...');
+      
+      // Ensure initialization
+      await this.ensureInitialized();
+      
+      const initStatus = this.getInitializationStatus();
+      console.log('[Crypto Service] Initialization status:', initStatus);
+      
       const testToken = `test-token-${Date.now()}-${Math.random()}`;
       
+      console.log('[Crypto Service] Encrypting test token...');
       const encrypted = await this.encryptToken(testToken);
+      
+      console.log('[Crypto Service] Decrypting test token...');
       const decrypted = await this.decryptToken(encrypted.encryptedData);
       
       const success = testToken === decrypted.decryptedData;
       
+      console.log('[Crypto Service] Encryption test result:', {
+        success,
+        keyVersion: encrypted.keyVersion,
+        originalLength: testToken.length,
+        encryptedLength: encrypted.encryptedData.length,
+        decryptedLength: decrypted.decryptedData.length,
+        tokensMatch: success,
+      });
+      console.log('[Crypto Service] ========================================');
+      
       return {
         success,
         keyVersion: encrypted.keyVersion,
+        initializationStatus: initStatus,
       };
     } catch (error) {
-      console.error('[Crypto Service] Encryption test failed:', error);
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      
+      console.error('[Crypto Service] ❌ Encryption test failed:', {
+        error: err.message,
+        errorType: err.constructor.name,
+        stack: err.stack,
+      });
+      console.log('[Crypto Service] ========================================');
+      
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: err.message,
+        initializationStatus: this.getInitializationStatus(),
       };
     }
   }

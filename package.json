@@ -35,7 +35,11 @@
     "report:staging": "node scripts/generate-staging-report.js",
     "monitor:production": "node scripts/monitor-production.js",
     "communicate:launch": "node scripts/communicate-launch.js",
-    "deployment:summary": "node scripts/deployment-summary.js"
+    "deployment:summary": "node scripts/deployment-summary.js",
+    "validate:google-ads-v22": "node scripts/validate-google-ads-v22.js",
+    "test:google-config": "node scripts/test-google-ads-config.js",
+    "test:google-oauth": "node scripts/test-google-oauth.js",
+    "test:google-sync": "node scripts/test-google-sync.js"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

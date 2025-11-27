@@ -5,37 +5,48 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, ExternalLink, Settings } from 'lucide-react';
+import { GoogleCampaignsList } from './google-campaigns-list';
 
 interface GoogleAdsCardProps {
   clientId: string;
+  showCampaigns?: boolean;
 }
 
-export function GoogleAdsCard({ clientId }: GoogleAdsCardProps) {
+export function GoogleAdsCard({ clientId, showCampaigns = false }: GoogleAdsCardProps) {
   const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [connections, setConnections] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const handleConnect = async () => {
-    setIsLoading(true);
-    setError(null);
-    
+  useEffect(() => {
+    checkConnection();
+  }, [clientId]);
+
+  const checkConnection = async () => {
     try {
-      const response = await fetch(`/api/google/auth?clientId=${clientId}`);
-      
-      if (!response.ok) {
-        throw new Error('Erro ao conectar com Google Ads');
-      }
-      
+      setLoading(true);
+      const response = await fetch(`/api/google/connections?clientId=${clientId}`);
       const data = await response.json();
-      
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
+
+      if (response.ok) {
+        const activeConnections = data.connections?.filter((c: any) => c.status === 'active') || [];
+        setConnections(activeConnections);
+        setIsConnected(activeConnections.length > 0);
+      } else {
+        setError(data.error || 'Erro ao verificar conexões');
       }
     } catch (err) {
-      console.error('Erro ao conectar Google Ads:', err);
-      setError('Erro ao conectar com Google Ads. Tente novamente.');
+      console.error('Erro ao verificar conexão Google:', err);
+      setError('Erro ao verificar conexões');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const handleConnect = () => {
+    if (typeof window !== 'undefined') {
+      // Redireciona o usuário para a rota de iniciação do OAuth
+      window.location.href = `/api/google/oauth/initiate?clientId=${clientId}`;
     }
   };
 
@@ -68,7 +79,12 @@ export function GoogleAdsCard({ clientId }: GoogleAdsCardProps) {
             </div>
           )}
           
-          {!isConnected ? (
+          {loading ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-500">Verificando conexões...</p>
+            </div>
+          ) : !isConnected ? (
             <div className="text-center py-4">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Settings className="w-8 h-8 text-gray-400" />
@@ -81,20 +97,10 @@ export function GoogleAdsCard({ clientId }: GoogleAdsCardProps) {
               </p>
               <Button 
                 onClick={handleConnect}
-                disabled={isLoading}
                 className="w-full"
               >
-                {isLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Conectando...
-                  </>
-                ) : (
-                  <>
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Conectar Google Ads
-                  </>
-                )}
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Conectar Google Ads
               </Button>
             </div>
           ) : (
@@ -107,17 +113,50 @@ export function GoogleAdsCard({ clientId }: GoogleAdsCardProps) {
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Google Ads Conectado
               </h3>
-              <p className="text-gray-500 mb-4">
-                Sua conta está conectada e sincronizando dados.
+              <p className="text-gray-500 mb-2">
+                {connections.length} conta{connections.length > 1 ? 's' : ''} conectada{connections.length > 1 ? 's' : ''}
               </p>
-              <Button variant="outline" className="w-full">
-                <Settings className="w-4 h-4 mr-2" />
-                Gerenciar Conexão
-              </Button>
+              {connections.length > 0 && (
+                <div className="text-sm text-gray-600 mb-4">
+                  {connections.map((conn, index) => (
+                    <div key={conn.id} className="py-1">
+                      Customer ID: {conn.customer_id}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => window.location.href = `/dashboard/google?client=${clientId}`}
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Ver Campanhas
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={handleConnect}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Reconectar
+                </Button>
+              </div>
             </div>
           )}
         </div>
       </CardContent>
+
+      {/* Mostrar lista de campanhas se solicitado e conectado */}
+      {showCampaigns && isConnected && connections.length > 0 && (
+        <div className="mt-6">
+          <GoogleCampaignsList 
+            clientId={clientId} 
+            connectionId={connections[0].id}
+          />
+        </div>
+      )}
     </Card>
   );
 }

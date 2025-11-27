@@ -99,6 +99,14 @@ export async function GET(request: NextRequest) {
 
     const clientId = oauthState.client_id;
 
+    // Validate that clientId exists
+    if (!clientId) {
+      console.error('[Google Callback Simple] Missing client_id in OAuth state');
+      return NextResponse.redirect(
+        new URL('/dashboard?error=invalid_client&message=Client ID não encontrado no estado OAuth', request.url)
+      );
+    }
+
     // Exchange authorization code for tokens (simplified)
     console.log('[Google Callback Simple] Exchanging authorization code for tokens...');
     

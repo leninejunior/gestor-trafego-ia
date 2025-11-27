@@ -7,7 +7,7 @@ import { isSuperAdmin } from '@/lib/auth/super-admin'
  */
 export async function superAdminMiddleware(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
@@ -49,7 +49,7 @@ export async function getDataForSuperAdmin<T>(
   userId: string,
   selectQuery: string = '*'
 ): Promise<T[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   // Verificar se é super admin
   const isSuper = await isSuperAdmin(userId)

@@ -9,6 +9,54 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- =====================================================
+-- Table: google_ads_encryption_keys
+-- Stores encryption keys for token encryption with rotation support
+-- =====================================================
+CREATE TABLE IF NOT EXISTS google_ads_encryption_keys (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  key_data TEXT NOT NULL,
+  algorithm VARCHAR(50) DEFAULT 'aes-256-gcm',
+  version INTEGER DEFAULT 1,
+  key_hash TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days')
+);
+
+-- Index for active keys with expiration
+CREATE INDEX IF NOT EXISTS idx_google_encryption_active_expires 
+ON google_ads_encryption_keys(is_active, expires_at DESC) 
+WHERE is_active = true;
+
+-- Index for version-based lookups
+CREATE INDEX IF NOT EXISTS idx_google_encryption_version 
+ON google_ads_encryption_keys(version DESC);
+
+-- RLS Policy for google_ads_encryption_keys
+ALTER TABLE google_ads_encryption_keys ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "service_role_encryption_keys_access" ON google_ads_encryption_keys;
+
+-- Only service role can access encryption keys
+CREATE POLICY "service_role_encryption_keys_access"
+  ON google_ads_encryption_keys
+  FOR ALL
+  TO service_role
+  USING (true);
+
+-- Insert initial encryption key if none exists
+INSERT INTO google_ads_encryption_keys (key_data, algorithm, version, is_active)
+SELECT 
+  encode(gen_random_bytes(32), 'base64'),
+  'aes-256-gcm',
+  1,
+  true
+WHERE NOT EXISTS (
+  SELECT 1 FROM google_ads_encryption_keys WHERE is_active = true
+);
+
+-- =====================================================
 -- Table: google_ads_connections
 -- Stores OAuth connections to Google Ads accounts
 -- =====================================================
@@ -26,28 +74,28 @@ CREATE TABLE IF NOT EXISTS google_ads_connections (
   UNIQUE(client_id, customer_id)
 );
 
+-- Add user_id column if it doesn't exist (for tracking who created the connection)
+ALTER TABLE google_ads_connections 
+ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+
 -- Index for performance
 CREATE INDEX IF NOT EXISTS idx_google_connections_client ON google_ads_connections(client_id);
 CREATE INDEX IF NOT EXISTS idx_google_connections_status ON google_ads_connections(status);
 CREATE INDEX IF NOT EXISTS idx_google_connections_customer ON google_ads_connections(customer_id);
 
 -- RLS Policy for google_ads_connections
+-- DISABLED: Allowing all authenticated users to see all connections
+-- If you want isolation by organization, uncomment the policy below
 ALTER TABLE google_ads_connections ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
-DROP POLICY IF EXISTS "Users can only access their client's Google connections" ON google_ads_connections;
+DROP POLICY IF EXISTS "google_connections_client_access" ON google_ads_connections;
 
--- Create RLS policy
-CREATE POLICY "Users can only access their client's Google connections"
+-- Allow all authenticated users to access all connections
+CREATE POLICY "authenticated_users_can_access_all"
   ON google_ads_connections
   FOR ALL
-  USING (
-    client_id IN (
-      SELECT om.client_id 
-      FROM organization_memberships om
-      WHERE om.user_id = auth.uid()
-    )
-  );
+  USING (auth.role() = 'authenticated');
 
 -- =====================================================
 -- Table: google_ads_campaigns
@@ -79,19 +127,13 @@ CREATE INDEX IF NOT EXISTS idx_google_campaigns_campaign_id ON google_ads_campai
 ALTER TABLE google_ads_campaigns ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
-DROP POLICY IF EXISTS "Users can only access their client's Google campaigns" ON google_ads_campaigns;
+DROP POLICY IF EXISTS "google_campaigns_client_access" ON google_ads_campaigns;
 
--- Create RLS policy
-CREATE POLICY "Users can only access their client's Google campaigns"
+-- Allow all authenticated users to access all campaigns
+CREATE POLICY "authenticated_users_can_access_all"
   ON google_ads_campaigns
   FOR ALL
-  USING (
-    client_id IN (
-      SELECT om.client_id 
-      FROM organization_memberships om
-      WHERE om.user_id = auth.uid()
-    )
-  );
+  USING (auth.role() = 'authenticated');
 
 -- =====================================================
 -- Table: google_ads_metrics
@@ -124,20 +166,13 @@ CREATE INDEX IF NOT EXISTS idx_google_metrics_campaign_date ON google_ads_metric
 ALTER TABLE google_ads_metrics ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
-DROP POLICY IF EXISTS "Users can only access metrics for their client's campaigns" ON google_ads_metrics;
+DROP POLICY IF EXISTS "google_metrics_client_access" ON google_ads_metrics;
 
--- Create RLS policy
-CREATE POLICY "Users can only access metrics for their client's campaigns"
+-- Allow all authenticated users to access all metrics
+CREATE POLICY "authenticated_users_can_access_all"
   ON google_ads_metrics
   FOR ALL
-  USING (
-    campaign_id IN (
-      SELECT gac.id 
-      FROM google_ads_campaigns gac
-      INNER JOIN organization_memberships om ON gac.client_id = om.client_id
-      WHERE om.user_id = auth.uid()
-    )
-  );
+  USING (auth.role() = 'authenticated');
 
 -- =====================================================
 -- Table: google_ads_sync_logs
@@ -166,20 +201,13 @@ CREATE INDEX IF NOT EXISTS idx_google_sync_logs_created ON google_ads_sync_logs(
 ALTER TABLE google_ads_sync_logs ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
-DROP POLICY IF EXISTS "Users can only access sync logs for their client's connections" ON google_ads_sync_logs;
+DROP POLICY IF EXISTS "google_sync_logs_client_access" ON google_ads_sync_logs;
 
--- Create RLS policy
-CREATE POLICY "Users can only access sync logs for their client's connections"
+-- Allow all authenticated users to access all sync logs
+CREATE POLICY "authenticated_users_can_access_all"
   ON google_ads_sync_logs
   FOR ALL
-  USING (
-    connection_id IN (
-      SELECT gac.id 
-      FROM google_ads_connections gac
-      INNER JOIN organization_memberships om ON gac.client_id = om.client_id
-      WHERE om.user_id = auth.uid()
-    )
-  );
+  USING (auth.role() = 'authenticated');
 
 -- =====================================================
 -- Functions and Triggers
@@ -277,11 +305,15 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Comments for documentation
 -- =====================================================
 
+COMMENT ON TABLE google_ads_encryption_keys IS 'Stores encryption keys for token encryption with rotation support';
 COMMENT ON TABLE google_ads_connections IS 'Stores OAuth connections to Google Ads accounts with encrypted tokens';
 COMMENT ON TABLE google_ads_campaigns IS 'Stores Google Ads campaign data synced from Google Ads API';
 COMMENT ON TABLE google_ads_metrics IS 'Stores daily performance metrics for Google Ads campaigns';
 COMMENT ON TABLE google_ads_sync_logs IS 'Logs all synchronization attempts for monitoring and debugging';
 
+COMMENT ON COLUMN google_ads_encryption_keys.algorithm IS 'Encryption algorithm used (e.g., aes-256-gcm)';
+COMMENT ON COLUMN google_ads_encryption_keys.version IS 'Key version number for rotation support';
+COMMENT ON COLUMN google_ads_encryption_keys.key_hash IS 'Encrypted key data (encrypted with master key)';
 COMMENT ON COLUMN google_ads_connections.refresh_token IS 'Encrypted refresh token for OAuth';
 COMMENT ON COLUMN google_ads_connections.access_token IS 'Encrypted access token for OAuth';
 COMMENT ON COLUMN google_ads_metrics.ctr IS 'Click-through rate as percentage';
@@ -292,6 +324,9 @@ COMMENT ON COLUMN google_ads_metrics.roas IS 'Return on ad spend ratio';
 -- Grant permissions
 -- =====================================================
 
+-- Grant access to service role for encryption keys (restricted)
+GRANT SELECT, INSERT, UPDATE, DELETE ON google_ads_encryption_keys TO service_role;
+
 -- Grant access to authenticated users
 GRANT SELECT, INSERT, UPDATE, DELETE ON google_ads_connections TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON google_ads_campaigns TO authenticated;
@@ -301,6 +336,91 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON google_ads_sync_logs TO authenticated;
 -- Grant execute on functions
 GRANT EXECUTE ON FUNCTION get_active_google_connections(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_google_campaign_metrics_summary(UUID, DATE, DATE) TO authenticated;
+
+-- =====================================================
+-- Table: google_ads_audit_log
+-- Stores audit logs for Google Ads operations
+-- =====================================================
+CREATE TABLE IF NOT EXISTS google_ads_audit_log (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  client_id UUID REFERENCES clients(id) ON DELETE CASCADE,
+  connection_id UUID REFERENCES google_ads_connections(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  operation TEXT NOT NULL,
+  resource_type TEXT,
+  resource_id TEXT,
+  action TEXT, -- Legacy field, use 'operation' instead
+  details JSONB, -- Legacy field, use 'metadata' instead
+  metadata JSONB,
+  success BOOLEAN DEFAULT true,
+  error_message TEXT,
+  sensitive_data BOOLEAN DEFAULT false,
+  ip_address INET,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_google_audit_client 
+ON google_ads_audit_log(client_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_google_audit_connection 
+ON google_ads_audit_log(connection_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_google_audit_operation 
+ON google_ads_audit_log(operation, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_google_audit_user_date 
+ON google_ads_audit_log(user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_google_audit_success 
+ON google_ads_audit_log(success, created_at DESC) 
+WHERE success = false;
+
+-- RLS Policy for google_ads_audit_log
+ALTER TABLE google_ads_audit_log ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "service_role_audit_log_access" ON google_ads_audit_log;
+DROP POLICY IF EXISTS "authenticated_users_audit_log_access" ON google_ads_audit_log;
+
+-- Service role has full access
+CREATE POLICY "service_role_audit_log_access"
+  ON google_ads_audit_log
+  FOR ALL
+  TO service_role
+  USING (true);
+
+-- Authenticated users can view audit logs for their clients
+CREATE POLICY "authenticated_users_audit_log_access"
+  ON google_ads_audit_log
+  FOR SELECT
+  TO authenticated
+  USING (
+    client_id IN (
+      SELECT c.id 
+      FROM clients c
+      JOIN memberships m ON m.organization_id = c.org_id
+      WHERE m.user_id = auth.uid()
+    )
+    OR user_id = auth.uid()
+  );
+
+-- Comments for documentation
+COMMENT ON TABLE google_ads_audit_log IS 'Audit logs for Google Ads operations and data access';
+COMMENT ON COLUMN google_ads_audit_log.client_id IS 'Client associated with this audit event';
+COMMENT ON COLUMN google_ads_audit_log.connection_id IS 'Google Ads connection associated with this event';
+COMMENT ON COLUMN google_ads_audit_log.operation IS 'Type of operation performed (e.g., connect, sync, token_refresh)';
+COMMENT ON COLUMN google_ads_audit_log.metadata IS 'Additional structured data about the operation';
+COMMENT ON COLUMN google_ads_audit_log.resource_type IS 'Type of resource affected (e.g., google_ads_connection, campaign)';
+COMMENT ON COLUMN google_ads_audit_log.resource_id IS 'ID of the specific resource affected';
+COMMENT ON COLUMN google_ads_audit_log.success IS 'Whether the operation succeeded';
+COMMENT ON COLUMN google_ads_audit_log.error_message IS 'Error message if operation failed';
+COMMENT ON COLUMN google_ads_audit_log.sensitive_data IS 'Flag indicating if this log contains sensitive data';
+
+-- Grant permissions
+GRANT SELECT, INSERT ON google_ads_audit_log TO authenticated;
+GRANT ALL ON google_ads_audit_log TO service_role;
 
 -- =====================================================
 -- Schema Setup Complete

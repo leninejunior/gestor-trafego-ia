@@ -1,12 +1,13 @@
 /**
- * Google Ads Account Selection API Route
+ * Google Ads Account Selection API Route - Refatorado
  * 
- * Saves selected Google Ads accounts for a connection
- * Requirements: 1.4, 1.5
+ * Salva as contas Google Ads selecionadas
+ * Usa GoogleOAuthFlowManager para lógica centralizada
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getGoogleOAuthFlowManager } from '@/lib/google/oauth-flow-manager';
 import { z } from 'zod';
 
 // ============================================================================
@@ -25,11 +26,13 @@ const SelectAccountsSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse and validate request body
+    console.log('[Google Account Select] 💾 Salvando seleção de contas');
+    
+    // Validar request body
     const body = await request.json();
     const { connectionId, clientId, selectedAccounts } = SelectAccountsSchema.parse(body);
 
-    // Get authenticated user
+    // Verificar autenticação
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -40,124 +43,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify user has access to the client
-    const { data: membership, error: membershipError } = await supabase
-      .from('organization_memberships')
-      .select('client_id')
-      .eq('user_id', user.id)
-      .eq('client_id', clientId)
-      .single();
+    // Salvar contas usando flow manager
+    const flowManager = getGoogleOAuthFlowManager();
+    const result = await flowManager.saveSelectedAccounts(
+      connectionId,
+      clientId,
+      selectedAccounts
+    );
 
-    if (membershipError || !membership) {
+    if (!result.success) {
+      console.error('[Google Account Select] ❌ Erro:', result.error);
       return NextResponse.json(
-        { error: 'Acesso negado ao cliente especificado' },
-        { status: 403 }
-      );
-    }
-
-    // Get connection details
-    const { data: connection, error: connectionError } = await supabase
-      .from('google_ads_connections')
-      .select('id, client_id, customer_id, status')
-      .eq('id', connectionId)
-      .eq('client_id', clientId)
-      .single();
-
-    if (connectionError || !connection) {
-      return NextResponse.json(
-        { error: 'Conexão não encontrada' },
-        { status: 404 }
-      );
-    }
-
-    // For simplicity, we'll use the first selected account as the primary customer ID
-    // In a more complex implementation, you might create separate connections for each account
-    const primaryCustomerId = selectedAccounts[0];
-
-    // Get the full account details from the accounts API
-    // For now, we'll create a simple structure with the selected account IDs
-    const selectedAccountsData = selectedAccounts.map(accountId => ({
-      customerId: accountId,
-      descriptiveName: `Conta ${accountId}`,
-      currencyCode: 'BRL',
-      timeZone: 'America/Sao_Paulo',
-      canManageClients: false,
-    }));
-
-    // Update the connection with the selected customer ID and accounts data
-    // Since we don't have selected_accounts column yet, we'll store it in a comment or use customer_id
-    const { error: updateError } = await supabase
-      .from('google_ads_connections')
-      .update({
-        customer_id: primaryCustomerId,
-        status: 'active',
-        updated_at: new Date().toISOString(),
-        // Store selected accounts in customer_id for now (we'll fix this properly later)
-      })
-      .eq('id', connectionId);
-
-    if (updateError) {
-      console.error('[Google Account Select] Error updating connection:', updateError);
-      return NextResponse.json(
-        { error: 'Erro ao salvar seleção de contas' },
+        { error: result.error || 'Erro ao salvar seleção' },
         { status: 500 }
       );
     }
 
-    // If multiple accounts were selected, create additional connections
-    const additionalConnections = [];
-    
-    if (selectedAccounts.length > 1) {
-      for (let i = 1; i < selectedAccounts.length; i++) {
-        const customerId = selectedAccounts[i];
-        
-        try {
-          const { data: newConnection, error: createError } = await supabase
-            .from('google_ads_connections')
-            .insert({
-              client_id: clientId,
-              customer_id: customerId,
-              refresh_token: 'shared', // Will be copied from primary connection
-              status: 'active',
-            })
-            .select('id')
-            .single();
-
-          if (createError) {
-            console.error(`[Google Account Select] Error creating connection for ${customerId}:`, createError);
-          } else {
-            additionalConnections.push({
-              id: newConnection.id,
-              customerId,
-            });
-          }
-        } catch (error) {
-          console.error(`[Google Account Select] Error creating additional connection:`, error);
-        }
-      }
-    }
-
-    // Log the account selection
-    console.log('[Google Account Select] Accounts selected:', {
-      connectionId,
-      clientId,
-      primaryCustomerId,
-      additionalAccounts: selectedAccounts.slice(1),
-      totalConnections: 1 + additionalConnections.length,
-    });
+    console.log('[Google Account Select] ✅ Contas salvas com sucesso');
 
     return NextResponse.json({
       success: true,
-      connectionId,
-      primaryCustomerId,
+      connectionIds: result.connectionIds,
+      primaryCustomerId: result.primaryCustomerId,
       selectedAccounts,
-      additionalConnections,
-      totalConnections: 1 + additionalConnections.length,
+      totalConnections: result.connectionIds.length,
       message: `${selectedAccounts.length} conta${selectedAccounts.length > 1 ? 's' : ''} conectada${selectedAccounts.length > 1 ? 's' : ''} com sucesso`,
     });
 
-  } catch (error) {
-    console.error('[Google Account Select] Error:', error);
+  } catch (error: any) {
+    console.error('[Google Account Select] ❌ Erro:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

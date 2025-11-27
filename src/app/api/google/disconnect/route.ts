@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       DisconnectRequestSchema.parse(body);
 
     // Get authenticated user
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -88,11 +88,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify user has access to this connection's client
+    const { data: clientData, error: clientError } = await supabase
+      .from('clients')
+      .select('org_id')
+      .eq('id', connection.client_id)
+      .single();
+
+    if (clientError || !clientData) {
+      return NextResponse.json(
+        { error: 'Cliente não encontrado' },
+        { status: 404 }
+      );
+    }
+
     const { data: membership, error: membershipError } = await supabase
-      .from('organization_memberships')
-      .select('client_id')
+      .from('memberships')
+      .select('org_id')
       .eq('user_id', user.id)
-      .eq('client_id', connection.client_id)
+      .eq('org_id', clientData.org_id)
       .single();
 
     if (membershipError || !membership) {
@@ -116,19 +129,24 @@ export async function POST(request: NextRequest) {
 
     // Delete associated data if requested
     if (deleteData) {
-      // Delete metrics first (foreign key constraint)
-      const { error: metricsError } = await supabase
-        .from('google_ads_metrics')
-        .delete()
-        .in('campaign_id', 
-          supabase
-            .from('google_ads_campaigns')
-            .select('id')
-            .eq('connection_id', connection.id)
-        );
+      // First get campaign IDs
+      const { data: campaigns } = await supabase
+        .from('google_ads_campaigns')
+        .select('id')
+        .eq('connection_id', connection.id);
 
-      if (metricsError) {
-        console.error('[Google Disconnect] Error deleting metrics:', metricsError);
+      const campaignIds = campaigns?.map(c => c.id) || [];
+
+      // Delete metrics first (foreign key constraint)
+      if (campaignIds.length > 0) {
+        const { error: metricsError } = await supabase
+          .from('google_ads_metrics')
+          .delete()
+          .in('campaign_id', campaignIds);
+
+        if (metricsError) {
+          console.error('[Google Disconnect] Error deleting metrics:', metricsError);
+        }
       }
 
       // Delete campaigns
@@ -243,7 +261,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get authenticated user
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -284,11 +302,27 @@ export async function GET(request: NextRequest) {
 
     // Verify user has access to these connections
     const clientIds = connections.map(conn => conn.client_id);
+    
+    // Get org_ids for these clients
+    const { data: clients, error: clientsError } = await supabase
+      .from('clients')
+      .select('id, org_id')
+      .in('id', clientIds);
+
+    if (clientsError || !clients || clients.length === 0) {
+      return NextResponse.json(
+        { error: 'Clientes não encontrados' },
+        { status: 404 }
+      );
+    }
+
+    const orgIds = clients.map(c => c.org_id);
+    
     const { data: memberships, error: membershipError } = await supabase
-      .from('organization_memberships')
-      .select('client_id')
+      .from('memberships')
+      .select('org_id')
       .eq('user_id', user.id)
-      .in('client_id', clientIds);
+      .in('org_id', orgIds);
 
     if (membershipError || !memberships || memberships.length === 0) {
       return NextResponse.json(
@@ -297,7 +331,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const accessibleClientIds = memberships.map(m => m.client_id);
+    const accessibleOrgIds = memberships.map(m => m.organization_id);
+    const accessibleClientIds = clients
+      .filter(c => accessibleOrgIds.includes(c.org_id))
+      .map(c => c.id);
+    
     const accessibleConnections = connections.filter(conn => 
       accessibleClientIds.includes(conn.client_id)
     );
@@ -305,25 +343,28 @@ export async function GET(request: NextRequest) {
     // Get campaign and metrics counts for each connection
     const connectionsWithCounts = await Promise.all(
       accessibleConnections.map(async (conn) => {
-        const { data: campaignCount } = await supabase
+        const { data: campaigns } = await supabase
           .from('google_ads_campaigns')
-          .select('id', { count: 'exact' })
+          .select('id')
           .eq('connection_id', conn.id);
 
-        const { data: metricsCount } = await supabase
-          .from('google_ads_metrics')
-          .select('id', { count: 'exact' })
-          .in('campaign_id',
-            supabase
-              .from('google_ads_campaigns')
-              .select('id')
-              .eq('connection_id', conn.id)
-          );
+        const campaignIds = campaigns?.map(c => c.id) || [];
+        const campaignCount = campaigns?.length || 0;
+
+        let metricsCount = 0;
+        if (campaignIds.length > 0) {
+          const { data: metrics } = await supabase
+            .from('google_ads_metrics')
+            .select('id')
+            .in('campaign_id', campaignIds);
+          
+          metricsCount = metrics?.length || 0;
+        }
 
         return {
           ...conn,
-          campaignCount: campaignCount?.length || 0,
-          metricsCount: metricsCount?.length || 0,
+          campaignCount,
+          metricsCount,
         };
       })
     );

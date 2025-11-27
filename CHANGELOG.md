@@ -1,323 +1,162 @@
-# 📝 Changelog - Sistema SaaS Completo
+# Changelog
 
-## [2.1.0] - 2025-01-19 - Melhorias e Correções
+Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 
-### ✨ Adicionado
-- **CRUD de Organizações**: Sistema completo de criar, editar e deletar organizações
-- **Contador de Campanhas**: Exibição do número de campanhas por cliente
-- **API de Organizações**: Endpoints completos para gerenciamento
-- **Documentação Consolidada**: README.md atualizado e completo
+O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
+e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
-### 🔧 Corrigido
-- **Filtro de Campanhas**: Alterado padrão de 1 ano para mês atual
-- **Login**: Corrigido redirecionamento após autenticação
-- **API Organizações**: Corrigido erro 500 em produção
-- **Páginas Admin**: Habilitadas em produção (organizações, usuários, leads)
+## [Unreleased]
 
-### 🚀 Melhorado
-- **API Clientes**: Adicionada contagem de campanhas
-- **Autenticação**: Melhorada verificação de sessão
-- **Deploy**: Otimizado .vercelignore para produção
+### 2025-11-26 - Correção: Campanhas Google Ads Não Aparecem
 
-### 🧹 Limpeza
-- Removida documentação duplicada e obsoleta
-- Removidos scripts SQL não utilizados
-- Removidos scripts PowerShell obsoletos
-- Organizada estrutura de documentação
+#### Corrigido
+- **API metrics-simple**: Corrigido erro ao buscar conexões Google Ads
+  - Alterado `.single()` para `.maybeSingle()` para suportar múltiplas conexões
+  - Corrigido filtro de `.eq('is_active', true)` para `.eq('status', 'active')`
+  - Adicionado verificação de conexões inativas com mensagem apropriada
+  - Melhorada mensagem de erro quando conexão está expirada
+  - Localização: `src/app/api/google/metrics-simple/route.ts`
 
-### 📚 Documentação
-- Criado README.md completo e atualizado
-- Criado guia de limpeza de arquivos
-- Atualizado CHANGELOG.md
-- Mantida apenas documentação essencial
+- **API campaigns**: Adicionado filtro de conexão ativa
+  - Verifica conexão ativa antes de buscar campanhas
+  - Corrigido filtro de `is_active` para `status = 'active'`
+  - Filtra automaticamente apenas conexão ativa quando não especificada
+  - Retorna mensagem clara quando não há conexão ativa
+  - Localização: `src/app/api/google/campaigns/route.ts`
 
-## [2.0.0] - 2024-12-19 - SISTEMA COMPLETO
+#### Adicionado
+- **Script de diagnóstico**: `scripts/diagnose-campaigns-issue.js`
+  - Verifica conexões Google Ads e seu status
+  - Lista campanhas sincronizadas
+  - Testa query da API para identificar problemas
+  - Fornece diagnóstico detalhado do problema
 
-### 🎉 **MAJOR RELEASE - Sistema SaaS Completo Implementado**
+- **Script de reativação**: `scripts/reactivate-google-connection.js`
+  - Reativa conexão Google Ads mais recente
+  - Marca conexões antigas como expiradas
+  - Útil para resolver problemas de múltiplas conexões
 
-Esta é uma release completa que transforma o projeto em um sistema SaaS profissional e funcional.
+- **Documentação**: `GOOGLE_ADS_CAMPANHAS_NAO_APARECEM_SOLUCAO.md`
+  - Diagnóstico completo do problema
+  - Correções aplicadas detalhadas
+  - Instruções para o usuário sincronizar campanhas
+  - Scripts de teste disponíveis
 
----
+#### Problema Identificado
+- Conexão Google Ads estava ativa mas sem campanhas sincronizadas
+- API usava `.single()` que falhava com múltiplas conexões
+- Schema usa `status` mas código buscava por `is_active`
+- Primeira sincronização manual necessária após conectar conta
 
-## 🚀 **Funcionalidades Principais Adicionadas**
+#### Solução
+1. Usuário deve clicar em "Sincronizar Agora" no dashboard Google
+2. Aguardar sincronização completar (alguns minutos)
+3. Campanhas aparecerão automaticamente na lista
+4. Sincronização automática ocorrerá a cada 6 horas
 
-### **📊 Analytics Avançado com IA**
-- **NOVO**: Página de analytics avançado (`/dashboard/analytics/advanced`)
-- **NOVO**: 8 KPIs principais com comparação temporal
-- **NOVO**: 6 seções especializadas de análise
-- **NOVO**: Analytics preditivo com machine learning
-- **NOVO**: Análise competitiva com benchmarks
-- **NOVO**: Insights de audiência segmentados
-- **NOVO**: ROI analysis com múltiplas visualizações
+### 2025-11-26 - Listagem de Campanhas Google Ads
 
-#### Componentes Criados:
-- `src/components/analytics/advanced-kpi-cards.tsx`
-- `src/components/analytics/campaign-performance-chart.tsx`
-- `src/components/analytics/roi-analysis.tsx`
-- `src/components/analytics/audience-insights.tsx`
-- `src/components/analytics/competitor-analysis.tsx`
-- `src/components/analytics/predictive-analytics.tsx`
+#### Adicionado
+- **API de Campanhas Google Ads**: Endpoint para listar campanhas sincronizadas
+  - Rota: `GET /api/google/campaigns`
+  - Parâmetros: `clientId` (obrigatório), `connectionId` (opcional)
+  - Retorna campanhas do banco com dados da conexão
+  - Suporta filtro por conexão específica
+  - Localização: `src/app/api/google/campaigns/route.ts`
 
-### **🎯 Sistema de Onboarding Completo**
-- **NOVO**: Página principal de onboarding (`/onboarding`)
-- **NOVO**: Wizard interativo de 5 etapas (`/onboarding/wizard`)
-- **NOVO**: Checklist inteligente de progresso
-- **NOVO**: Tutorial com overlay interativo
-- **NOVO**: Configuração guiada para novos usuários
+- **Componente GoogleCampaignsList**: Lista de campanhas Google Ads
+  - Exibe campanhas sincronizadas em tabela
+  - Mostra status, orçamento, conta e data de sincronização
+  - Link direto para campanha no Google Ads
+  - Botão de atualização manual
+  - Estado vazio com mensagem amigável
+  - Localização: `src/components/google/google-campaigns-list.tsx`
 
-#### Componentes Criados:
-- `src/components/onboarding/setup-checklist.tsx`
-- `src/components/onboarding/interactive-tutorial.tsx`
+- **Página dedicada Google Ads**: Visualização completa de campanhas
+  - Rota: `/dashboard/clients/[clientId]/google`
+  - Navegação com breadcrumb
+  - Lista completa de campanhas do cliente
+  - Localização: `src/app/dashboard/clients/[clientId]/google/page.tsx`
 
-### **👑 Painel Administrativo Profissional**
-- **NOVO**: Dashboard administrativo (`/admin`)
-- **NOVO**: Gerenciamento de organizações (`/admin/organizations`)
-- **NOVO**: Controle financeiro (`/admin/billing`)
-- **NOVO**: Gestão de usuários (`/admin/users`)
-- **NOVO**: Métricas globais do sistema
-- **NOVO**: Controle de assinaturas e planos
+#### Modificado
+- **GoogleAdsCard**: Adicionado suporte para exibir campanhas
+  - Nova prop `showCampaigns` (opcional)
+  - Integração com GoogleCampaignsList quando conectado
+  - Mantém funcionalidade de conexão existente
 
-#### Páginas Criadas:
-- `src/app/admin/page.tsx`
-- `src/app/admin/organizations/page.tsx`
-- `src/app/admin/organizations/[orgId]/page.tsx`
-- `src/app/admin/users/page.tsx`
-- `src/app/admin/billing/page.tsx`
+- **Página do Cliente**: Integração com listagem de campanhas
+  - Importa GoogleCampaignsList
+  - Exibe campanhas Google Ads após campanhas Meta
+  - Mantém layout consistente com Meta Ads
 
----
+### 2025-11-25 - Google Ads Schema e Diagnóstico
 
-## 🛠️ **Melhorias Técnicas**
+#### Adicionado
+- **Migração 05-force-schema-reload.sql**: Força reload do cache do PostgREST
+  - Verifica existência da coluna `client_id` em `google_ads_audit_log`
+  - Envia notificação `NOTIFY pgrst, 'reload schema'` para atualizar cache
+  - Lista estrutura completa da tabela e políticas RLS
+  - Localização: `database/migrations/05-force-schema-reload.sql`
 
-### **Componentes UI Adicionados**
-- **NOVO**: `src/components/ui/tabs.tsx` - Sistema de tabs responsivo
-- **NOVO**: `src/components/ui/label.tsx` - Labels para formulários
-- **MELHORADO**: `src/components/ui/progress.tsx` - Barras de progresso
-- **MELHORADO**: `src/components/ui/badge.tsx` - Badges de status
+- **Script diagnose-google-403.js**: Diagnóstico completo do erro 403 da Google Ads API
+  - Verifica variáveis de ambiente (Client ID, Secret, Developer Token)
+  - Analisa formato e validade do Developer Token
+  - Lista possíveis causas do erro 403 com soluções
+  - Testa conectividade com Google OAuth
+  - Fornece recomendações priorizadas
+  - Localização: `scripts/diagnose-google-403.js`
 
-### **Banco de Dados**
-- **NOVO**: `database/admin-functions.sql` - Funções para métricas administrativas
-- **NOVO**: Funções SQL para estatísticas do sistema
-- **NOVO**: Queries otimizadas para analytics
-- **MELHORADO**: RLS policies para segurança
+- **Documentação APLICAR_MIGRACAO_SCHEMA_RELOAD.md**: Guia passo a passo
+  - Instruções detalhadas para aplicar migração no Supabase
+  - Checklist de verificação pós-migração
+  - Troubleshooting do erro 403
+  - Próximos passos e documentação relacionada
 
-### **Scripts e Automação**
-- **NOVO**: `scripts/test-system.js` - Teste automatizado do sistema
-- **NOVO**: `scripts/apply-admin-functions.js` - Aplicação de funções SQL
-- **NOVO**: Validação automática de componentes
+- **Documentação GOOGLE_ADS_PROBLEMAS_IDENTIFICADOS.md**: Resumo executivo
+  - Análise completa dos 2 problemas identificados
+  - Problema 1: Cache do schema desatualizado (solução pronta)
+  - Problema 2: Erro 403 da API (requer ação manual)
+  - Checklist de resolução
+  - Scripts criados e documentação relacionada
 
----
+#### Corrigido
+- **Erro PGRST204**: Cache do PostgREST não reconhecia coluna `client_id`
+  - Causa: Schema cache desatualizado após criação da tabela
+  - Solução: Migração com `NOTIFY pgrst, 'reload schema'`
+  - Status: Aguardando aplicação manual no Supabase SQL Editor
 
-## 🎨 **Melhorias de Interface**
+#### Identificado (Pendente)
+- **Erro 403 Google Ads API**: "The caller does not have permission"
+  - Possível causa 1: Developer Token não aprovado pelo Google
+  - Possível causa 2: Usuário OAuth sem permissões adequadas na conta
+  - Possível causa 3: Login Customer ID necessário para contas MCC
+  - Possível causa 4: Conta Google Ads suspensa ou desativada
+  - Ação necessária: Verificar status do Developer Token em https://ads.google.com/aw/apicenter
 
-### **Design System Completo**
-- **NOVO**: Sistema de cores inteligente baseado em performance
-- **NOVO**: Gradientes e animações suaves
-- **NOVO**: Layout responsivo para todos os dispositivos
-- **NOVO**: Microinterações e feedback visual
+#### Atualizado
+- **Steering database.md**: Adicionada seção com última atualização e problema identificado
+- **Steering google-ads-migrations.md**: Adicionada seção com migração criada e próximas ações
 
-### **Navegação Melhorada**
-- **MELHORADO**: Sidebar com seções organizadas
-- **NOVO**: Breadcrumbs e navegação contextual
-- **NOVO**: Filtros dinâmicos e controles interativos
-- **NOVO**: Estados de loading e feedback
+### Arquivos Modificados
+```
+database/migrations/05-force-schema-reload.sql (novo)
+scripts/diagnose-google-403.js (novo)
+APLICAR_MIGRACAO_SCHEMA_RELOAD.md (novo)
+GOOGLE_ADS_PROBLEMAS_IDENTIFICADOS.md (novo)
+.kiro/steering/database.md (atualizado)
+.kiro/steering/google-ads-migrations.md (atualizado)
+CHANGELOG.md (atualizado)
+```
 
-### **Responsividade**
-- **NOVO**: Layout adaptável para desktop (1920px+)
-- **NOVO**: Layout otimizado para tablet (768px-1919px)
-- **NOVO**: Layout compacto para mobile (375px-767px)
-
----
-
-## 📊 **Dados e Analytics**
-
-### **Métricas Implementadas**
-- **NOVO**: Investimento total com variação temporal
-- **NOVO**: ROAS com classificação de performance
-- **NOVO**: Impressões, cliques, conversões
-- **NOVO**: CTR, CPC, taxa de conversão
-- **NOVO**: Análise de audiência por demografia
-- **NOVO**: Performance por dispositivo e horário
-
-### **Insights de IA**
-- **NOVO**: Descobertas automáticas baseadas em padrões
-- **NOVO**: Recomendações acionáveis com prazos
-- **NOVO**: Alertas inteligentes de oportunidades
-- **NOVO**: Projeções preditivas com confiança estatística
-
-### **Análise Competitiva**
-- **NOVO**: Benchmarking automático com indústria
-- **NOVO**: Perfil detalhado de concorrentes
-- **NOVO**: Identificação de vantagens competitivas
-- **NOVO**: Recomendações estratégicas
-
----
-
-## 🔧 **Correções e Otimizações**
-
-### **Bugs Corrigidos**
-- **FIX**: Importação duplicada de Badge no sidebar
-- **FIX**: Tipos TypeScript para componentes de navegação
-- **FIX**: Erros de compilação em componentes analytics
-- **FIX**: Problemas de responsividade em mobile
-
-### **Performance**
-- **OTIMIZADO**: Componentes com React.memo
-- **OTIMIZADO**: Lazy loading de dados pesados
-- **OTIMIZADO**: Queries SQL com índices
-- **OTIMIZADO**: Bundle splitting automático
-
-### **Segurança**
-- **MELHORADO**: Validação de permissões administrativas
-- **MELHORADO**: Sanitização de dados de entrada
-- **MELHORADO**: Proteção contra XSS e CSRF
+### Próximos Passos
+1. Aplicar migração `05-force-schema-reload.sql` no Supabase SQL Editor
+2. Verificar status do Developer Token no Google Ads API Center
+3. Verificar permissões do usuário OAuth na conta Google Ads
+4. Executar `node scripts/test-google-health-check.js` para validar correções
+5. Atualizar documentação com resultados
 
 ---
 
-## 📚 **Documentação Criada**
+## [Anterior] - Histórico Anterior
 
-### **Documentos Principais**
-- **NOVO**: `README.md` - Documentação completa do projeto
-- **NOVO**: `SISTEMA_SAAS_COMPLETO.md` - Visão geral do sistema
-- **NOVO**: `PAINEL_ADMIN_COMPLETO.md` - Documentação do painel admin
-- **NOVO**: `SISTEMA_ONBOARDING_COMPLETO.md` - Sistema de onboarding
-- **NOVO**: `DASHBOARDS_AVANCADOS_COMPLETO.md` - Analytics avançado
-- **NOVO**: `GUIA_TESTE_SISTEMA_COMPLETO.md` - Guia de testes
-
-### **Documentação Técnica**
-- **NOVO**: Estrutura de arquivos detalhada
-- **NOVO**: Guias de instalação e configuração
-- **NOVO**: Exemplos de uso e APIs
-- **NOVO**: Troubleshooting e FAQ
-
----
-
-## 🧪 **Testes e Qualidade**
-
-### **Testes Automatizados**
-- **NOVO**: Script de teste completo do sistema
-- **NOVO**: Validação de arquivos críticos
-- **NOVO**: Verificação de dependências
-- **NOVO**: Teste de sintaxe de componentes
-
-### **Testes Manuais**
-- **NOVO**: Cenários de teste documentados
-- **NOVO**: Fluxos de usuário validados
-- **NOVO**: Testes de responsividade
-- **NOVO**: Validação de acessibilidade
-
----
-
-## 🚀 **Deploy e Produção**
-
-### **Preparação para Produção**
-- **NOVO**: Configurações de build otimizadas
-- **NOVO**: Variáveis de ambiente documentadas
-- **NOVO**: Scripts de deploy automatizados
-- **NOVO**: Monitoramento e logs
-
-### **Compatibilidade**
-- **SUPORTE**: Next.js 15 com App Router
-- **SUPORTE**: React 19 com hooks modernos
-- **SUPORTE**: TypeScript 5+ com tipos rigorosos
-- **SUPORTE**: Node.js 18+ LTS
-
----
-
-## 📈 **Métricas de Desenvolvimento**
-
-### **Estatísticas do Projeto**
-- **📁 Arquivos**: 100+ arquivos criados/modificados
-- **📄 Componentes**: 25+ componentes React
-- **📊 Páginas**: 15+ páginas funcionais
-- **🎨 UI Components**: 10+ componentes base
-- **📝 Documentação**: 8 documentos detalhados
-
-### **Linhas de Código**
-- **Frontend**: ~15,000 linhas TypeScript/React
-- **Backend**: ~2,000 linhas SQL
-- **Documentação**: ~5,000 linhas Markdown
-- **Scripts**: ~1,000 linhas JavaScript
-
----
-
-## 🎯 **Próximas Versões Planejadas**
-
-### **v2.1.0 - Integrações Reais**
-- [ ] Integração completa com Meta Ads API
-- [ ] Conexão com Google Ads API
-- [ ] WhatsApp Business API
-- [ ] Stripe webhooks para pagamentos
-
-### **v2.2.0 - Machine Learning Avançado**
-- [ ] Modelos preditivos mais sofisticados
-- [ ] Otimização automática de campanhas
-- [ ] Detecção de anomalias
-- [ ] Recomendações personalizadas
-
-### **v2.3.0 - Mobile e PWA**
-- [ ] Progressive Web App (PWA)
-- [ ] App nativo React Native
-- [ ] Notificações push
-- [ ] Modo offline
-
----
-
-## 🤝 **Contribuidores**
-
-### **Desenvolvimento Principal**
-- **Kiro AI** - Desenvolvimento completo do sistema
-- **Arquitetura**: Sistema SaaS multi-tenant
-- **Frontend**: React/Next.js com TypeScript
-- **Backend**: Supabase com PostgreSQL
-- **Design**: Interface moderna e responsiva
-
-### **Tecnologias Utilizadas**
-- **Framework**: Next.js 15 + React 19
-- **Linguagem**: TypeScript
-- **Styling**: Tailwind CSS
-- **UI**: Radix UI + Lucide Icons
-- **Backend**: Supabase + PostgreSQL
-- **Deploy**: Vercel Ready
-
----
-
-## 📞 **Suporte e Contato**
-
-### **Documentação**
-- README principal com guia completo
-- Documentos específicos por funcionalidade
-- Comentários inline no código
-- Exemplos de uso práticos
-
-### **Debug e Logs**
-- Scripts de teste automatizados
-- Logs detalhados no console
-- Ferramentas de debug incluídas
-- Monitoramento de performance
-
----
-
-## 🎉 **Resumo da Release**
-
-### **✅ O que foi Entregue**
-- **Sistema SaaS Completo** e funcional
-- **Analytics Avançado** com IA e insights
-- **Onboarding Estruturado** para novos usuários
-- **Painel Administrativo** profissional
-- **Interface Moderna** e responsiva
-- **Documentação Completa** e detalhada
-- **Testes Automatizados** e validação
-- **Pronto para Produção** com deploy
-
-### **🚀 Impacto**
-Esta release transforma o projeto de um MVP básico em um **sistema SaaS profissional e completo**, pronto para competir no mercado de ferramentas de marketing digital.
-
-### **📊 Valor Agregado**
-- **Para Usuários**: Experiência profissional e insights valiosos
-- **Para Administradores**: Controle total e métricas detalhadas
-- **Para Desenvolvedores**: Código limpo e bem documentado
-- **Para Negócio**: Produto pronto para monetização
-
----
-
-**🎊 Parabéns! Sistema SaaS Completo Implementado com Sucesso!** ✨
+(Adicione aqui o histórico de mudanças anteriores conforme necessário)

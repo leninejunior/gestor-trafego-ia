@@ -1,629 +1,747 @@
-# Google Ads Integration Troubleshooting Guide
+# Google Ads Integration - Guia de Troubleshooting
 
-## Overview
+## 📋 Visão Geral
 
-Este guia fornece soluções para problemas comuns na integração Google Ads, incluindo diagnósticos, correções e prevenção de problemas.
+Este guia fornece soluções para problemas comuns encontrados na integração com Google Ads, incluindo erros de schema, problemas de autenticação, falhas de sincronização e questões de segurança.
 
-## Problemas de Autenticação
+## 🔍 Diagnóstico Rápido
 
-### 1. Erro "AUTHENTICATION_ERROR"
+### Health Check
 
-**Sintomas:**
-- API retorna erro 401 ou "AUTHENTICATION_ERROR"
-- Usuário não consegue conectar conta Google Ads
-- Sync falha com erro de autenticação
+Execute o health check para identificar problemas rapidamente:
 
-**Possíveis Causas:**
-1. Token de acesso expirado
-2. Refresh token inválido ou revogado
-3. Configuração OAuth incorreta
-4. Permissões insuficientes na conta Google Ads
-
-**Diagnóstico:**
-```sql
--- Verificar status dos tokens
-SELECT 
-  c.id,
-  c.customer_id,
-  c.status,
-  c.token_expires_at,
-  CASE 
-    WHEN c.token_expires_at < NOW() THEN 'EXPIRED'
-    WHEN c.token_expires_at < NOW() + INTERVAL '5 minutes' THEN 'EXPIRING_SOON'
-    ELSE 'VALID'
-  END as token_status
-FROM google_ads_connections c
-WHERE client_id = 'CLIENT_UUID';
-```
-
-**Soluções:**
-
-1. **Token Expirado:**
 ```bash
-# Forçar refresh do token via API
-curl -X POST "/api/google/auth/refresh" \
-  -H "Content-Type: application/json" \
-  -d '{"clientId": "CLIENT_UUID"}'
+node scripts/test-google-health-check.js
 ```
 
-2. **Refresh Token Inválido:**
-```sql
--- Marcar conexão como expirada
-UPDATE google_ads_connections 
-SET status = 'expired' 
-WHERE client_id = 'CLIENT_UUID';
-```
-- Usuário precisa reconectar a conta
+**O que verifica:**
+- ✅ Conectividade com banco de dados
+- ✅ Existência de chaves de criptografia
+- ✅ Validade de tokens
+- ✅ Status de quota da API
+- ✅ Integridade do schema
 
-3. **Verificar Configuração OAuth:**
+### Connection Diagnostics
+
+Para problemas específicos de conexão:
+
 ```bash
-# Verificar variáveis de ambiente
-node scripts/check-google-ads-env.js
+node scripts/test-connection-diagnostics.js
 ```
 
-### 2. Erro "PERMISSION_DENIED"
+**O que verifica:**
+- ✅ Scopes OAuth corretos
+- ✅ Acesso ao Customer ID
+- ✅ Permissões da API
+- ✅ Validade do refresh token
 
-**Sintomas:**
-- Erro 403 ao acessar campanhas
-- "Insufficient permissions" na API
+## 🚨 Problemas Comuns e Soluções
 
-**Diagnóstico:**
-```javascript
-// Verificar scopes da conexão
-const connection = await googleAdsRepository.getConnection(clientId);
-console.log('Customer ID:', connection.customer_id);
-console.log('Status:', connection.status);
+### 1. Erros de Schema
+
+#### Erro: "Could not find the 'algorithm' column"
+
+**Sintoma:**
+```
+ERROR: Could not find the 'algorithm' column in google_ads_encryption_keys
 ```
 
-**Soluções:**
-1. Verificar se o usuário tem acesso à conta Google Ads
-2. Confirmar que a conta não foi removida/suspensa
-3. Reconectar com permissões adequadas
+**Causa:** Tabela `google_ads_encryption_keys` não possui colunas necessárias.
 
-## Problemas de Sincronização
-
-### 1. Sync Lento ou Travado
-
-**Sintomas:**
-- Sincronização demora mais de 10 minutos
-- Status permanece "syncing" indefinidamente
-- Timeout em requests
-
-**Diagnóstico:**
+**Solução:**
 ```sql
--- Verificar syncs em andamento
+-- Execute a migração de schema
+\i database/migrations/fix-google-ads-schema.sql
+
+-- Verifique se foi aplicada corretamente
+\i database/migrations/verify-google-ads-schema.sql
+```
+
+**Verificação:**
+```sql
+SELECT column_name FROM information_schema.columns 
+WHERE table_name = 'google_ads_encryption_keys'
+  AND column_name IN ('algorithm', 'version', 'key_hash');
+```
+
+---
+
+#### Erro: "Could not find the 'client_id' column"
+
+**Sintoma:**
+```
+ERROR: Could not find the 'client_id' column in google_ads_audit_log
+```
+
+**Causa:** Tabela `google_ads_audit_log` não possui coluna `client_id`.
+
+**Solução:**
+```sql
+-- Execute a migração de schema
+\i database/migrations/fix-google-ads-schema.sql
+```
+
+**Verificação:**
+```sql
+SELECT column_name FROM information_schema.columns 
+WHERE table_name = 'google_ads_audit_log'
+  AND column_name = 'client_id';
+```
+
+---
+
+#### Erro: "column memberships.org_id does not exist"
+
+**Sintoma:**
+```
+ERROR: column memberships.org_id does not exist
+```
+
+**Causa:** Query usando nome de coluna incorreto. A coluna correta é `organization_id`.
+
+**Solução:**
+Atualize o código para usar `organization_id`:
+
+```typescript
+// ❌ ERRADO
+const { data } = await supabase
+  .from('memberships')
+  .select('org_id')
+  .eq('user_id', userId);
+
+// ✅ CORRETO
+const { data } = await supabase
+  .from('memberships')
+  .select('organization_id')
+  .eq('user_id', userId);
+```
+
+**Verificação:**
+```sql
+-- Verifique o nome correto da coluna
+SELECT column_name FROM information_schema.columns 
+WHERE table_name = 'memberships'
+  AND column_name LIKE '%org%';
+```
+
+---
+
+### 2. Problemas de Autenticação
+
+#### Erro: "Invalid OAuth token"
+
+**Sintoma:**
+```
+ERROR: Invalid OAuth token or token expired
+```
+
+**Causa:** Token de acesso expirado ou inválido.
+
+**Solução:**
+
+1. **Verificar expiração do token:**
+```sql
 SELECT 
-  sl.id,
-  sl.sync_type,
-  sl.status,
-  sl.started_at,
-  NOW() - sl.started_at as duration,
-  sl.campaigns_synced,
-  sl.error_message
-FROM google_ads_sync_logs sl
-INNER JOIN google_ads_connections c ON c.id = sl.connection_id
-WHERE c.client_id = 'CLIENT_UUID'
-  AND sl.status IN ('syncing', 'queued')
-ORDER BY sl.started_at DESC;
+  id,
+  customer_id,
+  token_expires_at,
+  token_expires_at < NOW() as is_expired
+FROM google_ads_connections
+WHERE client_id = 'YOUR_CLIENT_ID';
 ```
 
-**Soluções:**
+2. **Forçar refresh do token:**
+```typescript
+import { refreshGoogleAdsToken } from '@/lib/google/token-manager';
 
-1. **Rate Limiting:**
-```javascript
-// Verificar logs de rate limit
-const logs = await googleSyncService.getErrorLogs(clientId, 'RATE_LIMIT_EXCEEDED');
-console.log('Rate limit hits:', logs.length);
-```
-
-2. **Muitas Campanhas:**
-```sql
--- Verificar número de campanhas
-SELECT COUNT(*) as campaign_count
-FROM google_ads_campaigns
-WHERE client_id = 'CLIENT_UUID';
-```
-
-3. **Forçar Reset de Sync:**
-```sql
--- Marcar syncs travados como failed
-UPDATE google_ads_sync_logs 
-SET status = 'failed', 
-    error_message = 'Timeout - reset by admin',
-    completed_at = NOW()
-WHERE status IN ('syncing', 'queued')
-  AND started_at < NOW() - INTERVAL '30 minutes';
-```
-
-### 2. Dados Desatualizados
-
-**Sintomas:**
-- Métricas não refletem dados recentes
-- Última sincronização muito antiga
-- Campanhas não aparecem no dashboard
-
-**Diagnóstico:**
-```sql
--- Verificar última sincronização
-SELECT 
-  c.customer_id,
-  c.last_sync_at,
-  NOW() - c.last_sync_at as time_since_sync,
-  COUNT(camp.id) as total_campaigns,
-  MAX(m.date) as latest_metrics_date
-FROM google_ads_connections c
-LEFT JOIN google_ads_campaigns camp ON camp.connection_id = c.id
-LEFT JOIN google_ads_metrics m ON m.campaign_id = camp.id
-WHERE c.client_id = 'CLIENT_UUID'
-GROUP BY c.id, c.customer_id, c.last_sync_at;
-```
-
-**Soluções:**
-
-1. **Forçar Sync Manual:**
-```bash
-curl -X POST "/api/google/sync" \
-  -H "Content-Type: application/json" \
-  -d '{"clientId": "CLIENT_UUID", "fullSync": true}'
-```
-
-2. **Limpar Cache:**
-```javascript
-// Via API de cache
-await cacheService.invalidatePattern(`google:campaigns:${clientId}:*`);
-await cacheService.invalidatePattern(`google:metrics:${clientId}:*`);
-```
-
-3. **Verificar Cron Jobs:**
-```sql
--- Verificar execução dos cron jobs
-SELECT * FROM cron_job_logs 
-WHERE job_name = 'google-sync' 
-ORDER BY executed_at DESC 
-LIMIT 10;
-```
-
-## Problemas de Performance
-
-### 1. Queries Lentas
-
-**Sintomas:**
-- Dashboard demora para carregar
-- Timeout em requests de métricas
-- Alta utilização de CPU no banco
-
-**Diagnóstico:**
-```sql
--- Verificar queries lentas
-SELECT 
-  query,
-  calls,
-  total_time,
-  mean_time,
-  rows
-FROM pg_stat_statements 
-WHERE query LIKE '%google_ads_%'
-ORDER BY mean_time DESC
-LIMIT 10;
-```
-
-**Soluções:**
-
-1. **Verificar Índices:**
-```sql
--- Verificar uso de índices
-SELECT 
-  schemaname,
-  tablename,
-  indexname,
-  idx_scan,
-  idx_tup_read
-FROM pg_stat_user_indexes 
-WHERE tablename LIKE 'google_ads_%'
-  AND idx_scan < 100
-ORDER BY tablename;
-```
-
-2. **Otimizar Queries:**
-```sql
--- Exemplo de query otimizada para métricas
-EXPLAIN ANALYZE
-SELECT 
-  c.campaign_name,
-  SUM(m.impressions) as total_impressions,
-  SUM(m.clicks) as total_clicks,
-  SUM(m.cost) as total_cost
-FROM google_ads_campaigns c
-INNER JOIN google_ads_metrics m ON m.campaign_id = c.id
-WHERE c.client_id = 'CLIENT_UUID'
-  AND m.date >= CURRENT_DATE - INTERVAL '30 days'
-GROUP BY c.id, c.campaign_name;
-```
-
-3. **Implementar Cache:**
-```javascript
-// Cache de métricas agregadas
-const cacheKey = `google:aggregated:${clientId}:${dateRange}`;
-const cached = await redis.get(cacheKey);
-if (cached) return JSON.parse(cached);
-```
-
-### 2. Alto Uso de Memória
-
-**Sintomas:**
-- Processo Node.js usando muita RAM
-- Out of memory errors
-- Performance degradada
-
-**Diagnóstico:**
-```javascript
-// Monitorar uso de memória
-console.log('Memory usage:', process.memoryUsage());
-
-// Verificar tamanho dos resultados
-const campaigns = await googleAdsRepository.getCampaigns(clientId);
-console.log('Campaigns count:', campaigns.length);
-```
-
-**Soluções:**
-
-1. **Implementar Paginação:**
-```javascript
-// Paginar resultados grandes
-const limit = 50;
-const offset = page * limit;
-const campaigns = await googleAdsRepository.getCampaigns(clientId, { limit, offset });
-```
-
-2. **Streaming de Dados:**
-```javascript
-// Para exports grandes
-const stream = await googleAdsRepository.getMetricsStream(clientId, dateRange);
-stream.pipe(csvWriter);
-```
-
-## Problemas de Dados
-
-### 1. Métricas Inconsistentes
-
-**Sintomas:**
-- Valores diferentes entre dashboard e Google Ads
-- Métricas zeradas ou muito altas
-- Dados duplicados
-
-**Diagnóstico:**
-```sql
--- Verificar duplicatas
-SELECT 
-  campaign_id,
-  date,
-  COUNT(*) as duplicate_count
-FROM google_ads_metrics
-GROUP BY campaign_id, date
-HAVING COUNT(*) > 1;
-
--- Verificar valores anômalos
-SELECT 
-  campaign_id,
-  date,
-  impressions,
-  clicks,
-  cost,
-  CASE 
-    WHEN clicks > impressions THEN 'INVALID_CTR'
-    WHEN cost < 0 THEN 'NEGATIVE_COST'
-    WHEN impressions = 0 AND clicks > 0 THEN 'IMPOSSIBLE_CLICKS'
-    ELSE 'OK'
-  END as validation_status
-FROM google_ads_metrics
-WHERE client_id IN (
-  SELECT client_id FROM google_ads_campaigns WHERE id = campaign_id
-)
-AND validation_status != 'OK';
-```
-
-**Soluções:**
-
-1. **Remover Duplicatas:**
-```sql
--- Remover métricas duplicadas (manter a mais recente)
-DELETE FROM google_ads_metrics
-WHERE id NOT IN (
-  SELECT DISTINCT ON (campaign_id, date) id
-  FROM google_ads_metrics
-  ORDER BY campaign_id, date, created_at DESC
-);
-```
-
-2. **Validar Dados na Importação:**
-```javascript
-// Adicionar validação no sync
-function validateMetrics(metrics) {
-  return metrics.filter(m => 
-    m.impressions >= 0 &&
-    m.clicks >= 0 &&
-    m.clicks <= m.impressions &&
-    m.cost >= 0
-  );
+const result = await refreshGoogleAdsToken(connectionId);
+if (!result.success) {
+  console.error('Token refresh failed:', result.error);
 }
 ```
 
-3. **Re-sync Específico:**
-```bash
-# Re-sincronizar período específico
-curl -X POST "/api/google/sync/date-range" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "clientId": "CLIENT_UUID",
-    "dateFrom": "2024-01-01",
-    "dateTo": "2024-01-31"
-  }'
+3. **Reconectar se refresh falhar:**
+- Navegue para `/dashboard/google`
+- Clique em "Reconectar" na conexão problemática
+- Complete o fluxo OAuth novamente
+
+---
+
+#### Erro: "Insufficient OAuth scopes"
+
+**Sintoma:**
+```
+ERROR: The OAuth token does not have the required scopes
 ```
 
-### 2. Campanhas Não Aparecem
+**Causa:** Token não possui os scopes necessários para a operação.
 
-**Sintomas:**
-- Campanhas existem no Google Ads mas não no sistema
-- Lista vazia no dashboard
-- Erro ao carregar campanhas
+**Solução:**
 
-**Diagnóstico:**
+1. **Verificar scopes atuais:**
+```bash
+node scripts/test-connection-diagnostics.js
+```
+
+2. **Scopes necessários:**
+```
+https://www.googleapis.com/auth/adwords
+```
+
+3. **Reconectar com scopes corretos:**
+- Desconecte a conta atual
+- Reconecte garantindo que todos os scopes sejam aprovados
+- Verifique que não há restrições na conta Google Ads
+
+---
+
+#### Erro: "Customer ID not accessible"
+
+**Sintoma:**
+```
+ERROR: Customer ID XXX-XXX-XXXX is not accessible with current credentials
+```
+
+**Causa:** 
+- Customer ID incorreto
+- Conta não tem acesso ao Customer ID
+- Permissões insuficientes
+
+**Solução:**
+
+1. **Verificar Customer ID:**
 ```sql
--- Verificar conexões ativas
+SELECT customer_id, account_name 
+FROM google_ads_connections
+WHERE client_id = 'YOUR_CLIENT_ID';
+```
+
+2. **Validar formato:**
+- Deve estar no formato: `XXX-XXX-XXXX`
+- Sem espaços ou caracteres especiais
+
+3. **Verificar acesso na conta Google Ads:**
+- Login em ads.google.com
+- Verifique se a conta tem acesso ao Customer ID
+- Confirme permissões de administrador ou leitura
+
+4. **Atualizar Customer ID se necessário:**
+```sql
+UPDATE google_ads_connections
+SET customer_id = 'CORRECT-CUSTOMER-ID'
+WHERE id = 'CONNECTION_ID';
+```
+
+---
+
+### 3. Problemas de Sincronização
+
+#### Erro: "Sync returns 0 campaigns"
+
+**Sintoma:**
+```
+INFO: Sync completed successfully but returned 0 campaigns
+```
+
+**Causa:** 
+- Filtros muito restritivos
+- Customer ID incorreto
+- Campanhas não atendem critérios de status
+- Problema com GAQL query
+
+**Solução:**
+
+1. **Verificar logs detalhados:**
+```bash
+# Ativar logging detalhado
+export DEBUG=google:*
+node scripts/test-campaign-sync.js
+```
+
+2. **Verificar GAQL query:**
+```sql
+-- Query padrão usada
+SELECT
+  campaign.id,
+  campaign.name,
+  campaign.status,
+  campaign.advertising_channel_type,
+  metrics.impressions,
+  metrics.clicks,
+  metrics.cost_micros
+FROM campaign
+WHERE campaign.status IN ('ENABLED', 'PAUSED')
+  AND segments.date DURING LAST_30_DAYS
+```
+
+3. **Testar com filtros mais amplos:**
+```typescript
+// Remover filtro de data temporariamente
+const query = `
+  SELECT campaign.id, campaign.name, campaign.status
+  FROM campaign
+  WHERE campaign.status != 'REMOVED'
+`;
+```
+
+4. **Verificar na interface do Google Ads:**
+- Login em ads.google.com
+- Confirme que existem campanhas ativas
+- Verifique o status das campanhas
+
+---
+
+#### Erro: "API quota exceeded"
+
+**Sintoma:**
+```
+ERROR: Rate limit exceeded for Google Ads API
+```
+
+**Causa:** Limite de requisições da API atingido.
+
+**Solução:**
+
+1. **Verificar quota atual:**
+```bash
+node scripts/test-google-health-check.js
+```
+
+2. **Implementar backoff exponencial:**
+```typescript
+async function syncWithRetry(connectionId: string, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await syncCampaigns(connectionId);
+    } catch (error) {
+      if (error.code === 'RATE_LIMIT_EXCEEDED') {
+        const delay = Math.pow(2, i) * 1000; // 1s, 2s, 4s
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+```
+
+3. **Reduzir frequência de sync:**
+```typescript
+// Aumentar intervalo entre syncs
+const SYNC_INTERVAL = 60 * 60 * 1000; // 1 hora em vez de 15 minutos
+```
+
+4. **Solicitar aumento de quota:**
+- Acesse Google Cloud Console
+- Navegue para "APIs & Services" > "Quotas"
+- Solicite aumento para Google Ads API
+
+---
+
+### 4. Problemas de Criptografia
+
+#### Erro: "Encryption key not found"
+
+**Sintoma:**
+```
+ERROR: No active encryption key found
+```
+
+**Causa:** Nenhuma chave de criptografia ativa no banco.
+
+**Solução:**
+
+1. **Verificar chaves existentes:**
+```sql
+SELECT id, version, is_active, expires_at 
+FROM google_ads_encryption_keys
+ORDER BY version DESC;
+```
+
+2. **Criar nova chave se necessário:**
+```typescript
+import { rotateEncryptionKey } from '@/lib/google/crypto-service';
+
+await rotateEncryptionKey();
+```
+
+3. **Verificar variáveis de ambiente:**
+```bash
+# Verificar se ENCRYPTION_KEY está definida
+echo $ENCRYPTION_KEY
+
+# Ou no .env
+grep ENCRYPTION_KEY .env
+```
+
+---
+
+#### Erro: "Decryption failed"
+
+**Sintoma:**
+```
+ERROR: Failed to decrypt token
+```
+
+**Causa:** 
+- Chave de criptografia mudou
+- Token corrompido
+- Algoritmo incompatível
+
+**Solução:**
+
+1. **Verificar algoritmo:**
+```sql
+SELECT algorithm, version 
+FROM google_ads_encryption_keys
+WHERE is_active = true;
+```
+
+2. **Tentar fallback para plain text:**
+```typescript
+// O sistema tenta automaticamente ler tokens em plain text
+// se a descriptografia falhar
+```
+
+3. **Reconectar a conta:**
+- Desconecte a conta problemática
+- Reconecte para gerar novos tokens
+- Novos tokens serão criptografados corretamente
+
+---
+
+### 5. Problemas de RLS (Row Level Security)
+
+#### Erro: "Permission denied for table"
+
+**Sintoma:**
+```
+ERROR: new row violates row-level security policy
+```
+
+**Causa:** Políticas RLS bloqueando acesso legítimo.
+
+**Solução:**
+
+1. **Verificar membership do usuário:**
+```sql
 SELECT 
-  c.id,
-  c.customer_id,
-  c.status,
-  COUNT(camp.id) as campaign_count,
-  c.last_sync_at
-FROM google_ads_connections c
-LEFT JOIN google_ads_campaigns camp ON camp.connection_id = c.id
-WHERE c.client_id = 'CLIENT_UUID'
-GROUP BY c.id;
+  m.user_id,
+  m.organization_id,
+  m.role,
+  c.id as client_id,
+  c.name as client_name
+FROM memberships m
+JOIN clients c ON c.org_id = m.organization_id
+WHERE m.user_id = auth.uid();
 ```
 
-**Soluções:**
-
-1. **Verificar Permissões:**
-```javascript
-// Testar acesso à API
-const accounts = await googleAdsClient.getAccessibleCustomers();
-console.log('Accessible accounts:', accounts);
-```
-
-2. **Sync Completo:**
-```bash
-# Forçar sync completo
-curl -X POST "/api/google/sync" \
-  -H "Content-Type: application/json" \
-  -d '{"clientId": "CLIENT_UUID", "fullSync": true, "force": true}'
-```
-
-## Problemas de Configuração
-
-### 1. Variáveis de Ambiente
-
-**Sintomas:**
-- Erro ao inicializar Google Ads client
-- "Missing configuration" errors
-- OAuth flow não funciona
-
-**Diagnóstico:**
-```bash
-# Verificar configuração
-node scripts/check-google-ads-env.js
-```
-
-**Configuração Necessária:**
-```bash
-# .env
-GOOGLE_CLIENT_ID=your_client_id
-GOOGLE_CLIENT_SECRET=your_client_secret
-GOOGLE_DEVELOPER_TOKEN=your_developer_token
-NEXT_PUBLIC_APP_URL=https://your-domain.com
-```
-
-**Soluções:**
-
-1. **Verificar Google Cloud Console:**
-   - OAuth 2.0 Client configurado
-   - Redirect URIs corretos
-   - APIs habilitadas
-
-2. **Testar Configuração:**
-```javascript
-// Testar OAuth flow
-const authUrl = await googleOAuthService.getAuthorizationUrl('test-state');
-console.log('Auth URL generated:', !!authUrl);
-```
-
-### 2. Problemas de CORS
-
-**Sintomas:**
-- Erro CORS no browser
-- OAuth callback falha
-- Requests bloqueados
-
-**Soluções:**
-
-1. **Verificar Configuração Next.js:**
-```javascript
-// next.config.ts
-const nextConfig = {
-  async headers() {
-    return [
-      {
-        source: '/api/google/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: process.env.NEXT_PUBLIC_APP_URL },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
-        ],
-      },
-    ];
-  },
-};
-```
-
-2. **Verificar Redirect URIs:**
-```
-Configurar no Google Cloud Console:
-- https://your-domain.com/api/google/callback
-- http://localhost:3000/api/google/callback (desenvolvimento)
-```
-
-## Comandos de Debug Úteis
-
-### 1. Verificação Geral do Sistema
-
-```bash
-# Script de diagnóstico completo
-node scripts/diagnose-google-ads.js CLIENT_UUID
-```
-
-### 2. Logs Detalhados
-
+2. **Verificar políticas RLS:**
 ```sql
--- Logs de erro recentes
+SELECT tablename, policyname, cmd, qual
+FROM pg_policies
+WHERE tablename = 'google_ads_connections'
+ORDER BY policyname;
+```
+
+3. **Testar com service role:**
+```typescript
+// Temporariamente use service role para debug
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+```
+
+4. **Verificar client_id correto:**
+```typescript
+// Certifique-se de usar client_id válido
+const { data: clients } = await supabase
+  .from('clients')
+  .select('id')
+  .eq('org_id', organizationId);
+
+// Use um dos IDs retornados
+```
+
+---
+
+#### Erro: "User can see data from other clients"
+
+**Sintoma:** Usuário vê dados de clientes que não deveria ter acesso.
+
+**Causa:** Políticas RLS não implementadas ou incorretas.
+
+**Solução:**
+
+1. **Verificar se RLS está habilitado:**
+```sql
+SELECT tablename, rowsecurity
+FROM pg_tables
+WHERE tablename LIKE 'google_ads%';
+```
+
+2. **Aplicar migração de RLS:**
+```sql
+\i database/migrations/fix-google-ads-schema.sql
+```
+
+3. **Testar isolamento:**
+```sql
+-- Como usuário 1
+SET LOCAL role authenticated;
+SET LOCAL request.jwt.claims.sub TO 'user-1-uuid';
+
+SELECT * FROM google_ads_connections;
+-- Deve retornar apenas conexões do usuário 1
+
+-- Como usuário 2
+SET LOCAL request.jwt.claims.sub TO 'user-2-uuid';
+
+SELECT * FROM google_ads_connections;
+-- Deve retornar apenas conexões do usuário 2
+```
+
+---
+
+### 6. Problemas de Performance
+
+#### Problema: "Queries lentas"
+
+**Sintoma:** Queries demorando mais de 1 segundo.
+
+**Solução:**
+
+1. **Verificar índices:**
+```sql
 SELECT 
-  sl.started_at,
-  sl.sync_type,
-  sl.status,
-  sl.error_message,
-  sl.error_code,
-  c.customer_id
-FROM google_ads_sync_logs sl
-INNER JOIN google_ads_connections c ON c.id = sl.connection_id
-WHERE sl.status = 'failed'
-  AND sl.started_at >= NOW() - INTERVAL '24 hours'
-ORDER BY sl.started_at DESC;
+  tablename,
+  indexname,
+  indexdef
+FROM pg_indexes
+WHERE tablename LIKE 'google_ads%'
+ORDER BY tablename, indexname;
 ```
 
-### 3. Limpeza de Dados
+2. **Criar índices faltantes:**
+```sql
+-- Índice para queries por cliente
+CREATE INDEX IF NOT EXISTS idx_google_campaigns_client_date
+ON google_ads_campaigns(client_id, created_at DESC);
+
+-- Índice para queries de métricas
+CREATE INDEX IF NOT EXISTS idx_google_metrics_campaign_date
+ON google_ads_metrics(campaign_id, date DESC);
+```
+
+3. **Analisar query plan:**
+```sql
+EXPLAIN ANALYZE
+SELECT * FROM google_ads_campaigns
+WHERE client_id = 'YOUR_CLIENT_ID'
+ORDER BY created_at DESC
+LIMIT 10;
+```
+
+---
+
+#### Problema: "Sync muito lento"
+
+**Sintoma:** Sincronização demorando mais de 5 minutos.
+
+**Solução:**
+
+1. **Reduzir período de sync:**
+```typescript
+// Sincronizar apenas últimos 7 dias em vez de 30
+const query = `
+  SELECT ...
+  FROM campaign
+  WHERE segments.date DURING LAST_7_DAYS
+`;
+```
+
+2. **Implementar sync incremental:**
+```typescript
+// Sincronizar apenas campanhas modificadas
+const lastSync = await getLastSyncTime(connectionId);
+const query = `
+  SELECT ...
+  FROM campaign
+  WHERE campaign.modified_time > '${lastSync}'
+`;
+```
+
+3. **Usar batch processing:**
+```typescript
+// Processar campanhas em lotes
+const BATCH_SIZE = 50;
+for (let i = 0; i < campaigns.length; i += BATCH_SIZE) {
+  const batch = campaigns.slice(i, i + BATCH_SIZE);
+  await processCampaignBatch(batch);
+}
+```
+
+---
+
+## 🔧 Ferramentas de Diagnóstico
+
+### Scripts Disponíveis
+
+```bash
+# Health check completo
+node scripts/test-google-health-check.js
+
+# Diagnóstico de conexão
+node scripts/test-connection-diagnostics.js
+
+# Teste de OAuth flow
+node scripts/test-oauth-flow-e2e.js
+
+# Teste de sincronização
+node scripts/test-campaign-sync.js
+
+# Teste de criptografia
+node scripts/test-google-encryption.js
+
+# Teste de métricas
+node scripts/test-metrics-collection.js
+```
+
+### Queries SQL Úteis
 
 ```sql
--- Limpar dados corrompidos
-DELETE FROM google_ads_metrics 
-WHERE impressions < 0 OR clicks < 0 OR cost < 0;
+-- Ver todas as conexões e seu status
+SELECT 
+  c.name as client_name,
+  gac.customer_id,
+  gac.account_name,
+  gac.is_active,
+  gac.token_expires_at,
+  gac.token_expires_at < NOW() as is_expired,
+  gac.last_sync_at
+FROM google_ads_connections gac
+JOIN clients c ON c.id = gac.client_id
+ORDER BY c.name, gac.customer_id;
 
--- Reset de conexão problemática
-UPDATE google_ads_connections 
-SET status = 'expired', last_sync_at = NULL 
-WHERE client_id = 'CLIENT_UUID';
+-- Ver campanhas por cliente
+SELECT 
+  c.name as client_name,
+  COUNT(gc.id) as campaign_count,
+  SUM(CASE WHEN gc.status = 'ENABLED' THEN 1 ELSE 0 END) as active_campaigns
+FROM clients c
+LEFT JOIN google_ads_campaigns gc ON gc.client_id = c.id
+GROUP BY c.id, c.name
+ORDER BY campaign_count DESC;
+
+-- Ver logs de sync recentes
+SELECT 
+  gsl.started_at,
+  gsl.completed_at,
+  gsl.status,
+  gsl.campaigns_synced,
+  gsl.error_message,
+  c.name as client_name
+FROM google_ads_sync_logs gsl
+JOIN google_ads_connections gac ON gac.id = gsl.connection_id
+JOIN clients c ON c.id = gac.client_id
+ORDER BY gsl.started_at DESC
+LIMIT 20;
+
+-- Ver audit logs recentes
+SELECT 
+  gal.created_at,
+  gal.operation,
+  gal.success,
+  gal.error_message,
+  c.name as client_name,
+  u.email as user_email
+FROM google_ads_audit_log gal
+JOIN clients c ON c.id = gal.client_id
+LEFT JOIN auth.users u ON u.id = gal.user_id
+ORDER BY gal.created_at DESC
+LIMIT 20;
 ```
 
-### 4. Monitoramento em Tempo Real
+---
 
-```bash
-# Monitorar logs de sync
-tail -f logs/google-ads-sync.log | grep "CLIENT_UUID"
+## 📊 Monitoramento
 
-# Monitorar performance
-watch -n 5 'psql -c "SELECT COUNT(*) FROM google_ads_sync_logs WHERE status = \"syncing\""'
-```
+### Métricas Importantes
 
-## Prevenção de Problemas
-
-### 1. Monitoramento Proativo
-
+1. **Taxa de sucesso de sync:**
 ```sql
--- Criar alertas automáticos
-CREATE OR REPLACE FUNCTION check_google_ads_health()
-RETURNS TABLE (
-  issue_type TEXT,
-  client_id UUID,
-  description TEXT,
-  severity TEXT
-) AS $$
-BEGIN
-  -- Conexões expiradas
-  RETURN QUERY
-  SELECT 
-    'expired_connection'::TEXT,
-    c.client_id,
-    'Connection expired for customer ' || c.customer_id,
-    'high'::TEXT
-  FROM google_ads_connections c
-  WHERE c.status = 'expired' OR c.token_expires_at < NOW();
-  
-  -- Syncs falhando consistentemente
-  RETURN QUERY
-  SELECT 
-    'sync_failures'::TEXT,
-    c.client_id,
-    'Multiple sync failures in last 24h',
-    'medium'::TEXT
-  FROM google_ads_connections c
-  WHERE (
-    SELECT COUNT(*) 
-    FROM google_ads_sync_logs sl 
-    WHERE sl.connection_id = c.id 
-      AND sl.status = 'failed'
-      AND sl.started_at >= NOW() - INTERVAL '24 hours'
-  ) >= 3;
-  
-  -- Dados muito antigos
-  RETURN QUERY
-  SELECT 
-    'stale_data'::TEXT,
-    c.client_id,
-    'No sync in last 12 hours',
-    'low'::TEXT
-  FROM google_ads_connections c
-  WHERE c.last_sync_at < NOW() - INTERVAL '12 hours';
-END;
-$$ LANGUAGE plpgsql;
+SELECT 
+  DATE(started_at) as date,
+  COUNT(*) as total_syncs,
+  SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as successful,
+  ROUND(100.0 * SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) / COUNT(*), 2) as success_rate
+FROM google_ads_sync_logs
+WHERE started_at > NOW() - INTERVAL '7 days'
+GROUP BY DATE(started_at)
+ORDER BY date DESC;
 ```
 
-### 2. Manutenção Regular
-
-```bash
-# Cron job diário para limpeza
-0 2 * * * /app/scripts/daily-google-maintenance.sh
-
-# Conteúdo do script:
-#!/bin/bash
-# Limpar OAuth states expirados
-psql -c "SELECT cleanup_expired_oauth_states();"
-
-# Limpar logs antigos
-psql -c "DELETE FROM google_ads_sync_logs WHERE created_at < NOW() - INTERVAL '30 days';"
-
-# Verificar saúde do sistema
-node scripts/health-check-google.js
+2. **Tokens expirando:**
+```sql
+SELECT 
+  c.name as client_name,
+  gac.customer_id,
+  gac.token_expires_at,
+  gac.token_expires_at - NOW() as time_until_expiry
+FROM google_ads_connections gac
+JOIN clients c ON c.id = gac.client_id
+WHERE gac.is_active = true
+  AND gac.token_expires_at < NOW() + INTERVAL '24 hours'
+ORDER BY gac.token_expires_at;
 ```
 
-### 3. Backup de Configurações
-
-```bash
-# Backup de conexões (sem tokens)
-pg_dump --table=google_ads_connections \
-        --data-only \
-        --column-inserts \
-        --exclude-column=refresh_token \
-        --exclude-column=access_token \
-        > backup/google_connections_$(date +%Y%m%d).sql
+3. **Erros frequentes:**
+```sql
+SELECT 
+  operation,
+  error_message,
+  COUNT(*) as error_count
+FROM google_ads_audit_log
+WHERE success = false
+  AND created_at > NOW() - INTERVAL '7 days'
+GROUP BY operation, error_message
+ORDER BY error_count DESC
+LIMIT 10;
 ```
 
-## Contato e Suporte
+---
 
-### Logs Importantes para Suporte
+## 🆘 Quando Pedir Ajuda
 
-Ao reportar problemas, inclua:
+Se após seguir este guia o problema persistir:
 
-1. **ID do Cliente:** UUID do cliente afetado
-2. **Timestamp:** Quando o problema ocorreu
-3. **Logs de Sync:** Últimos 5 logs de sincronização
-4. **Configuração:** Resultado do `check-google-ads-env.js`
-5. **Métricas:** Resultado das queries de diagnóstico
+1. **Colete informações:**
+   - Logs da aplicação
+   - Logs do Supabase
+   - Output dos scripts de diagnóstico
+   - Screenshots de erros
 
-### Escalação
+2. **Documente:**
+   - Passos para reproduzir
+   - Comportamento esperado vs atual
+   - Tentativas de solução já realizadas
 
-1. **Nível 1:** Problemas de usuário (reconexão, dados desatualizados)
-2. **Nível 2:** Problemas técnicos (performance, sync failures)
-3. **Nível 3:** Problemas de infraestrutura (rate limits, API changes)
+3. **Consulte:**
+   - Documentação oficial do Google Ads API
+   - Issues no repositório
+   - Equipe de desenvolvimento
 
-### Recursos Externos
+---
 
-- [Google Ads API Documentation](https://developers.google.com/google-ads/api/docs)
-- [OAuth 2.0 Troubleshooting](https://developers.google.com/identity/protocols/oauth2/troubleshooting)
-- [Google Ads API Forum](https://groups.google.com/g/adwords-api)
+## 📚 Recursos Adicionais
+
+- [Google Ads API Documentation](https://developers.google.com/google-ads/api/docs/start)
+- [Supabase RLS Documentation](https://supabase.com/docs/guides/auth/row-level-security)
+- [GOOGLE_ADS_SCHEMA_FIX.md](../GOOGLE_ADS_SCHEMA_FIX.md)
+- [database/migrations/README.md](../database/migrations/README.md)
+
+---
+
+**Última Atualização:** 24 de novembro de 2024  
+**Versão:** 1.0.0

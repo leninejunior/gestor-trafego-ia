@@ -1,0 +1,41 @@
+================================================================================
+CORREÇÃO: CAMPANHAS GOOGLE ADS NÃO APARECEM
+================================================================================
+
+PROBLEMA IDENTIFICADO:
+- Conexão Google Ads ativa mas sem campanhas no banco
+- APIs usavam .single() que falhava com múltiplas conexões
+- APIs buscavam por 'is_active' mas schema usa 'status'
+
+CORREÇÕES APLICADAS:
+✅ src/app/api/google/metrics-simple/route.ts
+   - .single() → .maybeSingle()
+   - .eq('is_active', true) → .eq('status', 'active')
+   - Melhoradas mensagens de erro
+
+✅ src/app/api/google/campaigns/route.ts
+   - Adicionado filtro de conexão ativa
+   - Corrigido campo is_active → status
+
+SOLUÇÃO PARA O USUÁRIO:
+1. Acesse: /dashboard/google
+2. Selecione cliente: "Dr Hérnia Andradina"
+3. Clique em: "Sincronizar Agora" (botão com ícone ▶️)
+4. Aguarde sincronização completar (2-5 minutos)
+5. Campanhas aparecerão automaticamente
+
+SINCRONIZAÇÃO AUTOMÁTICA:
+- Frequência: A cada 6 horas
+- Manual: Disponível a qualquer momento
+- Limite: 3 sincronizações manuais por 5 minutos
+
+ARQUIVOS CRIADOS:
+- GOOGLE_ADS_CAMPANHAS_NAO_APARECEM_SOLUCAO.md (diagnóstico completo)
+- INSTRUCOES_SINCRONIZAR_GOOGLE_ADS.md (guia para usuário)
+- scripts/diagnose-campaigns-issue.js (diagnóstico técnico)
+- scripts/reactivate-google-connection.js (reativar conexões)
+
+STATUS: ✅ Correções aplicadas, aguardando sincronização manual do usuário
+
+Data: 26/11/2025
+================================================================================

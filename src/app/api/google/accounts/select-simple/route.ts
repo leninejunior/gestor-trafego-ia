@@ -1,15 +1,11 @@
 /**
- * Simplified Google Ads Account Selection API Route
- * For debugging purposes
+ * Google Ads Account Selection API Route
+ * Salva as contas selecionadas após OAuth
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
-
-// ============================================================================
-// Request Validation Schema
-// ============================================================================
 
 const SelectAccountsSchema = z.object({
   connectionId: z.string().min(1, 'Connection ID é obrigatório'),
@@ -17,82 +13,86 @@ const SelectAccountsSchema = z.object({
   selectedAccounts: z.array(z.string()).min(1, 'Selecione pelo menos uma conta'),
 });
 
-// ============================================================================
-// POST /api/google/accounts/select-simple
-// ============================================================================
-
 export async function POST(request: NextRequest) {
-  console.log('[Google Account Select Simple] Starting request');
+  console.log('[Google Account Select] 🚀 INICIANDO SALVAMENTO DE CONTAS');
   
   try {
-    // Parse and validate request body
     const body = await request.json();
-    console.log('[Google Account Select Simple] Request body:', body);
+    console.log('[Google Account Select] 📊 DADOS RECEBIDOS:', body);
     
     const { connectionId, clientId, selectedAccounts } = SelectAccountsSchema.parse(body);
 
-    console.log('[Google Account Select Simple] Validated data:', {
-      connectionId,
-      clientId,
-      selectedAccounts
-    });
+    // Obter usuário autenticado
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    // Use service client to bypass authentication issues
-    const supabase = createServiceClient();
-
-    // Handle temporary values for testing
-    if (connectionId === 'temp-connection' && clientId === 'temp-client') {
-      console.log('[Google Account Select Simple] 🧪 PROCESSANDO VALORES TEMPORÁRIOS DE TESTE');
-      
-      return NextResponse.json({
-        success: true,
-        connectionId,
-        primaryCustomerId: selectedAccounts[0],
-        selectedAccounts,
-        totalConnections: selectedAccounts.length,
-        isSimplified: true,
-        isMCC: selectedAccounts.length > 1,
-        message: `${selectedAccounts.length} conta${selectedAccounts.length > 1 ? 's' : ''} selecionada${selectedAccounts.length > 1 ? 's' : ''} (teste)`,
-        details: {
-          note: 'Valores temporários - implementar fluxo real depois',
-          selectedAccounts
-        }
-      });
+    if (userError || !user) {
+      console.error('[Google Account Select] ❌ USUÁRIO NÃO AUTENTICADO');
+      return NextResponse.json(
+        { error: 'Usuário não autenticado' },
+        { status: 401 }
+      );
     }
 
-    // Get connection details for real connections
-    console.log('[Google Account Select Simple] Getting connection details...');
+    console.log('[Google Account Select] ✅ USUÁRIO AUTENTICADO:', user.id);
+
+    // Validar que a conexão pertence ao cliente
+    console.log('[Google Account Select] 🔍 VALIDANDO CONEXÃO...');
     const { data: connection, error: connectionError } = await supabase
       .from('google_ads_connections')
-      .select('id, client_id, customer_id, status')
+      .select('id, client_id, status')
       .eq('id', connectionId)
       .eq('client_id', clientId)
       .single();
 
-    console.log('[Google Account Select Simple] Connection query result:', {
-      hasConnection: !!connection,
-      connectionError: connectionError?.message,
-      connection
-    });
-
     if (connectionError || !connection) {
+      console.error('[Google Account Select] ❌ CONEXÃO NÃO ENCONTRADA');
       return NextResponse.json(
         { error: 'Conexão não encontrada' },
         { status: 404 }
       );
     }
 
-    // For MCC accounts, we'll handle multiple selections
+    console.log('[Google Account Select] ✅ CONEXÃO VALIDADA');
+
+    // Validar que o usuário tem acesso ao cliente
+    console.log('[Google Account Select] 🔐 VALIDANDO ACESSO AO CLIENTE...');
+    const { data: clientData, error: clientError } = await supabase
+      .from('clients')
+      .select('id, org_id')
+      .eq('id', clientId)
+      .single();
+
+    if (clientError || !clientData) {
+      console.error('[Google Account Select] ❌ CLIENTE NÃO ENCONTRADO');
+      return NextResponse.json(
+        { error: 'Cliente não encontrado' },
+        { status: 404 }
+      );
+    }
+
+    const { data: membership, error: membershipError } = await supabase
+      .from('memberships')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('organization_id', clientData.org_id)
+      .eq('status', 'active')
+      .single();
+
+    if (membershipError || !membership) {
+      console.error('[Google Account Select] ❌ ACESSO NEGADO');
+      return NextResponse.json(
+        { error: 'Você não tem acesso a este cliente' },
+        { status: 403 }
+      );
+    }
+
+    console.log('[Google Account Select] ✅ ACESSO VALIDADO');
+
+    // Atualizar conexão com a primeira conta selecionada
     const primaryCustomerId = selectedAccounts[0];
-    const additionalAccounts = selectedAccounts.slice(1);
+    console.log('[Google Account Select] 💾 ATUALIZANDO CONEXÃO COM CUSTOMER ID:', primaryCustomerId);
 
-    console.log('[Google Account Select Simple] Processing MCC account selection:', {
-      primaryCustomerId,
-      additionalAccounts,
-      totalSelected: selectedAccounts.length
-    });
-
-    // Update the primary connection with the first selected customer ID
     const { error: updateError } = await supabase
       .from('google_ads_connections')
       .update({
@@ -103,57 +103,47 @@ export async function POST(request: NextRequest) {
       .eq('id', connectionId);
 
     if (updateError) {
-      console.error('[Google Account Select Simple] Error updating primary connection:', updateError);
+      console.error('[Google Account Select] ❌ ERRO AO ATUALIZAR:', updateError.message);
       return NextResponse.json(
-        { error: 'Erro ao salvar seleção de contas' },
+        { error: 'Erro ao salvar seleção de contas: ' + updateError.message },
         { status: 500 }
       );
     }
 
-    console.log('[Google Account Select Simple] Primary connection updated successfully');
+    console.log('[Google Account Select] ✅ CONEXÃO ATUALIZADA COM SUCESSO');
 
-    // Create additional connections for other selected accounts (MCC feature)
+    // Se houver múltiplas contas (MCC), criar conexões adicionais
     const additionalConnections = [];
-    
-    if (additionalAccounts.length > 0) {
-      console.log('[Google Account Select Simple] Creating additional connections for MCC accounts...');
+    if (selectedAccounts.length > 1) {
+      console.log('[Google Account Select] 🔗 CRIANDO CONEXÕES ADICIONAIS PARA MCC...');
       
-      for (const customerId of additionalAccounts) {
+      for (const customerId of selectedAccounts.slice(1)) {
         try {
           const { data: newConnection, error: createError } = await supabase
             .from('google_ads_connections')
             .insert({
               client_id: clientId,
-              user_id: '00000000-0000-0000-0000-000000000000', // Simplified user ID
               customer_id: customerId,
-              refresh_token: 'shared_from_mcc', // Will share tokens from primary connection
+              access_token: connection.access_token || 'shared',
+              refresh_token: connection.refresh_token || 'shared',
+              token_expires_at: new Date(Date.now() + 3600000).toISOString(),
               status: 'active',
             })
             .select('id')
             .single();
 
-          if (createError) {
-            console.error(`[Google Account Select Simple] Error creating connection for ${customerId}:`, createError);
-          } else {
-            additionalConnections.push({
-              id: newConnection.id,
-              customerId,
-            });
-            console.log(`[Google Account Select Simple] Created additional connection for ${customerId}`);
+          if (!createError && newConnection) {
+            additionalConnections.push(newConnection.id);
+            console.log('[Google Account Select] ✅ CONEXÃO ADICIONAL CRIADA:', customerId);
           }
-        } catch (error) {
-          console.error(`[Google Account Select Simple] Error creating additional connection:`, error);
+        } catch (err) {
+          console.warn('[Google Account Select] ⚠️ ERRO AO CRIAR CONEXÃO ADICIONAL:', err);
         }
       }
     }
 
-    // Log the account selection
-    console.log('[Google Account Select Simple] Accounts selected:', {
-      connectionId,
-      clientId,
-      primaryCustomerId,
-      selectedAccounts,
-    });
+    console.log('[Google Account Select] ✅ SALVAMENTO CONCLUÍDO');
+    console.log('='.repeat(80));
 
     return NextResponse.json({
       success: true,
@@ -161,19 +151,11 @@ export async function POST(request: NextRequest) {
       primaryCustomerId,
       selectedAccounts,
       additionalConnections,
-      totalConnections: 1 + additionalConnections.length,
-      isSimplified: true,
-      isMCC: selectedAccounts.length > 1,
       message: `${selectedAccounts.length} conta${selectedAccounts.length > 1 ? 's' : ''} conectada${selectedAccounts.length > 1 ? 's' : ''} com sucesso`,
-      details: {
-        primaryConnection: connectionId,
-        additionalConnections: additionalConnections.length,
-        mccAccountsConnected: selectedAccounts.length > 1
-      }
     });
 
-  } catch (error) {
-    console.error('[Google Account Select Simple] Error:', error);
+  } catch (error: any) {
+    console.error('[Google Account Select] ❌ ERRO:', error.message);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -189,7 +171,6 @@ export async function POST(request: NextRequest) {
       { 
         error: 'Erro interno do servidor',
         details: error.message,
-        stack: error.stack
       },
       { status: 500 }
     );

@@ -19,7 +19,7 @@ export async function DELETE(
     // Buscar organização do usuário
     const { data: membership } = await supabase
       .from("memberships")
-      .select("organization_id, role")
+      .select("org_id, role")
       .eq("user_id", user.id)
       .single();
 
@@ -37,7 +37,7 @@ export async function DELETE(
       .from("organization_invites")
       .select("id, organization_id, status")
       .eq("id", inviteId)
-      .eq("organization_id", membership.organization_id)
+      .eq("organization_id", membership.org_id)
       .single();
 
     if (!invite) {
@@ -85,7 +85,7 @@ export async function POST(
     // Buscar organização do usuário
     const { data: membership } = await supabase
       .from("memberships")
-      .select("organization_id, role")
+      .select("org_id, role")
       .eq("user_id", user.id)
       .single();
 
@@ -103,7 +103,7 @@ export async function POST(
       .from("organization_invites")
       .select("*")
       .eq("id", inviteId)
-      .eq("organization_id", membership.organization_id)
+      .eq("organization_id", membership.org_id)
       .single();
 
     if (!invite) {

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getGoogleSyncService } from '@/lib/google/sync-service';
+import { validateCustomerId, logCustomerIdError } from '@/lib/google/customer-id-validator';
 import { z } from 'zod';
 
 // ============================================================================
@@ -63,6 +64,16 @@ export async function POST(request: NextRequest) {
   try {
     // Parse and validate request body
     const body = await request.json();
+    
+    // Log incoming request parameters
+    const requestId = `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`[Google Sync API] Incoming sync request [${requestId}]:`, {
+      body,
+      timestamp: new Date().toISOString(),
+      userAgent: request.headers.get('user-agent'),
+      origin: request.headers.get('origin'),
+    });
+    
     const {
       clientId,
       connectionId,
@@ -71,9 +82,19 @@ export async function POST(request: NextRequest) {
       dateFrom,
       dateTo,
     } = SyncRequestSchema.parse(body);
+    
+    console.log(`[Google Sync API] Validated parameters [${requestId}]:`, {
+      clientId,
+      connectionId,
+      fullSync,
+      syncType,
+      dateFrom,
+      dateTo,
+      timestamp: new Date().toISOString(),
+    });
 
     // Get authenticated user
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -83,12 +104,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify user has access to the client
+    // Verify user has access to the client through organization
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('org_id')
+      .eq('id', clientId)
+      .single();
+
+    if (clientError || !client) {
+      return NextResponse.json(
+        { error: 'Cliente não encontrado' },
+        { status: 404 }
+      );
+    }
+
     const { data: membership, error: membershipError } = await supabase
-      .from('organization_memberships')
-      .select('client_id')
+      .from('memberships')
+      .select('id')
       .eq('user_id', user.id)
-      .eq('client_id', clientId)
+      .eq('organization_id', client.org_id)
       .single();
 
     if (membershipError || !membership) {
@@ -131,6 +165,57 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    // Validate customer IDs for all connections
+    const invalidConnections: Array<{ id: string; customerId: string; errors: string[] }> = [];
+    
+    for (const connection of connections) {
+      const validation = validateCustomerId(connection.customer_id);
+      
+      if (!validation.isValid) {
+        invalidConnections.push({
+          id: connection.id,
+          customerId: connection.customer_id,
+          errors: validation.errors,
+        });
+        
+        logCustomerIdError(connection.customer_id, {
+          connectionId: connection.id,
+          clientId,
+          requestId,
+        });
+      }
+    }
+    
+    // If any connections have invalid customer IDs, return error
+    if (invalidConnections.length > 0) {
+      console.error(`[Google Sync API] Invalid customer IDs found [${requestId}]:`, {
+        invalidConnections,
+        totalConnections: connections.length,
+        clientId,
+        timestamp: new Date().toISOString(),
+      });
+      
+      return NextResponse.json(
+        { 
+          error: 'Formato inválido de Customer ID',
+          message: 'Uma ou mais conexões possuem Customer IDs em formato inválido',
+          details: invalidConnections.map(conn => ({
+            connectionId: conn.id,
+            customerId: conn.customerId,
+            errors: conn.errors,
+          })),
+          help: 'Customer ID deve ter exatamente 10 dígitos (ex: "1234567890" ou "123-456-7890")',
+        },
+        { status: 400 }
+      );
+    }
+    
+    console.log(`[Google Sync API] All customer IDs validated successfully [${requestId}]:`, {
+      connectionsCount: connections.length,
+      customerIds: connections.map(c => c.customer_id),
+      timestamp: new Date().toISOString(),
+    });
 
     // Check if any sync is already in progress
     const { data: activeSyncs } = await supabase
@@ -175,7 +260,16 @@ export async function POST(request: NextRequest) {
           } : undefined,
         };
 
-        console.log('[Google Sync] Starting sync:', syncOptions);
+        console.log(`[Google Sync API] Starting sync for connection [${requestId}]:`, {
+          ...syncOptions,
+          connectionDetails: {
+            id: connection.id,
+            customerId: connection.customer_id,
+            lastSyncAt: connection.last_sync_at,
+            status: connection.status,
+          },
+          timestamp: new Date().toISOString(),
+        });
 
         // Start the sync (this should be async/background)
         const result = await syncService.startSync(syncOptions);
@@ -189,7 +283,17 @@ export async function POST(request: NextRequest) {
         });
 
       } catch (syncError) {
-        console.error(`[Google Sync] Error starting sync for connection ${connection.id}:`, syncError);
+        console.error(`[Google Sync] Error starting sync for connection ${connection.id}:`, {
+          error: syncError instanceof Error ? syncError.message : String(syncError),
+          errorName: syncError instanceof Error ? syncError.name : 'Unknown',
+          errorStack: syncError instanceof Error ? syncError.stack : undefined,
+          connectionId: connection.id,
+          customerId: connection.customer_id,
+          clientId,
+          syncOptions,
+          requestId,
+          timestamp: new Date().toISOString(),
+        });
         
         syncResults.push({
           connectionId: connection.id,
@@ -231,7 +335,16 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[Google Sync] Error:', error);
+    console.error('[Google Sync] Error:', {
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'Unknown',
+      errorStack: error instanceof Error ? error.stack : undefined,
+      errorType: error instanceof z.ZodError ? 'ZodError' : typeof error,
+      requestBody: body,
+      timestamp: new Date().toISOString(),
+      userAgent: request.headers.get('user-agent'),
+      origin: request.headers.get('origin'),
+    });
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -244,7 +357,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
+      { 
+        error: 'Erro interno do servidor',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     );
   }
@@ -269,7 +385,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get authenticated user
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -279,12 +395,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify user has access to the client
+    // Verify user has access to the client through organization
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('org_id')
+      .eq('id', clientId)
+      .single();
+
+    if (clientError || !client) {
+      return NextResponse.json(
+        { error: 'Cliente não encontrado' },
+        { status: 404 }
+      );
+    }
+
     const { data: membership, error: membershipError } = await supabase
-      .from('organization_memberships')
-      .select('client_id')
+      .from('memberships')
+      .select('id')
       .eq('user_id', user.id)
-      .eq('client_id', clientId)
+      .eq('organization_id', client.org_id)
       .single();
 
     if (membershipError || !membership) {
@@ -324,7 +453,15 @@ export async function GET(request: NextRequest) {
     const { data: syncLogs, error: logsError } = await query;
 
     if (logsError) {
-      console.error('[Google Sync GET] Error fetching sync logs:', logsError);
+      console.error('[Google Sync GET] Error fetching sync logs:', {
+        error: logsError.message || String(logsError),
+        errorCode: (logsError as any).code,
+        errorDetails: (logsError as any).details,
+        clientId,
+        connectionId,
+        limit,
+        timestamp: new Date().toISOString(),
+      });
       return NextResponse.json(
         { error: 'Erro ao buscar histórico de sincronização' },
         { status: 500 }
@@ -357,9 +494,20 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[Google Sync GET] Error:', error);
+    console.error('[Google Sync GET] Error:', {
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'Unknown',
+      errorStack: error instanceof Error ? error.stack : undefined,
+      clientId: searchParams.get('clientId'),
+      connectionId: searchParams.get('connectionId'),
+      limit: searchParams.get('limit'),
+      timestamp: new Date().toISOString(),
+    });
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
+      { 
+        error: 'Erro interno do servidor',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     );
   }

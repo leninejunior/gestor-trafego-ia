@@ -10,7 +10,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
@@ -26,8 +26,11 @@ interface GoogleAdsAccount {
 function SelectAccountsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const connectionId = searchParams.get('connectionId');
-  const clientId = searchParams.get('clientId');
+  
+  // Obter parâmetros com fallback para session storage
+  const [connectionId, setConnectionId] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [paramsLoaded, setParamsLoaded] = useState(false);
 
   const [accounts, setAccounts] = useState<GoogleAdsAccount[]>([]);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
@@ -35,7 +38,129 @@ function SelectAccountsContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Efeito para carregar parâmetros da URL
   useEffect(() => {
+    console.log('[Google Select Accounts] 🔍 CARREGANDO PARÂMETROS DA URL');
+    console.log('[Google Select Accounts] Timestamp:', new Date().toISOString());
+    
+    // Obter parâmetros da URL
+    const urlConnectionId = searchParams.get('connectionId');
+    const urlClientId = searchParams.get('clientId');
+    
+    console.log('[Google Select Accounts] 📊 PARÂMETROS DA URL:');
+    console.log('[Google Select Accounts] - Connection ID:', urlConnectionId);
+    console.log('[Google Select Accounts] - Client ID:', urlClientId);
+    console.log('[Google Select Accounts] - Tipo Connection ID:', typeof urlConnectionId);
+    console.log('[Google Select Accounts] - Tipo Client ID:', typeof urlClientId);
+    console.log('[Google Select Accounts] - URL completa:', window.location.href);
+    
+    let finalConnectionId: string | null = null;
+    let finalClientId: string | null = null;
+    
+    // Prioridade 1: Parâmetros da URL
+    if (urlConnectionId && urlClientId) {
+      console.log('[Google Select Accounts] ✅ PARÂMETROS ENCONTRADOS NA URL');
+      finalConnectionId = urlConnectionId;
+      finalClientId = urlClientId;
+      
+      // Salvar no session storage para referência futura
+      try {
+        sessionStorage.setItem('google_connectionId', urlConnectionId);
+        sessionStorage.setItem('google_clientId', urlClientId);
+      } catch (e) {
+        console.warn('[Google Select Accounts] ⚠️ Erro ao salvar em session storage:', e);
+      }
+    } else {
+      console.log('[Google Select Accounts] ⚠️ PARÂMETROS NÃO ENCONTRADOS NA URL, TENTANDO FALLBACKS');
+      
+      // Prioridade 2: Cookies
+      try {
+        const cookieString = document.cookie;
+        const cookies = cookieString.split(';').reduce((acc: Record<string, string>, cookie) => {
+          const [key, value] = cookie.trim().split('=');
+          if (key && value) {
+            acc[key] = decodeURIComponent(value);
+          }
+          return acc;
+        }, {});
+        
+        const cookieConnectionId = cookies['google_connectionId'];
+        const cookieClientId = cookies['google_clientId'];
+        
+        console.log('[Google Select Accounts] 🍪 COOKIES:');
+        console.log('[Google Select Accounts] - Cookie Connection ID:', cookieConnectionId);
+        console.log('[Google Select Accounts] - Cookie Client ID:', cookieClientId);
+        
+        if (cookieConnectionId && cookieClientId) {
+          console.log('[Google Select Accounts] ✅ PARÂMETROS ENCONTRADOS NOS COOKIES');
+          finalConnectionId = cookieConnectionId;
+          finalClientId = cookieClientId;
+        }
+      } catch (e) {
+        console.warn('[Google Select Accounts] ⚠️ Erro ao acessar cookies:', e);
+      }
+      
+      // Prioridade 3: Session Storage
+      if (!finalConnectionId || !finalClientId) {
+        try {
+          const storedConnectionId = sessionStorage.getItem('google_connectionId');
+          const storedClientId = sessionStorage.getItem('google_clientId');
+          
+          console.log('[Google Select Accounts] 📦 SESSION STORAGE:');
+          console.log('[Google Select Accounts] - Stored Connection ID:', storedConnectionId);
+          console.log('[Google Select Accounts] - Stored Client ID:', storedClientId);
+          
+          if (storedConnectionId && storedClientId) {
+            console.log('[Google Select Accounts] ✅ PARÂMETROS ENCONTRADOS NO SESSION STORAGE');
+            finalConnectionId = storedConnectionId;
+            finalClientId = storedClientId;
+          }
+        } catch (e) {
+          console.warn('[Google Select Accounts] ⚠️ Erro ao acessar session storage:', e);
+        }
+      }
+      
+      // Prioridade 4: Local Storage (backup)
+      if (!finalConnectionId || !finalClientId) {
+        try {
+          const backupConnectionId = localStorage.getItem('google_connectionId_backup');
+          const backupClientId = localStorage.getItem('google_clientId_backup');
+          
+          console.log('[Google Select Accounts] 💾 LOCAL STORAGE (BACKUP):');
+          console.log('[Google Select Accounts] - Backup Connection ID:', backupConnectionId);
+          console.log('[Google Select Accounts] - Backup Client ID:', backupClientId);
+          
+          if (backupConnectionId && backupClientId) {
+            console.log('[Google Select Accounts] ✅ PARÂMETROS ENCONTRADOS NO LOCAL STORAGE');
+            finalConnectionId = backupConnectionId;
+            finalClientId = backupClientId;
+          }
+        } catch (e) {
+          console.warn('[Google Select Accounts] ⚠️ Erro ao acessar local storage:', e);
+        }
+      }
+    }
+    
+    // Definir os valores finais
+    if (finalConnectionId && finalClientId) {
+      console.log('[Google Select Accounts] ✅ PARÂMETROS CARREGADOS COM SUCESSO');
+      setConnectionId(finalConnectionId);
+      setClientId(finalClientId);
+    } else {
+      console.log('[Google Select Accounts] ❌ NENHUM PARÂMETRO ENCONTRADO');
+    }
+    
+    setParamsLoaded(true);
+  }, [searchParams]);
+
+  // Efeito para validar parâmetros e buscar contas
+  useEffect(() => {
+    if (!paramsLoaded) return;
+    
+    console.log('[Google Select Accounts] 🔐 VALIDANDO PARÂMETROS');
+    console.log('[Google Select Accounts] - Connection ID:', connectionId);
+    console.log('[Google Select Accounts] - Client ID:', clientId);
+    
     // Verificar se os parâmetros são válidos (não null, undefined ou string vazia)
     if (!connectionId || !clientId || connectionId === 'null' || clientId === 'null') {
       console.log('[Google Select Accounts] ❌ PARÂMETROS INVÁLIDOS OU AUSENTES');
@@ -62,7 +187,7 @@ function SelectAccountsContent() {
 
     console.log('[Google Select Accounts] ✅ PARÂMETROS VÁLIDOS - INICIANDO BUSCA');
     fetchAvailableAccounts();
-  }, [connectionId, clientId]);
+  }, [paramsLoaded, connectionId, clientId]);
 
   const fetchAvailableAccounts = async () => {
     try {
@@ -75,8 +200,7 @@ function SelectAccountsContent() {
       setLoading(true);
       setError(null);
 
-      // MODO DESENVOLVIMENTO: Usar dados simulados se API falhar
-      const apiUrl = `/api/google/accounts-direct?connectionId=${connectionId}&clientId=${clientId}`;
+      const apiUrl = `/api/google/accounts?connectionId=${connectionId}&clientId=${clientId}`;
       console.log('[Google Select Accounts] 📡 FAZENDO REQUISIÇÃO PARA:', apiUrl);
       
       const response = await fetch(apiUrl);
@@ -136,11 +260,12 @@ function SelectAccountsContent() {
 
       console.log('[Google Select Accounts] ✅ CONTAS CARREGADAS COM SUCESSO');
       console.log('='.repeat(80));
-    } catch (err) {
-      console.error('[Google Select Accounts] ❌ ERRO AO BUSCAR CONTAS:', err);
-      console.error('[Google Select Accounts] - Mensagem:', err.message);
-      console.error('[Google Select Accounts] - Stack:', err.stack);
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error('[Google Select Accounts] ❌ ERRO AO BUSCAR CONTAS:', error);
+      console.error('[Google Select Accounts] - Mensagem:', error.message);
+      console.error('[Google Select Accounts] - Stack:', error.stack);
+      setError(error.message || 'Erro desconhecido');
     } finally {
       setLoading(false);
     }
@@ -181,7 +306,7 @@ function SelectAccountsContent() {
       console.log('[Google Select Accounts] - URL: /api/google/accounts/select-simple');
       console.log('[Google Select Accounts] - Body:', JSON.stringify(requestBody, null, 2));
 
-      const response = await fetch('/api/google/accounts/select-simple', {
+      const response = await fetch('/api/google/accounts/select', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -202,6 +327,34 @@ function SelectAccountsContent() {
 
       const data = await response.json();
       console.log('[Google Select Accounts] ✅ SELEÇÃO SALVA COM SUCESSO:', data);
+
+      // ====================================================================
+      // INICIAR A SINCRONIZAÇÃO INICIAL EM BACKGROUND
+      // ====================================================================
+      try {
+        console.log('[Google Select Accounts] 🚀 INICIANDO SINCRONIZAÇÃO INICIAL...');
+        const syncResponse = await fetch('/api/google/sync', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            clientId,
+            connectionId,
+            syncType: 'full',
+          }),
+        });
+        
+        if (syncResponse.ok) {
+          const syncData = await syncResponse.json();
+          console.log('[Google Select Accounts] ✅ SINCRONIZAÇÃO INICIADA:', syncData);
+        } else {
+          const syncError = await syncResponse.json();
+          console.warn('[Google Select Accounts] ⚠️ FALHA AO INICIAR SINCRONIZAÇÃO:', syncError);
+        }
+      } catch (syncErr) {
+        console.error('[Google Select Accounts] ❌ ERRO CRÍTICO AO INICIAR SINCRONIZAÇÃO:', syncErr);
+      }
       
       // Redirect to success page
       const redirectUrl = `/dashboard/google?success=connected&accounts=${selectedAccounts.length}`;
@@ -209,11 +362,12 @@ function SelectAccountsContent() {
       router.push(redirectUrl);
       console.log('='.repeat(80));
 
-    } catch (err) {
-      console.error('[Google Select Accounts] ❌ ERRO AO SALVAR SELEÇÃO:', err);
-      console.error('[Google Select Accounts] - Mensagem:', err.message);
-      console.error('[Google Select Accounts] - Stack:', err.stack);
-      setError(err instanceof Error ? err.message : 'Erro ao salvar seleção');
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error('[Google Select Accounts] ❌ ERRO AO SALVAR SELEÇÃO:', error);
+      console.error('[Google Select Accounts] - Mensagem:', error.message);
+      console.error('[Google Select Accounts] - Stack:', error.stack);
+      setError(error.message || 'Erro ao salvar seleção');
     } finally {
       setSaving(false);
     }
@@ -362,6 +516,21 @@ function SelectAccountsContent() {
           </Card>
         ) : (
           <>
+            {accounts.length > 0 && (
+              <Alert className="mb-6 bg-blue-50 border-blue-200">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-blue-800">
+                  <strong>✅ Contas carregadas com sucesso!</strong>
+                  <br />
+                  {accounts.some(a => a.canManageClients) ? (
+                    <>Encontramos contas dentro da sua MCC. Selecione as contas que deseja conectar.</>
+                  ) : (
+                    <>Selecione as contas do Google Ads que deseja conectar.</>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="space-y-4 mb-6">
               {accounts.map((account) => (
                 <Card key={account.customerId} className="cursor-pointer hover:bg-accent/50">
@@ -380,8 +549,8 @@ function SelectAccountsContent() {
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{account.descriptiveName}</span>
                             {account.canManageClients && (
-                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                MCC
+                              <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded font-semibold">
+                                ⚠️ MCC (Não selecionável)
                               </span>
                             )}
                           </div>
@@ -390,8 +559,12 @@ function SelectAccountsContent() {
                           </div>
                           <div className="text-sm text-muted-foreground">
                             {account.currencyCode} • {account.timeZone}
-                            {account.canManageClients && ' • Conta gerencial (pode gerenciar outras contas)'}
                           </div>
+                          {!account.canManageClients && (
+                            <div className="text-xs text-green-600 mt-1">
+                              ✓ Conta de anúncios (pode ser conectada)
+                            </div>
+                          )}
                         </label>
                       </div>
                     </div>

@@ -18,7 +18,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import Link from "next/link";
-import { GoogleCampaignsList } from "@/components/google/campaigns-list";
+import { GoogleCampaignsList } from "@/components/google/google-campaigns-list";
 import { ConnectGoogleButton } from "@/components/google/connect-google-button";
 import { GoogleSyncStatus } from "@/components/google/sync-status";
 import { ExportButton } from "@/components/exports/export-button";
@@ -328,7 +328,7 @@ export default function GooglePage() {
           <ExportButton
             clientId={selectedClient !== 'all' ? selectedClient : ''}
             platform="google"
-            disabled={selectedClient === 'all' || !clients.find(c => c.id === selectedClient)?.google_connection}
+            disabled={selectedClient === 'all' || !clients.find(c => c.id === selectedClient)?.googleConnections?.length}
             variant="outline"
           />
           <Button onClick={handleRefresh} variant="outline" disabled={refreshing}>
@@ -498,20 +498,29 @@ export default function GooglePage() {
                       <div>
                         <div className="font-medium">{client.name}</div>
                         <div className="text-sm text-muted-foreground">
-                          ID: {client.google_connection?.customer_id}
+                          {client.googleConnections && client.googleConnections.length > 0 ? (
+                            <>
+                              {client.googleConnections.length} conta{client.googleConnections.length > 1 ? 's' : ''} conectada{client.googleConnections.length > 1 ? 's' : ''}
+                              {client.googleConnections.length === 1 && (
+                                <> (ID: {client.googleConnections[0].customer_id})</>
+                              )}
+                            </>
+                          ) : (
+                            'Nenhuma conta conectada'
+                          )}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge 
-                        variant={client.google_connection?.status === 'active' ? 'default' : 'destructive'}
-                        className={client.google_connection?.status === 'active' ? 'bg-green-100 text-green-800' : ''}
+                        variant={client.googleConnections?.[0]?.status === 'active' ? 'default' : 'destructive'}
+                        className={client.googleConnections?.[0]?.status === 'active' ? 'bg-green-100 text-green-800' : ''}
                       >
-                        {client.google_connection?.status === 'active' ? 'Conectado' : 'Desconectado'}
+                        {client.googleConnections?.[0]?.status === 'active' ? 'Conectado' : 'Desconectado'}
                       </Badge>
                       <ConnectGoogleButton
                         clientId={client.id}
-                        connection={client.google_connection}
+                        connection={client.googleConnections?.[0]}
                         onConnectionUpdate={fetchClients}
                       />
                     </div>
@@ -521,18 +530,52 @@ export default function GooglePage() {
             </CardContent>
           </Card>
 
-          <GoogleSyncStatus 
-            clientId={selectedClient !== 'all' ? selectedClient : connectedClients[0]?.id || ''}
-            compact={false}
-          />
+          {selectedClient !== 'all' ? (
+            <GoogleSyncStatus 
+              clientId={selectedClient}
+              compact={false}
+            />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Sincronização</CardTitle>
+                <CardDescription>
+                  Sincronize os dados do Google Ads
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Selecione um Cliente
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    Para sincronizar dados, selecione um cliente específico no filtro acima.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
       {/* Campaigns List */}
       {hasConnections && isGoogleAdsConfigured ? (
-        <GoogleCampaignsList
-          clientId={selectedClient !== 'all' ? selectedClient : ''}
-        />
+        selectedClient !== 'all' ? (
+          <GoogleCampaignsList clientId={selectedClient} />
+        ) : (
+          <Card>
+            <CardContent className="text-center py-12">
+              <AlertCircle className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Selecione um Cliente
+              </h3>
+              <p className="text-gray-500">
+                Para visualizar as campanhas, selecione um cliente específico no filtro acima.
+              </p>
+            </CardContent>
+          </Card>
+        )
       ) : isGoogleAdsConfigured === false ? (
         <Card>
           <CardContent className="text-center py-12">

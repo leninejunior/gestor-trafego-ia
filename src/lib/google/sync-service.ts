@@ -14,6 +14,7 @@ import { googleAdsLogger } from './logger';
 import { googleAdsPerformanceMonitor } from './performance-monitor';
 import { googleAdsCache } from './cache-service';
 import { GoogleAdsBatchOperations, BatchProgress, globalBatchQueue } from './batch-operations';
+import { validateCustomerIdWithLogging, formatCustomerId } from './customer-id-validator';
 
 // ============================================================================
 // Types and Interfaces
@@ -127,11 +128,40 @@ export class GoogleSyncService {
       console.log('[Google Sync] Starting campaign sync:', options);
 
       // Get or validate connection
-      const connection = await this.getConnection(options);
+      const connection = await this.getValidatedConnection(options);
+      
+      // Validate customer ID format
+      const customerIdValidation = validateCustomerIdWithLogging(
+        connection.customer_id,
+        {
+          source: 'syncCampaigns',
+          clientId: options.clientId,
+          connectionId: connection.id,
+        }
+      );
+      
+      if (!customerIdValidation.isValid) {
+        throw new Error(
+          `Invalid customer ID format in connection: ${customerIdValidation.errors.join(', ')}. ` +
+          `Customer ID: "${connection.customer_id}". ` +
+          `Connection ID: ${connection.id}`
+        );
+      }
+      
+      // Use formatted customer ID
+      const formattedCustomerId = customerIdValidation.formatted;
+      
+      console.log('[Google Sync] Using validated customer ID:', {
+        original: connection.customer_id,
+        formatted: formattedCustomerId,
+        connectionId: connection.id,
+        clientId: options.clientId,
+        timestamp: new Date().toISOString(),
+      });
       
       // Create sync log
       syncLogId = await this.repository.createSyncLog({
-        connection_id: connection.connectionId,
+        connection_id: connection.id,
         sync_type: options.fullSync ? 'full' : 'incremental',
         status: 'success', // Will be updated
         campaigns_synced: 0,
@@ -144,39 +174,124 @@ export class GoogleSyncService {
 
       // Ensure valid access token
       const accessToken = await this.tokenManager.ensureValidToken(
-        connection.connectionId
+        connection.id
       );
 
-      // Create Google Ads client
+      // Create Google Ads client with validated customer ID
       const client = new GoogleAdsClient({
         clientId: process.env.GOOGLE_CLIENT_ID!,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
         developerToken: process.env.GOOGLE_DEVELOPER_TOKEN!,
         refreshToken: '', // Not needed, we have access token
-        customerId: connection.customerId,
+        customerId: formattedCustomerId,
       });
 
       // Set access token directly
       (client as any).accessToken = accessToken;
       (client as any).tokenExpiresAt = new Date(Date.now() + 3600 * 1000);
 
+      // Log sync parameters before fetching
+      console.log('[Google Sync] Fetching campaigns with parameters:', {
+        connectionId: connection.id,
+        customerId: connection.customer_id,
+        clientId: options.clientId,
+        fullSync: options.fullSync,
+        dateRange: options.dateRange,
+        syncMetrics: options.syncMetrics,
+        timestamp: new Date().toISOString(),
+      });
+
       // Fetch campaigns from Google Ads
+      console.log('[Google Sync] About to fetch campaigns from Google Ads API...', {
+        connectionId: connection.id,
+        customerId: connection.customer_id,
+        clientId: options.clientId,
+        timestamp: new Date().toISOString(),
+      });
+      
       const campaigns = await this.fetchCampaignsWithRetry(
         client,
         options.dateRange
       );
 
-      console.log(`[Google Sync] Fetched ${campaigns.length} campaigns from Google Ads`);
+      // ========================================================================
+      // BEFORE PROCESSING: Log campaign count from API
+      // ========================================================================
+      console.log(`[Google Sync] ✓ BEFORE PROCESSING - Fetched ${campaigns.length} campaigns from Google Ads API`, {
+        campaignCount: campaigns.length,
+        campaignIds: campaigns.map(c => c.id),
+        campaignNames: campaigns.map(c => c.name),
+        campaignStatuses: campaigns.map(c => c.status),
+        customerId: connection.customer_id,
+        connectionId: connection.id,
+        clientId: options.clientId,
+        timestamp: new Date().toISOString(),
+      });
+      
+      // Log detailed campaign structure if we got campaigns
+      if (campaigns.length > 0) {
+        console.log('[Google Sync] First Campaign Structure:', {
+          campaign: campaigns[0],
+          campaignKeys: Object.keys(campaigns[0]),
+          metricsKeys: campaigns[0].metrics ? Object.keys(campaigns[0].metrics) : [],
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        console.warn('[Google Sync] ⚠️ BEFORE PROCESSING - No campaigns returned from API', {
+          connectionId: connection.id,
+          customerId: connection.customer_id,
+          clientId: options.clientId,
+          dateRange: options.dateRange,
+          fullSync: options.fullSync,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       // Save campaigns to database
       if (campaigns.length > 0) {
+        console.log(`[Google Sync] Processing ${campaigns.length} campaigns for database save...`, {
+          connectionId: connection.id,
+          clientId: options.clientId,
+          campaignIds: campaigns.map(c => c.id),
+          timestamp: new Date().toISOString(),
+        });
+        
         campaignsSynced = await this.repository.saveCampaigns(
           campaigns,
-          connection.connectionId,
+          connection.id,
           options.clientId
         );
 
-        console.log(`[Google Sync] Saved ${campaignsSynced} campaigns to database`);
+        // ======================================================================
+        // AFTER PROCESSING: Log campaign count saved to database
+        // ======================================================================
+        console.log(`[Google Sync] ✓ AFTER PROCESSING - Saved ${campaignsSynced} campaigns to database`, {
+          beforeProcessing: campaigns.length,
+          afterProcessing: campaignsSynced,
+          difference: campaigns.length - campaignsSynced,
+          successRate: `${((campaignsSynced / campaigns.length) * 100).toFixed(2)}%`,
+          connectionId: connection.id,
+          clientId: options.clientId,
+          timestamp: new Date().toISOString(),
+        });
+        
+        if (campaignsSynced !== campaigns.length) {
+          console.warn('[Google Sync] ⚠️ Mismatch between fetched and saved campaigns', {
+            fetched: campaigns.length,
+            saved: campaignsSynced,
+            missing: campaigns.length - campaignsSynced,
+            missingPercentage: `${(((campaigns.length - campaignsSynced) / campaigns.length) * 100).toFixed(2)}%`,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } else {
+        console.log('[Google Sync] ✓ AFTER PROCESSING - No campaigns to save to database', {
+          beforeProcessing: 0,
+          afterProcessing: 0,
+          connectionId: connection.id,
+          clientId: options.clientId,
+          timestamp: new Date().toISOString(),
+        });
       }
 
       // Sync metrics if requested
@@ -184,7 +299,7 @@ export class GoogleSyncService {
         const metricsResult = await this.syncCampaignMetrics(
           client,
           campaigns,
-          connection.connectionId,
+          connection.id,
           options.dateRange
         );
 
@@ -195,7 +310,7 @@ export class GoogleSyncService {
       }
 
       // Update last sync timestamp
-      await this.repository.updateLastSync(connection.connectionId);
+      await this.repository.updateLastSync(connection.id);
 
       // Update sync log with success
       await this.repository.updateSyncLog(syncLogId, {
@@ -204,7 +319,7 @@ export class GoogleSyncService {
         metrics_updated: metricsUpdated,
         error_message: errors.length > 0 
           ? `${errors.length} errors occurred during sync`
-          : null,
+          : undefined,
         completed_at: new Date(),
       });
 
@@ -220,32 +335,43 @@ export class GoogleSyncService {
         },
         duration,
         {
-          connectionId: connection.connectionId,
+          connectionId: connection.id,
           clientId: options.clientId,
-          customerId: connection.customerId
+          customerId: connection.customer_id
         }
       );
 
       // Send notification about sync completion
       try {
-        await googleAdsNotificationService.notifySyncCompletion({
-          connectionId: connection.connectionId,
-          clientId: options.clientId,
-          userId: connection.userId,
-          organizationId: connection.organizationId,
-          syncType: options.fullSync ? 'full' : (options.syncMetrics ? 'metrics' : 'campaigns'),
-          status: errors.length > 0 ? 'partial' : 'success',
-          details: {
-            campaignsSynced,
-            metricsUpdated,
-            duration,
-            errorMessage: errors.length > 0 ? `${errors.length} errors occurred` : undefined
-          }
-        });
+        if (connection.userId && connection.organizationId) {
+          await googleAdsNotificationService.notifySyncCompletion({
+            connectionId: connection.id,
+            clientId: options.clientId,
+            userId: connection.userId,
+            organizationId: connection.organizationId,
+            syncType: options.fullSync ? 'full' : (options.syncMetrics ? 'metrics' : 'campaigns'),
+            status: errors.length > 0 ? 'partial' : 'success',
+            details: {
+              campaignsSynced,
+              metricsUpdated,
+              duration,
+              errorMessage: errors.length > 0 ? `${errors.length} errors occurred` : undefined
+            }
+          });
+        }
       } catch (notificationError) {
         googleAdsLogger.error('Failed to send notification', notificationError as Error, {
-          connectionId: connection.connectionId,
-          clientId: options.clientId
+          connectionId: connection.id,
+          clientId: options.clientId,
+          metadata: {
+            errorName: notificationError instanceof Error ? notificationError.name : 'Unknown',
+            errorStack: notificationError instanceof Error ? notificationError.stack : undefined,
+            errorCode: (notificationError as any)?.code,
+            syncStatus: errors.length > 0 ? 'partial' : 'success',
+            campaignsSynced,
+            metricsUpdated,
+            timestamp: new Date().toISOString(),
+          },
         });
       }
 
@@ -257,7 +383,7 @@ export class GoogleSyncService {
 
       // Finish performance monitoring
       await googleAdsPerformanceMonitor.finishOperation(operationId, {
-        connectionId: connection.connectionId,
+        connectionId: connection.id,
         clientId: options.clientId,
         userId: connection.userId
       });
@@ -278,7 +404,23 @@ export class GoogleSyncService {
       googleAdsLogger.error('Sync failed', error as Error, {
         clientId: options.clientId,
         customerId: options.customerId,
-        operation: 'sync_campaigns'
+        operation: 'sync_campaigns',
+        duration: Date.now() - startTime.getTime(),
+        metadata: {
+          errorName: error instanceof Error ? error.name : 'Unknown',
+          errorStack: error instanceof Error ? error.stack : undefined,
+          errorCode: (error as any)?.code,
+          errorStatus: (error as any)?.status,
+          syncOptions: {
+            fullSync: options.fullSync,
+            syncMetrics: options.syncMetrics,
+            dateRange: options.dateRange,
+            connectionId: options.connectionId,
+          },
+          campaignsSyncedBeforeError: campaignsSynced,
+          metricsUpdatedBeforeError: metricsUpdated,
+          timestamp: new Date().toISOString(),
+        },
       });
 
       const syncError: SyncError = {
@@ -301,25 +443,34 @@ export class GoogleSyncService {
         });
       }
 
-      // Send error notification
+      // Send error notification (skip if user/org info not available)
       try {
-        const connection = await this.getConnection(options);
-        await googleAdsNotificationService.notifySyncCompletion({
-          connectionId: connection.connectionId,
-          clientId: options.clientId,
-          userId: connection.userId,
-          organizationId: connection.organizationId,
-          syncType: options.fullSync ? 'full' : (options.syncMetrics ? 'metrics' : 'campaigns'),
-          status: 'error',
-          details: {
-            campaignsSynced,
-            metricsUpdated,
-            errorMessage: syncError.message,
-            duration: Date.now() - startTime.getTime()
-          }
-        });
+        const connection = await this.getValidatedConnection(options);
+        if (connection.userId && connection.organizationId) {
+          await googleAdsNotificationService.notifySyncCompletion({
+            connectionId: connection.id,
+            clientId: options.clientId,
+            userId: connection.userId,
+            organizationId: connection.organizationId,
+            syncType: options.fullSync ? 'full' : (options.syncMetrics ? 'metrics' : 'campaigns'),
+            status: 'error',
+            details: {
+              campaignsSynced,
+              metricsUpdated,
+              errorMessage: syncError.message,
+              duration: Date.now() - startTime.getTime()
+            }
+          });
+        }
       } catch (notificationError) {
-        console.error('[Google Sync] Failed to send error notification:', notificationError);
+        console.error('[Google Sync] Failed to send error notification:', {
+          error: notificationError instanceof Error ? notificationError.message : String(notificationError),
+          errorName: notificationError instanceof Error ? notificationError.name : 'Unknown',
+          errorStack: notificationError instanceof Error ? notificationError.stack : undefined,
+          clientId: options.clientId,
+          syncError: syncError.message,
+          timestamp: new Date().toISOString(),
+        });
       }
 
       // Update performance monitoring with error
@@ -330,14 +481,21 @@ export class GoogleSyncService {
 
       // Finish performance monitoring
       try {
-        const connection = await this.getConnection(options);
+        const connection = await this.getValidatedConnection(options);
         await googleAdsPerformanceMonitor.finishOperation(operationId, {
-          connectionId: connection.connectionId,
+          connectionId: connection.id,
           clientId: options.clientId,
           userId: connection.userId
         });
       } catch (perfError) {
-        console.error('[Google Sync] Failed to finish performance monitoring:', perfError);
+        console.error('[Google Sync] Failed to finish performance monitoring:', {
+          error: perfError instanceof Error ? perfError.message : String(perfError),
+          errorName: perfError instanceof Error ? perfError.name : 'Unknown',
+          errorStack: perfError instanceof Error ? perfError.stack : undefined,
+          operationId,
+          clientId: options.clientId,
+          timestamp: new Date().toISOString(),
+        });
       }
 
       return {
@@ -417,7 +575,18 @@ export class GoogleSyncService {
           metricsUpdated++;
 
         } catch (error) {
-          console.error(`[Google Sync] Error syncing metrics for campaign ${campaignId}:`, error);
+          console.error(`[Google Sync] Error syncing metrics for campaign ${campaignId}:`, {
+            error: error instanceof Error ? error.message : String(error),
+            errorName: error instanceof Error ? error.name : 'Unknown',
+            errorStack: error instanceof Error ? error.stack : undefined,
+            errorCode: (error as any)?.code,
+            errorStatus: (error as any)?.status,
+            campaignId,
+            connectionId,
+            dateRange,
+            isRetryable: this.isRetryableError(error),
+            timestamp: new Date().toISOString(),
+          });
           
           errors.push({
             code: 'METRICS_SYNC_FAILED',
@@ -437,7 +606,19 @@ export class GoogleSyncService {
       };
 
     } catch (error) {
-      console.error('[Google Sync] Metrics sync failed:', error);
+      console.error('[Google Sync] Metrics sync failed:', {
+        error: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorCode: (error as any)?.code,
+        errorStatus: (error as any)?.status,
+        campaignIds: campaignIds.length,
+        dateRange,
+        connectionId,
+        metricsUpdatedBeforeError: metricsUpdated,
+        errorsCount: errors.length,
+        timestamp: new Date().toISOString(),
+      });
 
       return {
         success: false,
@@ -498,7 +679,14 @@ export class GoogleSyncService {
       };
 
     } catch (error) {
-      console.error('[Google Sync] Error getting sync status:', error);
+      console.error('[Google Sync] Error getting sync status:', {
+        error: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorCode: (error as any)?.code,
+        clientId,
+        timestamp: new Date().toISOString(),
+      });
       
       return {
         isRunning: false,
@@ -567,8 +755,22 @@ export class GoogleSyncService {
     client: GoogleAdsClient,
     dateRange?: DateRange
   ): Promise<GoogleAdsCampaign[]> {
+    console.log('[Google Sync] Fetching campaigns with retry logic:', {
+      dateRange,
+      customerId: (client as any).config?.customerId,
+      timestamp: new Date().toISOString(),
+    });
+    
     return this.retryWithExponentialBackoff(
-      async () => await client.getCampaigns(dateRange),
+      async () => {
+        const campaigns = await client.getCampaigns(dateRange);
+        console.log('[Google Sync] Campaign fetch successful:', {
+          count: campaigns.length,
+          dateRange,
+          timestamp: new Date().toISOString(),
+        });
+        return campaigns;
+      },
       'fetch_campaigns'
     );
   }
@@ -639,7 +841,20 @@ export class GoogleSyncService {
           totalUpdated++;
 
         } catch (error) {
-          console.error(`[Google Sync] Error syncing metrics for campaign ${campaign.id}:`, error);
+          console.error(`[Google Sync] Error syncing metrics for campaign ${campaign.id}:`, {
+            error: error instanceof Error ? error.message : String(error),
+            errorName: error instanceof Error ? error.name : 'Unknown',
+            errorStack: error instanceof Error ? error.stack : undefined,
+            errorCode: (error as any)?.code,
+            errorStatus: (error as any)?.status,
+            campaignId: campaign.id,
+            campaignName: campaign.name,
+            connectionId,
+            dateRange: range,
+            isRetryable: this.isRetryableError(error),
+            batchIndex: Math.floor(campaigns.indexOf(campaign) / this.CAMPAIGN_BATCH_SIZE),
+            timestamp: new Date().toISOString(),
+          });
           
           errors.push({
             code: 'METRICS_SYNC_FAILED',
@@ -669,25 +884,67 @@ export class GoogleSyncService {
     let lastError: any;
     let delay = this.INITIAL_RETRY_DELAY;
 
+    console.log(`[Google Sync] Starting ${operationName} with retry logic:`, {
+      maxRetries: this.MAX_RETRIES,
+      initialDelay: this.INITIAL_RETRY_DELAY,
+      maxDelay: this.MAX_RETRY_DELAY,
+      timestamp: new Date().toISOString(),
+    });
+
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        return await operation();
+        console.log(`[Google Sync] ${operationName} attempt ${attempt}/${this.MAX_RETRIES}`, {
+          timestamp: new Date().toISOString(),
+        });
+        
+        const result = await operation();
+        
+        if (attempt > 1) {
+          console.log(`[Google Sync] ${operationName} succeeded after ${attempt} attempts`, {
+            timestamp: new Date().toISOString(),
+          });
+        }
+        
+        return result;
       } catch (error) {
         lastError = error;
 
+        // Log error details
+        console.error(`[Google Sync] ${operationName} attempt ${attempt} failed:`, {
+          error: error instanceof Error ? error.message : String(error),
+          errorCode: (error as any)?.code,
+          errorStatus: (error as any)?.status,
+          isRetryable: this.isRetryableError(error),
+          attempt,
+          maxRetries: this.MAX_RETRIES,
+          timestamp: new Date().toISOString(),
+        });
+
         // Check if error is retryable
         if (!this.isRetryableError(error)) {
+          console.error(`[Google Sync] ${operationName} error is not retryable, aborting`, {
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString(),
+          });
           throw error;
         }
 
         // Don't retry on last attempt
         if (attempt === this.MAX_RETRIES) {
+          console.error(`[Google Sync] ${operationName} failed after ${this.MAX_RETRIES} attempts`, {
+            lastError: lastError instanceof Error ? lastError.message : String(lastError),
+            timestamp: new Date().toISOString(),
+          });
           break;
         }
 
         console.warn(
           `[Google Sync] ${operationName} failed (attempt ${attempt}/${this.MAX_RETRIES}), retrying in ${delay}ms...`,
-          error
+          {
+            error: error instanceof Error ? error.message : String(error),
+            nextDelay: delay,
+            timestamp: new Date().toISOString(),
+          }
         );
 
         // Wait before retrying
@@ -791,8 +1048,7 @@ export class GoogleSyncService {
 
       googleAdsLogger.info('Starting batch sync', {
         clientId: options.clientId,
-        customerId: connection.customer_id,
-        fullSync: options.fullSync
+        customerId: connection.customer_id
       });
 
       // Use batch operations for campaigns
@@ -829,7 +1085,7 @@ export class GoogleSyncService {
       );
 
       // Update connection sync time
-      await this.repository.updateConnectionSyncTime(connection.id);
+      await this.repository.updateLastSync(connection.id);
 
       // Invalidate cache after successful sync
       await googleAdsCache.invalidateAfterSync(options.clientId);
@@ -861,7 +1117,22 @@ export class GoogleSyncService {
     } catch (error) {
       googleAdsLogger.error('Batch sync failed', error as Error, {
         clientId: options.clientId,
-        operation: 'sync_campaigns_batch'
+        operation: 'sync_campaigns_batch',
+        duration: Date.now() - startTime.getTime(),
+        metadata: {
+          errorName: error instanceof Error ? error.name : 'Unknown',
+          errorStack: error instanceof Error ? error.stack : undefined,
+          errorCode: (error as any)?.code,
+          errorStatus: (error as any)?.status,
+          syncOptions: {
+            fullSync: options.fullSync,
+            syncMetrics: options.syncMetrics,
+            dateRange: options.dateRange,
+            connectionId: options.connectionId,
+            customerId: options.customerId,
+          },
+          timestamp: new Date().toISOString(),
+        },
       });
 
       const syncError: SyncError = {
@@ -914,6 +1185,243 @@ export class GoogleSyncService {
     retryDelayMs: number;
   }>): void {
     this.batchOperations.updateConfig(config);
+  }
+
+  /**
+   * Start a sync operation (used by API routes)
+   * Returns immediately with sync ID for tracking
+   */
+  async startSync(options: {
+    clientId: string;
+    connectionId: string;
+    customerId: string;
+    fullSync?: boolean;
+    syncType?: 'campaigns' | 'metrics' | 'full';
+    dateRange?: DateRange;
+  }): Promise<{
+    syncId: string;
+    status: 'started' | 'queued' | 'failed';
+    estimatedTime?: number;
+    error?: string;
+  }> {
+    try {
+      // Create sync log entry
+      const syncLogId = await this.repository.createSyncLog({
+        connection_id: options.connectionId,
+        sync_type: options.syncType === 'campaigns' ? 'incremental' : 'full',
+        status: 'success', // Will be updated
+        campaigns_synced: 0,
+        metrics_updated: 0,
+        error_message: null,
+        error_code: null,
+        started_at: new Date(),
+        completed_at: null,
+      });
+
+      // Start sync in background (don't await)
+      this.executeSyncInBackground(options, syncLogId).catch(error => {
+        console.error('[GoogleSyncService] Background sync error:', error);
+      });
+
+      return {
+        syncId: syncLogId,
+        status: 'started',
+        estimatedTime: this.estimateSyncTime(options.syncType || 'full'),
+      };
+    } catch (error) {
+      console.error('[GoogleSyncService] Error starting sync:', {
+        error: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorCode: (error as any)?.code,
+        clientId: options.clientId,
+        connectionId: options.connectionId,
+        customerId: options.customerId,
+        syncType: options.syncType,
+        fullSync: options.fullSync,
+        timestamp: new Date().toISOString(),
+      });
+      return {
+        syncId: '',
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Execute sync in background
+   */
+  private async executeSyncInBackground(
+    options: {
+      clientId: string;
+      connectionId: string;
+      customerId: string;
+      fullSync?: boolean;
+      syncType?: 'campaigns' | 'metrics' | 'full';
+      dateRange?: DateRange;
+    },
+    syncLogId: string
+  ): Promise<void> {
+    try {
+      const syncOptions: SyncOptions = {
+        clientId: options.clientId,
+        customerId: options.customerId,
+        connectionId: options.connectionId,
+        fullSync: options.fullSync,
+        dateRange: options.dateRange,
+        syncMetrics: options.syncType !== 'campaigns',
+      };
+
+      let result: SyncResult;
+
+      switch (options.syncType) {
+        case 'campaigns':
+          result = await this.syncCampaigns(syncOptions);
+          break;
+        case 'metrics':
+          // For metrics-only sync, we need campaign IDs
+          // For now, just do a full sync
+          result = await this.syncCampaigns(syncOptions);
+          break;
+        case 'full':
+        default:
+          result = await this.syncClient(options.clientId);
+          break;
+      }
+
+      // Update sync log with results
+      await this.repository.updateSyncLog(syncLogId, {
+        status: result.success ? 'success' : 'failed',
+        campaigns_synced: result.campaignsSynced,
+        metrics_updated: result.metricsUpdated,
+        error_message: result.errors.length > 0 ? result.errors[0].message : undefined,
+        completed_at: new Date(),
+      });
+
+    } catch (error) {
+      console.error('[GoogleSyncService] Background sync execution error:', {
+        error: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorCode: (error as any)?.code,
+        errorStatus: (error as any)?.status,
+        syncLogId,
+        clientId: options.clientId,
+        connectionId: options.connectionId,
+        customerId: options.customerId,
+        syncType: options.syncType,
+        fullSync: options.fullSync,
+        dateRange: options.dateRange,
+        timestamp: new Date().toISOString(),
+      });
+      
+      // Update sync log with error
+      await this.repository.updateSyncLog(syncLogId, {
+        status: 'failed',
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+        completed_at: new Date(),
+      });
+    }
+  }
+
+  /**
+   * Estimate sync time based on sync type
+   */
+  private estimateSyncTime(syncType: 'campaigns' | 'metrics' | 'full'): number {
+    switch (syncType) {
+      case 'campaigns':
+        return 30; // 30 seconds
+      case 'metrics':
+        return 60; // 1 minute
+      case 'full':
+      default:
+        return 120; // 2 minutes
+    }
+  }
+
+  /**
+   * Sync all data for a client (campaigns + metrics)
+   */
+  async syncClient(clientId: string): Promise<SyncResult> {
+    const syncOptions: SyncOptions = {
+      clientId,
+      fullSync: true,
+      syncMetrics: true,
+    };
+
+    return this.syncCampaigns(syncOptions);
+  }
+
+  /**
+   * Get validated connection with additional metadata
+   */
+  private async getValidatedConnection(options: SyncOptions): Promise<{
+    id: string;
+    customer_id: string;
+    userId?: string;
+    organizationId?: string;
+  }> {
+    const connection = await this.getConnection(options);
+    const fullConnection = await this.repository.getConnectionById(connection.connectionId);
+    
+    if (!fullConnection) {
+      throw new Error('Connection not found');
+    }
+
+    return {
+      id: fullConnection.id,
+      customer_id: fullConnection.customer_id,
+      userId: (fullConnection as any).user_id,
+      organizationId: undefined, // Not available in connection table
+    };
+  }
+
+  /**
+   * Create authenticated Google Ads client
+   */
+  private async createAuthenticatedClient(connection: {
+    id: string;
+    customer_id: string;
+  }): Promise<GoogleAdsClient> {
+    const accessToken = await this.tokenManager.ensureValidToken(connection.id);
+
+    const client = new GoogleAdsClient({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      developerToken: process.env.GOOGLE_DEVELOPER_TOKEN!,
+      refreshToken: '',
+      customerId: connection.customer_id,
+    });
+
+    (client as any).accessToken = accessToken;
+    (client as any).tokenExpiresAt = new Date(Date.now() + 3600 * 1000);
+
+    return client;
+  }
+
+  /**
+   * Log sync completion to database
+   */
+  private async logSyncCompletion(
+    connectionId: string,
+    syncType: 'full' | 'incremental' | 'metrics',
+    status: 'success' | 'partial' | 'failed',
+    campaignsSynced: number,
+    metricsUpdated: number,
+    startTime: Date
+  ): Promise<string> {
+    return this.repository.createSyncLog({
+      connection_id: connectionId,
+      sync_type: syncType,
+      status,
+      campaigns_synced: campaignsSynced,
+      metrics_updated: metricsUpdated,
+      error_message: null,
+      error_code: null,
+      started_at: startTime,
+      completed_at: new Date(),
+    });
   }
 }
 

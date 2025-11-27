@@ -131,6 +131,11 @@ CREATE TRIGGER trigger_log_membership_activity
 -- RLS Policies para user_activities
 ALTER TABLE user_activities ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Super admins can view all activities" ON user_activities;
+DROP POLICY IF EXISTS "Users can view own activities" ON user_activities;
+DROP POLICY IF EXISTS "Super admins can insert activities" ON user_activities;
+
 -- Super admins podem ver todas as atividades
 CREATE POLICY "Super admins can view all activities" ON user_activities
     FOR SELECT USING (

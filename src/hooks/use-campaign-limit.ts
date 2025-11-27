@@ -49,6 +49,12 @@ export function useCampaignLimit(clientId?: string): CampaignLimitResult {
           setError('Não autorizado - faça login novamente');
           return false;
         }
+
+        if (response.status === 403) {
+          console.warn('⚠️ Access denied to client - user may not have membership');
+          setError('Acesso negado a este cliente');
+          return false;
+        }
         
         throw new Error(`API Error: ${response.status} - ${errorData.error || 'Unknown error'}`);
       }
@@ -63,7 +69,8 @@ export function useCampaignLimit(clientId?: string): CampaignLimitResult {
       return data.allowed;
     } catch (err) {
       console.error('❌ Error checking campaign limit:', err);
-      setError(`Erro ao verificar limite: ${err.message}`);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Erro ao verificar limite: ${errorMessage}`);
       
       // In case of error, default to allowing to not block user
       // But log the error for debugging

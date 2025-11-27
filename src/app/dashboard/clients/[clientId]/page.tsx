@@ -24,6 +24,7 @@ import { ConnectMetaButton } from "./connect-meta-button";
 import { CampaignsList } from "@/components/meta/campaigns-list";
 import { ManageConnections } from "@/components/meta/manage-connections";
 import { GoogleAdsCard } from "@/components/google/google-ads-card";
+import { GoogleCampaignsList } from "@/components/google/google-campaigns-list";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Filter } from "lucide-react";
 import { translateMetaObjective } from "@/lib/utils/meta-translations";
@@ -594,7 +595,7 @@ export default function ClientDetailPage() {
         </Card>
 
         {/* Card do Google Ads */}
-        <GoogleAdsCard clientId={clientId} />
+        <GoogleAdsCard clientId={clientId} showCampaigns={false} />
       </div>
 
       {/* Aviso de Problemas de Conexão */}
@@ -635,6 +636,9 @@ export default function ClientDetailPage() {
           metaConnectionsCount={metaConnections.length}
         />
       )}
+
+      {/* Lista de Campanhas Google Ads */}
+      <GoogleCampaignsList clientId={client.id} />
     </div>
   );
 }
