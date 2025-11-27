@@ -5,12 +5,15 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
-export default function TestRedirectResultPage() {
+// Forçar renderização dinâmica (não fazer pre-render estático)
+export const dynamic = 'force-dynamic';
+
+function TestRedirectResultContent() {
   const searchParams = useSearchParams();
   const [params, setParams] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
@@ -140,5 +143,20 @@ export default function TestRedirectResultPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TestRedirectResultPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    }>
+      <TestRedirectResultContent />
+    </Suspense>
   );
 }

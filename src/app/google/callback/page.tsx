@@ -8,6 +8,9 @@
 import { useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
+// Forçar renderização dinâmica (não fazer pre-render estático)
+export const dynamic = 'force-dynamic';
+
 function GoogleCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();

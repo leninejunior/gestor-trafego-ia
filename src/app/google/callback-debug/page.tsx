@@ -3,6 +3,9 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
+// Forçar renderização dinâmica (não fazer pre-render estático)
+export const dynamic = 'force-dynamic';
+
 function CallbackDebugContent() {
   const searchParams = useSearchParams();
   const [allParams, setAllParams] = useState<Record<string, string>>({});

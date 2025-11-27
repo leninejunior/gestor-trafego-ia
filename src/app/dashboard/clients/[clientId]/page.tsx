@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -293,7 +293,7 @@ function CampaignsSection({
   );
 }
 
-export default function ClientDetailPage() {
+function ClientDetailContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const clientId = params.clientId as string;
@@ -640,5 +640,20 @@ export default function ClientDetailPage() {
       {/* Lista de Campanhas Google Ads */}
       <GoogleCampaignsList clientId={client.id} />
     </div>
+  );
+}
+
+export default function ClientDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p>Carregando...</p>
+        </div>
+      </div>
+    }>
+      <ClientDetailContent />
+    </Suspense>
   );
 }

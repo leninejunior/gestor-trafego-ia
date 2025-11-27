@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
 
+// Forçar renderização dinâmica (não fazer pre-render estático)
+export const dynamic = 'force-dynamic';
+
 /**
- * Página intermediária para garantir que os parâmetros do callback
- * sejam capturados e armazenados corretamente antes de redirecionar
+ * Componente interno que usa useSearchParams
  */
-export default function CallbackHandlerPage() {
+function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -111,5 +113,24 @@ export default function CallbackHandlerPage() {
         <p className="text-muted-foreground">Processando autenticação do Google...</p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Página intermediária para garantir que os parâmetros do callback
+ * sejam capturados e armazenados corretamente antes de redirecionar
+ */
+export default function CallbackHandlerPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    }>
+      <CallbackHandler />
+    </Suspense>
   );
 }

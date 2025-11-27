@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
     // Validate customer IDs for all connections
     const invalidConnections: Array<{ id: string; customerId: string; errors: string[] }> = [];
     
-    for (const connection of connections) {
+    for (const connection of finalConnections) {
       const validation = validateCustomerId(connection.customer_id);
       
       if (!validation.isValid) {
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
     if (invalidConnections.length > 0) {
       console.error(`[Google Sync API] Invalid customer IDs found [${requestId}]:`, {
         invalidConnections,
-        totalConnections: connections.length,
+        totalConnections: finalConnections.length,
         clientId,
         timestamp: new Date().toISOString(),
       });
@@ -212,8 +212,8 @@ export async function POST(request: NextRequest) {
     }
     
     console.log(`[Google Sync API] All customer IDs validated successfully [${requestId}]:`, {
-      connectionsCount: connections.length,
-      customerIds: connections.map(c => c.customer_id),
+      connectionsCount: finalConnections.length,
+      customerIds: finalConnections.map(c => c.customer_id),
       timestamp: new Date().toISOString(),
     });
 
@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
     const { data: activeSyncs } = await supabase
       .from('google_ads_sync_logs')
       .select('id, connection_id, sync_type, started_at')
-      .in('connection_id', connections.map(c => c.id))
+      .in('connection_id', finalConnections.map(c => c.id))
       .is('completed_at', null)
       .gte('started_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()); // Last 30 minutes
 
@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
     // Start sync for each connection
     const syncResults = [];
     
-    for (const connection of connections) {
+    for (const connection of finalConnections) {
       try {
         const syncOptions = {
           clientId,
@@ -327,7 +327,7 @@ export async function POST(request: NextRequest) {
       fullSync,
       results: syncResults,
       summary: {
-        total: connections.length,
+        total: finalConnections.length,
         successful: successfulSyncs.length,
         failed: failedSyncs.length,
         estimatedTime: Math.max(...successfulSyncs.map(s => s.estimatedTime || 0)),

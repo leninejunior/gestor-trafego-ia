@@ -241,7 +241,7 @@ export default function GooglePage() {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'BRL',
     }).format(amount);
   };
 
@@ -273,8 +273,8 @@ export default function GooglePage() {
     }
   }, [clients, selectedClient, dateFilter]);
 
-  const connectedClients = clients.filter(c => 
-    c.googleConnections && c.googleConnections.length > 0 && 
+  const connectedClients = clients.filter(c =>
+    c.googleConnections && c.googleConnections.length > 0 &&
     c.googleConnections.some(conn => conn.status === 'active')
   );
   const hasConnections = connectedClients.length > 0;

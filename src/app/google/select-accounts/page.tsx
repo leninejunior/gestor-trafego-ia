@@ -15,6 +15,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 
+// Forçar renderização dinâmica (não fazer pre-render estático)
+export const dynamic = 'force-dynamic';
+
 interface GoogleAdsAccount {
   customerId: string;
   descriptiveName: string;

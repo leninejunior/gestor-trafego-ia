@@ -127,8 +127,10 @@ export async function GET(request: NextRequest) {
       .not('access_token', 'like', 'mock_%')
       .maybeSingle();
 
+    let connectionToUse = connection;
+    
     if (connError || !connection) {
-      console.log('[Google Metrics Simple] No active connection found:', connError?.message);
+      console.log('[Google Metrics Simple] No active connection found, looking for any connection:', connError?.message);
       
       // Verificar se há conexões inativas
       const { data: inactiveConns } = await supabase
@@ -138,32 +140,65 @@ export async function GET(request: NextRequest) {
       
       const hasInactiveConnections = inactiveConns && inactiveConns.length > 0;
       
-      return NextResponse.json({
-        error: hasInactiveConnections ? 'Conexão Google Ads expirada' : 'Conexão Google Ads não encontrada',
-        message: hasInactiveConnections 
-          ? 'Reconecte sua conta Google Ads para continuar' 
-          : 'Conecte sua conta Google Ads primeiro',
-        clientId,
-        dateRange: {
-          from: startDate,
-          to: endDate,
-          days: daysDiff
-        },
-        inactiveConnections: inactiveConns?.length || 0,
-        needsReconnection: hasInactiveConnections,
-        mockData: {
-          totalImpressions: 0,
-          totalClicks: 0,
-          totalConversions: 0,
-          totalCost: 0,
-          campaigns: [],
-          message: hasInactiveConnections 
-            ? 'Reconecte sua conta para ver dados reais'
-            : 'Clique em "Conectar Google Ads" para ver dados reais'
-        },
-        hasConnection: false,
-        configured: true
-      });
+      // Se não encontrar conexão ativa, tenta usar qualquer conexão disponível
+      if (hasInactiveConnections) {
+        console.log('[Google Metrics Simple] Using inactive connection as fallback');
+        const { data: anyConnection } = await supabase
+          .from('google_ads_connections')
+          .select('*')
+          .eq('client_id', clientId)
+          .maybeSingle();
+        
+        if (anyConnection) {
+          connectionToUse = anyConnection;
+        } else {
+          return NextResponse.json({
+            error: 'Conexão Google Ads não encontrada',
+            message: 'Conecte sua conta Google Ads primeiro',
+            clientId,
+            dateRange: {
+              from: startDate,
+              to: endDate,
+              days: daysDiff
+            },
+            inactiveConnections: 0,
+            needsReconnection: true,
+            mockData: {
+              totalImpressions: 0,
+              totalClicks: 0,
+              totalConversions: 0,
+              totalCost: 0,
+              campaigns: [],
+              message: 'Clique em "Conectar Google Ads" para ver dados reais'
+            },
+            hasConnection: false,
+            configured: true
+          });
+        }
+      } else {
+        return NextResponse.json({
+          error: 'Conexão Google Ads não encontrada',
+          message: 'Conecte sua conta Google Ads primeiro',
+          clientId,
+          dateRange: {
+            from: startDate,
+            to: endDate,
+            days: daysDiff
+          },
+          inactiveConnections: 0,
+          needsReconnection: true,
+          mockData: {
+            totalImpressions: 0,
+            totalClicks: 0,
+            totalConversions: 0,
+            totalCost: 0,
+            campaigns: [],
+            message: 'Clique em "Conectar Google Ads" para ver dados reais'
+          },
+          hasConnection: false,
+          configured: true
+        });
+      }
     }
 
     console.log('[Google Metrics Simple] Connection found, fetching metrics');
