@@ -25,11 +25,14 @@ export class PlanManager {
     }
 
     // Mapear nomes das colunas para o formato esperado pelo frontend
-    const mappedData = (data || []).map(plan => ({
-      ...plan,
-      price_monthly: plan.monthly_price,
-      price_yearly: plan.annual_price,
-    }));
+    const mappedData = (data || []).map(plan => {
+      const normalized = this.normalizePlanFeatures(plan);
+      return {
+        ...normalized,
+        price_monthly: plan.monthly_price,
+        price_yearly: plan.annual_price,
+      };
+    });
 
     return mappedData;
   }

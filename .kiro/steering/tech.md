@@ -1,14 +1,15 @@
 # Technology Stack
 
 ## Core Framework
-- **Next.js 15.3.4** - React framework with App Router
+- **Next.js 16.0.7** - React framework with App Router
 - **React 19** - UI library with latest features
 - **TypeScript 5** - Type-safe development
 
-## ⚠️ Next.js 15 Breaking Changes
+## ⚠️ Next.js 15/16 Breaking Changes
 - `createClient()` do Supabase é **assíncrono** - SEMPRE use `await`
 - `cookies()` é assíncrono - use `await cookies()`
 - Todas as funções de server-side precisam de `await` para acessar headers/cookies
+- `middleware.ts` está deprecated - usar `proxy` no lugar (Next.js 16+)
 
 ## Database & Backend
 - **Supabase** - PostgreSQL database with built-in auth

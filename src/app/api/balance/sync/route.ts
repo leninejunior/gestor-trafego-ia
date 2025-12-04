@@ -83,8 +83,10 @@ export async function POST(request: NextRequest) {
                 status: balance.status,
                 spend_cap: balance.spend_cap,
                 amount_spent: balance.amount_spent,
+                daily_spend: balance.daily_spend,
                 funding_source_type: balance.funding_source_type,
-                funding_source_display: balance.funding_source_display
+                funding_source_display: balance.funding_source_display,
+                last_checked_at: new Date().toISOString()
               })
 
             if (insertError) {
@@ -184,13 +186,25 @@ async function fetchRealBalance(accountId: string, accessToken: string) {
     let status = 'healthy'
     if (balance <= 0) {
       status = 'critical'
+    } else if (balance < 50) {
+      // Saldo muito baixo em valor absoluto
+      status = 'critical'
+    } else if (balance < 200) {
+      // Saldo baixo em valor absoluto
+      status = 'warning'
     } else if (spendCap > 0) {
+      // Se tem spend_cap, verificar percentual
       const percentage = (balance / spendCap) * 100
-      if (percentage < 20 || projectedDays < 3) {
+      if (percentage < 10 || projectedDays < 3) {
         status = 'critical'
-      } else if (percentage < 40 || projectedDays < 7) {
+      } else if (percentage < 25 || projectedDays < 7) {
         status = 'warning'
       }
+    } else if (projectedDays < 3) {
+      // Sem spend_cap mas com projeção baixa
+      status = 'critical'
+    } else if (projectedDays < 7) {
+      status = 'warning'
     }
 
     return {

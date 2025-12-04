@@ -7,6 +7,45 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### 2025-12-04 - Revisão Completa do Sistema SaaS
+
+#### Corrigido
+- **API de Checkout**: `src/app/api/subscriptions/checkout-iugu/route.ts`
+  - Suporte a ambos os formatos de dados (direto e aninhado em `user_data`)
+  - Validação melhorada com mensagens de erro claras
+  - Normalização automática dos campos de entrada
+
+- **API de Planos Admin**: `src/app/api/admin/plans/route.ts`
+  - Correção do cliente Supabase com service role
+  - Normalização de features (objeto JSONB → array de strings)
+  - Suporte à coluna `is_popular`
+
+- **Verificação de Super Admin**: 
+  - `src/app/admin/page.tsx` - Verificação via tabela `super_admins` primeiro
+  - `src/app/api/admin/users/[userId]/route.ts` - Mesma lógica de verificação
+
+#### Adicionado
+- **Tabela `plan_limits`**: Migração para controle granular de limites por plano
+  - Campos: max_clients, max_campaigns_per_client, data_retention_days, etc.
+  - RLS configurado para leitura pública e escrita admin
+  - Limites padrão inseridos para todos os planos existentes
+
+- **Coluna `is_popular`**: Adicionada à tabela `subscription_plans`
+  - Plano Professional marcado como popular por padrão
+
+#### Atualizado
+- **Planos de Assinatura**: Consolidação e limpeza
+  - Free: R$ 0 (1 cliente, 5 campanhas)
+  - Starter: R$ 99,90/mês (3 clientes, 20 campanhas)
+  - Professional: R$ 299,90/mês - Popular (10 clientes, 100 campanhas)
+  - Enterprise: R$ 999,90/mês (50 clientes, 500 campanhas)
+  - Planos duplicados desativados (não deletados para preservar referências)
+
+- **PlanManager**: `src/lib/services/plan-manager.ts`
+  - Normalização de features aplicada em `getAvailablePlans()`
+
+---
+
 ### 2025-12-03 - Dashboard Google Ads Completo e Correção de Moeda
 
 #### Corrigido

@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { checkAdminAuth, createAdminAuthErrorResponse } from '@/lib/middleware/admin-auth-improved';
+
+type RouteParams = { params: Promise<{ id: string }> };
+
+// Helper to get service role client for admin operations (bypasses RLS)
+function getServiceClient() {
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  );
+}
 
 /**
  * GET /api/admin/plans/[id]
@@ -8,19 +25,22 @@ import { checkAdminAuth, createAdminAuthErrorResponse } from '@/lib/middleware/a
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
+    const { id } = await params;
+    
     const authResult = await checkAdminAuth();
     if (!authResult.success) {
       return createAdminAuthErrorResponse(authResult);
     }
 
-    const supabase = await createClient();
+    // Use service role to bypass RLS for admin operations
+    const supabase = getServiceClient();
     const { data, error } = await supabase
       .from('subscription_plans')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error) {
@@ -56,16 +76,21 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
+    const { id } = await params;
+    
     const authResult = await checkAdminAuth();
     if (!authResult.success) {
       return createAdminAuthErrorResponse(authResult);
     }
 
-    const supabase = await createClient();
+    // Use service role to bypass RLS for admin operations
+    const supabase = getServiceClient();
     const body = await request.json();
+
+    console.log('📝 PUT /api/admin/plans/[id] - Received body:', JSON.stringify(body, null, 2));
 
     // Validate required fields
     if (body.name !== undefined && !body.name.trim()) {
@@ -114,7 +139,7 @@ export async function PUT(
     }
 
     // Build update object
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (body.name !== undefined) updateData.name = body.name;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.monthly_price !== undefined) updateData.monthly_price = body.monthly_price;
@@ -133,15 +158,17 @@ export async function PUT(
 
     updateData.updated_at = new Date().toISOString();
 
+    console.log('📝 Updating plan with data:', JSON.stringify(updateData, null, 2));
+
     const { data, error } = await supabase
       .from('subscription_plans')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
     if (error) {
-      console.error('Database error:', error);
+      console.error('❌ Database error:', error);
       if (error.code === 'PGRST116') {
         return NextResponse.json(
           { success: false, error: 'Plan not found' },
@@ -153,7 +180,7 @@ export async function PUT(
 
     // Update plan_limits if limits are provided
     if (body.limits) {
-      const limitsData: any = {};
+      const limitsData: Record<string, unknown> = {};
       if (body.limits.max_clients !== undefined) limitsData.max_clients = body.limits.max_clients;
       if (body.limits.max_campaigns_per_client !== undefined) limitsData.max_campaigns_per_client = body.limits.max_campaigns_per_client;
       if (body.limits.data_retention_days !== undefined) limitsData.data_retention_days = body.limits.data_retention_days;
@@ -167,7 +194,7 @@ export async function PUT(
         const { error: limitsError } = await supabase
           .from('plan_limits')
           .upsert({
-            plan_id: params.id,
+            plan_id: id,
             ...limitsData
           }, {
             onConflict: 'plan_id'
@@ -179,13 +206,15 @@ export async function PUT(
       }
     }
 
+    console.log('✅ Plan updated successfully:', data);
+
     return NextResponse.json({
       success: true,
       data,
       message: 'Plan updated successfully',
     });
   } catch (error) {
-    console.error('Error updating plan:', error);
+    console.error('❌ Error updating plan:', error);
     return NextResponse.json(
       {
         success: false,
@@ -203,18 +232,21 @@ export async function PUT(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
+    const { id } = await params;
+    
     const authResult = await checkAdminAuth();
     if (!authResult.success) {
       return createAdminAuthErrorResponse(authResult);
     }
 
-    const supabase = await createClient();
+    // Use service role to bypass RLS for admin operations
+    const supabase = getServiceClient();
     const body = await request.json();
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (body.is_active !== undefined) updateData.is_active = body.is_active;
     if (body.is_popular !== undefined) updateData.is_popular = body.is_popular;
     
@@ -223,7 +255,7 @@ export async function PATCH(
     const { data, error } = await supabase
       .from('subscription_plans')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -261,21 +293,24 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
+    const { id } = await params;
+    
     const authResult = await checkAdminAuth();
     if (!authResult.success) {
       return createAdminAuthErrorResponse(authResult);
     }
 
-    const supabase = await createClient();
+    // Use service role to bypass RLS for admin operations
+    const supabase = getServiceClient();
 
     // First, check if plan exists
     const { data: existingPlan, error: fetchError } = await supabase
       .from('subscription_plans')
       .select('id, name')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (fetchError || !existingPlan) {
@@ -289,7 +324,7 @@ export async function DELETE(
     const { error: limitsError } = await supabase
       .from('plan_limits')
       .delete()
-      .eq('plan_id', params.id);
+      .eq('plan_id', id);
 
     if (limitsError) {
       console.error('Warning: Failed to delete plan_limits:', limitsError);
@@ -299,7 +334,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('subscription_plans')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (error) {
       throw error;

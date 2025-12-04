@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { planId } = body;
+    const { planId, billingCycle = 'monthly' } = body;
 
     if (!planId) {
       return NextResponse.json(
@@ -23,43 +23,71 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get current subscription
-    const { data: currentSub } = await supabase
-      .from('subscriptions')
-      .select('*')
+    // Get user profile
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('first_name, last_name')
       .eq('user_id', user.id)
       .single();
 
-    // Get plan details
-    const { data: plan } = await supabase
-      .from('subscription_plans')
-      .select('*')
-      .eq('id', planId)
+    // Get user's organization
+    const { data: membership } = await supabase
+      .from('memberships')
+      .select('organization_id, organizations(name)')
+      .eq('user_id', user.id)
       .single();
 
-    if (!plan) {
+    // Get plan details - support both UUID and plan name, only active plans
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(planId);
+    
+    let planQuery = supabase.from('subscription_plans').select('*').eq('is_active', true);
+    if (isUUID) {
+      planQuery = planQuery.eq('id', planId);
+    } else {
+      planQuery = planQuery.ilike('name', planId);
+    }
+    
+    const { data: plan, error: planError } = await planQuery.single();
+
+    if (planError || !plan) {
+      console.error('Plan not found or inactive:', planId, planError);
       return NextResponse.json(
-        { error: 'Plan not found' },
+        { error: 'Plano não encontrado ou inativo' },
         { status: 404 }
       );
     }
+
+    // Build user name
+    const userName = profile 
+      ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || user.email?.split('@')[0] || 'Usuário'
+      : user.email?.split('@')[0] || 'Usuário';
+
+    // Get organization name
+    const orgName = (membership?.organizations as { name?: string })?.name || 'Minha Organização';
 
     // Create subscription intent for upgrade
     const { data: intent, error } = await supabase
       .from('subscription_intents')
       .insert({
         user_id: user.id,
-        plan_id: planId,
+        plan_id: plan.id,
+        billing_cycle: billingCycle,
         status: 'pending',
-        type: currentSub ? 'upgrade' : 'new',
-        created_at: new Date().toISOString(),
+        user_email: user.email || '',
+        user_name: userName,
+        organization_name: orgName,
+        metadata: {
+          upgrade_from: 'billing_page',
+          original_plan_id: planId,
+        },
       })
       .select()
       .single();
 
     if (error) {
+      console.error('Error creating subscription intent:', error);
       return NextResponse.json(
-        { error: 'Failed to create subscription intent' },
+        { error: 'Failed to create subscription intent', details: error.message },
         { status: 500 }
       );
     }

@@ -3,6 +3,8 @@ import { planConfigurationService } from '@/lib/services/plan-configuration-serv
 import { UpdatePlanLimitsSchema } from '@/lib/types/plan-limits';
 import { createClient } from '@/lib/supabase/server';
 
+type RouteParams = { params: Promise<{ id: string }> };
+
 /**
  * GET /api/admin/plans/:id/limits
  * Obtém os limites de um plano específico
@@ -10,9 +12,10 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
+    const { id: planId } = await params;
     const supabase = await createClient();
 
     // Verificar autenticação
@@ -37,8 +40,6 @@ export async function GET(
         { status: 403 }
       );
     }
-
-    const planId = params.id;
 
     // Buscar limites do plano
     const limits = await planConfigurationService.getPlanLimits(planId);
@@ -67,9 +68,10 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
+    const { id: planId } = await params;
     const supabase = await createClient();
 
     // Verificar autenticação
@@ -95,7 +97,6 @@ export async function POST(
       );
     }
 
-    const planId = params.id;
     const body = await request.json();
 
     // Verificar se o plano existe
@@ -149,9 +150,10 @@ export async function POST(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
+    const { id: planId } = await params;
     const supabase = await createClient();
 
     // Verificar autenticação
@@ -177,7 +179,6 @@ export async function PUT(
       );
     }
 
-    const planId = params.id;
     const body = await request.json();
 
     // Validar dados de entrada
@@ -236,9 +237,10 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
+    const { id: planId } = await params;
     const supabase = await createClient();
 
     // Verificar autenticação
@@ -263,8 +265,6 @@ export async function DELETE(
         { status: 403 }
       );
     }
-
-    const planId = params.id;
 
     // Deletar limites
     const { error } = await supabase

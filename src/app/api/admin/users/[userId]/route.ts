@@ -2,7 +2,23 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 async function checkSuperAdmin(supabase: any, userId: string) {
-  // Verificar memberships do usuário
+  // Primeiro verificar tabela super_admins
+  try {
+    const { data: superAdmin, error: superError } = await supabase
+      .from("super_admins")
+      .select("id, is_active")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .single();
+    
+    if (superAdmin && !superError) {
+      return true;
+    }
+  } catch (error) {
+    console.log('Super admin table check failed:', error);
+  }
+  
+  // Fallback: verificar memberships do usuário
   const { data: memberships } = await supabase
     .from("memberships")
     .select(`
@@ -19,9 +35,10 @@ async function checkSuperAdmin(supabase: any, userId: string) {
     return false;
   }
 
-  // Verificar se alguma membership tem super_admin
+  // Verificar se alguma membership tem super_admin ou owner
   return memberships.some(membership => 
     membership.role === 'super_admin' || 
+    membership.role === 'owner' ||
     membership.user_roles?.name === 'super_admin'
   );
 }

@@ -26,7 +26,15 @@ export default async function AdminDashboard() {
     return redirect("/login");
   }
 
-  // Verificar se tem permissão de super admin
+  // Verificar se tem permissão de super admin - primeiro na tabela super_admins
+  const { data: superAdmin } = await supabase
+    .from("super_admins")
+    .select("id, is_active")
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .single();
+
+  // Fallback: verificar memberships
   const { data: membership } = await supabase
     .from("memberships")
     .select(`
@@ -40,9 +48,10 @@ export default async function AdminDashboard() {
     .single();
 
   const userRole = membership?.user_roles?.[0];
-  const isSuperAdmin = userRole?.name === 'super_admin' || 
+  const isSuperAdmin = !!superAdmin || 
+                      userRole?.name === 'super_admin' || 
                       membership?.role === 'super_admin' ||
-                      user.email === 'lenine.engrene@gmail.com'; // Temporário para você
+                      membership?.role === 'owner';
 
   if (!isSuperAdmin) {
     return (
@@ -139,7 +148,7 @@ export default async function AdminDashboard() {
   const recentActivity = recentMemberships?.map(m => ({
     activity_type: m.status === 'active' ? 'member_joined' : 'member_invited',
     description: m.status === 'active' ? 'Membro aceitou convite' : 'Novo membro convidado',
-    organization_name: m.organizations?.name || 'Organização',
+    organization_name: (m.organizations as any)?.name || 'Organização',
     user_name: m.user_profiles?.[0] ? 
       `${m.user_profiles[0].first_name} ${m.user_profiles[0].last_name}`.trim() : 
       'Usuário',

@@ -54,14 +54,21 @@ export async function GET(request: NextRequest) {
         console.log('📝 Transforming plan:', plan.name, 'count:', data?.length);
       }
       
-      // Enforce features as array - assume JSONB array at storage level
+      // Normalize features - pode ser array ou objeto JSONB
       let featuresArray: string[] = [];
       if (Array.isArray(plan.features)) {
         featuresArray = plan.features;
+      } else if (plan.features && typeof plan.features === 'object') {
+        // Converter objeto para array de strings descritivas
+        featuresArray = Object.entries(plan.features)
+          .filter(([_, value]) => value === true || (typeof value === 'number' && value > 0))
+          .map(([key]) => {
+            // Converter camelCase para texto legível
+            const readable = key.replace(/([A-Z])/g, ' $1').trim();
+            return readable.charAt(0).toUpperCase() + readable.slice(1);
+          });
       } else {
-        // Log unexpected data type for debugging
         console.warn('Unexpected features data type:', typeof plan.features, plan.features);
-        // Fallback to empty array for safety
         featuresArray = [];
       }
       
@@ -75,11 +82,11 @@ export async function GET(request: NextRequest) {
           // Legacy fields
           clients: plan.max_clients || 0,
           campaigns: plan.max_campaigns || 0,
-          users: 1,
+          users: plan.max_users || 1,
           ad_accounts: 1,
           api_calls: 10000,
           storage_gb: 10,
-          // Cache & Resource limits (usando valores padrão até criar plan_limits)
+          // Cache & Resource limits
           max_clients: plan.max_clients || 5,
           max_campaigns_per_client: plan.max_campaigns || 25,
           data_retention_days: 90,
@@ -87,7 +94,7 @@ export async function GET(request: NextRequest) {
           allow_csv_export: false,
           allow_json_export: false
         },
-        is_popular: false // This field doesn't exist in the current schema
+        is_popular: plan.is_popular || false
       };
     });
 
@@ -130,9 +137,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Supabase client with service role for admin operations
-    const supabase = createClient({
-      supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY
-    });
+    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
+    const supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
     console.log('Admin access granted - User:', authResult.user?.id);
 
     // Parse request body

@@ -8,14 +8,10 @@ import {
 } from '@/lib/types/subscription-intent';
 import { z } from 'zod';
 
-// Enhanced validation schema with better error messages
-const createCheckoutSchema = z.object({
-  plan_id: z.string().uuid('Plan ID deve ser um UUID válido'),
-  billing_cycle: z.enum(['monthly', 'annual'], {
-    errorMap: () => ({ message: 'Ciclo de cobrança deve ser "monthly" ou "annual"' })
-  }),
-  user_email: z.string().email('Email deve ter formato válido').toLowerCase(),
-  user_name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100, 'Nome deve ter no máximo 100 caracteres'),
+// Schema para user_data aninhado (formato do frontend)
+const userDataSchema = z.object({
+  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100, 'Nome deve ter no máximo 100 caracteres'),
+  email: z.string().email('Email deve ter formato válido').toLowerCase(),
   organization_name: z.string().min(2, 'Nome da organização deve ter pelo menos 2 caracteres').max(100, 'Nome da organização deve ter no máximo 100 caracteres'),
   cpf_cnpj: z.string().optional().refine(
     (val) => !val || /^[\d]{11}$|^[\d]{14}$/.test(val.replace(/\D/g, '')),
@@ -25,6 +21,28 @@ const createCheckoutSchema = z.object({
     (val) => !val || /^[\+]?[1-9][\d]{8,15}$/.test(val.replace(/\D/g, '')),
     'Telefone deve ter formato válido'
   ),
+});
+
+// Enhanced validation schema with better error messages - suporta ambos os formatos
+const createCheckoutSchema = z.object({
+  plan_id: z.string().uuid('Plan ID deve ser um UUID válido'),
+  billing_cycle: z.enum(['monthly', 'annual'], {
+    errorMap: () => ({ message: 'Ciclo de cobrança deve ser "monthly" ou "annual"' })
+  }),
+  // Formato direto (legado)
+  user_email: z.string().email('Email deve ter formato válido').toLowerCase().optional(),
+  user_name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100, 'Nome deve ter no máximo 100 caracteres').optional(),
+  organization_name: z.string().min(2, 'Nome da organização deve ter pelo menos 2 caracteres').max(100, 'Nome da organização deve ter no máximo 100 caracteres').optional(),
+  cpf_cnpj: z.string().optional().refine(
+    (val) => !val || /^[\d]{11}$|^[\d]{14}$/.test(val.replace(/\D/g, '')),
+    'CPF deve ter 11 dígitos ou CNPJ deve ter 14 dígitos'
+  ),
+  phone: z.string().optional().refine(
+    (val) => !val || /^[\+]?[1-9][\d]{8,15}$/.test(val.replace(/\D/g, '')),
+    'Telefone deve ter formato válido'
+  ),
+  // Formato aninhado (frontend atual)
+  user_data: userDataSchema.optional(),
   metadata: z.record(z.any()).optional(),
 });
 
@@ -53,7 +71,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const requestData = validationResult.data;
+    const rawData = validationResult.data;
+    
+    // Normalizar dados - suporta ambos os formatos (direto ou aninhado em user_data)
+    const requestData = {
+      plan_id: rawData.plan_id,
+      billing_cycle: rawData.billing_cycle,
+      user_email: rawData.user_data?.email || rawData.user_email || '',
+      user_name: rawData.user_data?.name || rawData.user_name || '',
+      organization_name: rawData.user_data?.organization_name || rawData.organization_name || '',
+      cpf_cnpj: rawData.user_data?.cpf_cnpj || rawData.cpf_cnpj,
+      phone: rawData.user_data?.phone || rawData.phone,
+      metadata: rawData.metadata,
+    };
+    
+    // Validar campos obrigatórios após normalização
+    if (!requestData.user_email || !requestData.user_name || !requestData.organization_name) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Dados obrigatórios faltando',
+          details: [
+            !requestData.user_email && { field: 'email', message: 'Email é obrigatório' },
+            !requestData.user_name && { field: 'name', message: 'Nome é obrigatório' },
+            !requestData.organization_name && { field: 'organization_name', message: 'Nome da organização é obrigatório' },
+          ].filter(Boolean),
+          timestamp: new Date().toISOString()
+        },
+        { status: 400 }
+      );
+    }
+    
     console.log('Processing checkout request for:', requestData.user_email);
 
     // Initialize services
