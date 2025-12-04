@@ -5,9 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Loader2, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-import { formatters } from '@/lib/utils/date-formatter'
 import {
   BarChart,
   Bar,
@@ -50,12 +50,22 @@ export function AdSetComparison({
   selectedAdSets
 }: AdSetComparisonProps) {
   const [adsets, setAdsets] = useState<AdSet[]>([])
+  const [comparisonData, setComparisonData] = useState<AdSet[]>([])
   const [loading, setLoading] = useState(true)
+  const [comparing, setComparing] = useState(false)
   const [error, setError] = useState<string>('')
 
+  // Buscar todos os adsets da campanha
   useEffect(() => {
     fetchAdSets()
-  }, [clientId, campaignId, dateRange, selectedAdSets])
+  }, [clientId, campaignId, dateRange])
+
+  // Quando selectedAdSets mudar, atualizar comparação
+  useEffect(() => {
+    if (selectedAdSets && selectedAdSets.length > 0 && adsets.length > 0) {
+      compareSelected(selectedAdSets)
+    }
+  }, [selectedAdSets, adsets])
 
   const fetchAdSets = async () => {
     try {
@@ -68,10 +78,6 @@ export function AdSetComparison({
         date_range: dateRange
       })
 
-      if (selectedAdSets && selectedAdSets.length > 0) {
-        params.append('adset_ids', selectedAdSets.join(','))
-      }
-
       const response = await fetch(`/api/analytics/adsets?${params}`)
       const data = await response.json()
 
@@ -79,12 +85,36 @@ export function AdSetComparison({
         throw new Error(data.error || 'Erro ao buscar conjuntos')
       }
 
-      setAdsets(data.adsets || [])
+      const fetchedAdsets = data.adsets || []
+      setAdsets(fetchedAdsets)
+      
+      // Se já temos adsets selecionados, filtrar imediatamente
+      if (selectedAdSets && selectedAdSets.length > 0) {
+        const filtered = fetchedAdsets.filter((a: AdSet) => selectedAdSets.includes(a.id))
+        setComparisonData(filtered)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
       setLoading(false)
     }
+  }
+
+  const compareSelected = async (adsetsToCompare: string[]) => {
+    if (adsetsToCompare.length < 1) return
+
+    setComparing(true)
+    try {
+      // Filtrar os adsets já carregados pelos IDs selecionados
+      const filtered = adsets.filter(a => adsetsToCompare.includes(a.id))
+      setComparisonData(filtered)
+    } finally {
+      setComparing(false)
+    }
+  }
+
+  const handleRefresh = () => {
+    fetchAdSets()
   }
 
   const getStatusBadge = (status: string) => {
@@ -99,21 +129,47 @@ export function AdSetComparison({
   const getTrend = (value: number, avg: number) => {
     if (value > avg * 1.1) return <TrendingUp className="h-4 w-4 text-green-600" />
     if (value < avg * 0.9) return <TrendingDown className="h-4 w-4 text-red-600" />
-    return <Minus className="h-4 w-4 text-gray-400" />
+    return <span className="h-4 w-4 text-gray-400">—</span>
   }
 
-  // Calcular médias
-  const avgSpend = adsets.reduce((sum, a) => sum + a.spend, 0) / (adsets.length || 1)
-  const avgCtr = adsets.reduce((sum, a) => sum + a.ctr, 0) / (adsets.length || 1)
-  const avgCpc = adsets.reduce((sum, a) => sum + a.cpc, 0) / (adsets.length || 1)
+  // Usar comparisonData para exibição (adsets filtrados pelos selecionados)
+  const displayData = comparisonData.length > 0 ? comparisonData : adsets
+
+  // Calcular médias baseado nos dados exibidos
+  const avgSpend = displayData.reduce((sum, a) => sum + a.spend, 0) / (displayData.length || 1)
+  const avgCtr = displayData.reduce((sum, a) => sum + a.ctr, 0) / (displayData.length || 1)
+  const avgCpc = displayData.reduce((sum, a) => sum + a.cpc, 0) / (displayData.length || 1)
 
   // Dados para gráfico
-  const chartData = adsets.map(adset => ({
+  const chartData = displayData.map(adset => ({
     name: adset.name.length > 20 ? adset.name.substring(0, 20) + '...' : adset.name,
     Gasto: adset.spend,
     Conversões: adset.conversions,
     CTR: adset.ctr
   }))
+
+  // Função para encontrar o melhor performer
+  const getBestPerformer = (metric: keyof AdSet) => {
+    if (displayData.length === 0) return null
+
+    return displayData.reduce((best, current) => {
+      const currentValue = Number(current[metric]) || 0
+      const bestValue = Number(best[metric]) || 0
+
+      // Para CTR, queremos o maior valor
+      if (metric === 'ctr') {
+        return currentValue > bestValue ? current : best
+      }
+      // Para CPM e CPC, queremos o menor valor (mais eficiente)
+      if (metric === 'cpm' || metric === 'cpc') {
+        if (bestValue === 0) return current
+        if (currentValue === 0) return best
+        return currentValue < bestValue ? current : best
+      }
+      // Para impressões, cliques, conversões, queremos o maior valor
+      return currentValue > bestValue ? current : best
+    })
+  }
 
   if (loading) {
     return (
@@ -133,7 +189,7 @@ export function AdSetComparison({
     )
   }
 
-  if (adsets.length === 0) {
+  if (displayData.length === 0) {
     return (
       <Alert>
         <AlertDescription>
@@ -148,10 +204,23 @@ export function AdSetComparison({
       {/* Header */}
       <Card>
         <CardHeader>
-          <CardTitle>Comparação de Conjuntos de Anúncios</CardTitle>
-          <CardDescription>
-            Campanha: {campaignName} • {adsets.length} conjunto{adsets.length > 1 ? 's' : ''}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Comparação de Conjuntos de Anúncios</CardTitle>
+              <CardDescription>
+                Campanha: {campaignName} • {displayData.length} conjunto{displayData.length > 1 ? 's' : ''} selecionado{displayData.length > 1 ? 's' : ''}
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={loading || comparing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${(loading || comparing) ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+          </div>
         </CardHeader>
       </Card>
 
@@ -176,7 +245,178 @@ export function AdSetComparison({
         </CardContent>
       </Card>
 
-      {/* Tabela */}
+      {/* Tabela Comparativa (estilo similar ao CampaignComparison) */}
+      {displayData.length >= 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Tabela Comparativa</CardTitle>
+            <CardDescription>Compare métricas lado a lado</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-gray-200">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="border border-gray-200 p-3 text-left">Métrica</th>
+                    {displayData.map((adset) => (
+                      <th key={adset.id} className="border border-gray-200 p-3 text-left">
+                        <div className="truncate max-w-[150px]" title={adset.name}>
+                          {adset.name}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="border border-gray-200 p-3 font-medium">Impressões</td>
+                    {displayData.map((adset) => {
+                      const best = getBestPerformer('impressions')
+                      const isBest = best?.id === adset.id
+                      return (
+                        <td key={adset.id} className="border border-gray-200 p-3">
+                          <div className="flex items-center">
+                            {formatNumber(adset.impressions || 0)}
+                            {isBest && displayData.length > 1 && <TrendingUp className="w-4 h-4 text-green-500 ml-2" />}
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                  <tr>
+                    <td className="border border-gray-200 p-3 font-medium">Cliques</td>
+                    {displayData.map((adset) => {
+                      const best = getBestPerformer('clicks')
+                      const isBest = best?.id === adset.id
+                      return (
+                        <td key={adset.id} className="border border-gray-200 p-3">
+                          <div className="flex items-center">
+                            {formatNumber(adset.clicks || 0)}
+                            {isBest && displayData.length > 1 && <TrendingUp className="w-4 h-4 text-green-500 ml-2" />}
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                  <tr>
+                    <td className="border border-gray-200 p-3 font-medium">CTR</td>
+                    {displayData.map((adset) => {
+                      const best = getBestPerformer('ctr')
+                      const isBest = best?.id === adset.id
+                      return (
+                        <td key={adset.id} className="border border-gray-200 p-3">
+                          <div className="flex items-center">
+                            {adset.ctr.toFixed(2)}%
+                            {isBest && displayData.length > 1 && <TrendingUp className="w-4 h-4 text-green-500 ml-2" />}
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                  <tr>
+                    <td className="border border-gray-200 p-3 font-medium">Gasto</td>
+                    {displayData.map((adset) => (
+                      <td key={adset.id} className="border border-gray-200 p-3">
+                        {formatCurrency(adset.spend || 0)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="border border-gray-200 p-3 font-medium">CPM</td>
+                    {displayData.map((adset) => {
+                      const best = getBestPerformer('cpm')
+                      const isBest = best?.id === adset.id
+                      return (
+                        <td key={adset.id} className="border border-gray-200 p-3">
+                          <div className="flex items-center">
+                            {formatCurrency(adset.cpm || 0)}
+                            {isBest && displayData.length > 1 && <TrendingDown className="w-4 h-4 text-green-500 ml-2" />}
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                  <tr>
+                    <td className="border border-gray-200 p-3 font-medium">CPC</td>
+                    {displayData.map((adset) => {
+                      const best = getBestPerformer('cpc')
+                      const isBest = best?.id === adset.id
+                      return (
+                        <td key={adset.id} className="border border-gray-200 p-3">
+                          <div className="flex items-center">
+                            {formatCurrency(adset.cpc || 0)}
+                            {isBest && displayData.length > 1 && <TrendingDown className="w-4 h-4 text-green-500 ml-2" />}
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                  <tr>
+                    <td className="border border-gray-200 p-3 font-medium">Conversões</td>
+                    {displayData.map((adset) => {
+                      const best = getBestPerformer('conversions')
+                      const isBest = best?.id === adset.id
+                      return (
+                        <td key={adset.id} className="border border-gray-200 p-3">
+                          <div className="flex items-center font-medium">
+                            {formatNumber(adset.conversions || 0)}
+                            {isBest && displayData.length > 1 && <TrendingUp className="w-4 h-4 text-green-500 ml-2" />}
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                  <tr>
+                    <td className="border border-gray-200 p-3 font-medium">Alcance</td>
+                    {displayData.map((adset) => {
+                      const best = getBestPerformer('reach')
+                      const isBest = best?.id === adset.id
+                      return (
+                        <td key={adset.id} className="border border-gray-200 p-3">
+                          <div className="flex items-center">
+                            {formatNumber(adset.reach || 0)}
+                            {isBest && displayData.length > 1 && <TrendingUp className="w-4 h-4 text-green-500 ml-2" />}
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                  <tr>
+                    <td className="border border-gray-200 p-3 font-medium">Frequência</td>
+                    {displayData.map((adset) => (
+                      <td key={adset.id} className="border border-gray-200 p-3">
+                        {adset.frequency?.toFixed(2) || '0.00'}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Insights da Comparação */}
+      {displayData.length >= 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>💡 Insights da Comparação</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+              <ul className="text-sm space-y-1">
+                <li>🏆 Melhor CTR: <strong>{getBestPerformer('ctr')?.name}</strong> ({getBestPerformer('ctr')?.ctr.toFixed(2)}%)</li>
+                <li>💰 Menor CPM: <strong>{getBestPerformer('cpm')?.name}</strong> ({formatCurrency(getBestPerformer('cpm')?.cpm || 0)})</li>
+                <li>🎯 Menor CPC: <strong>{getBestPerformer('cpc')?.name}</strong> ({formatCurrency(getBestPerformer('cpc')?.cpc || 0)})</li>
+                <li>📈 Mais Conversões: <strong>{getBestPerformer('conversions')?.name}</strong> ({formatNumber(getBestPerformer('conversions')?.conversions || 0)})</li>
+                <li>👥 Maior Alcance: <strong>{getBestPerformer('reach')?.name}</strong> ({formatNumber(getBestPerformer('reach')?.reach || 0)})</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tabela Detalhada (mantida para visualização individual) */}
       <Card>
         <CardHeader>
           <CardTitle>Detalhes dos Conjuntos</CardTitle>
@@ -198,7 +438,7 @@ export function AdSetComparison({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {adsets.map((adset) => (
+                {displayData.map((adset) => (
                   <TableRow key={adset.id}>
                     <TableCell className="font-medium max-w-[200px]">
                       <div className="truncate" title={adset.name}>
@@ -254,13 +494,13 @@ export function AdSetComparison({
             <div>
               <div className="text-sm text-muted-foreground">Gasto Total</div>
               <div className="text-2xl font-bold">
-                {formatCurrency(adsets.reduce((sum, a) => sum + a.spend, 0))}
+                {formatCurrency(displayData.reduce((sum, a) => sum + a.spend, 0))}
               </div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Total de Cliques</div>
               <div className="text-2xl font-bold">
-                {formatNumber(adsets.reduce((sum, a) => sum + a.clicks, 0))}
+                {formatNumber(displayData.reduce((sum, a) => sum + a.clicks, 0))}
               </div>
             </div>
             <div>
@@ -270,7 +510,7 @@ export function AdSetComparison({
             <div>
               <div className="text-sm text-muted-foreground">Total de Conversões</div>
               <div className="text-2xl font-bold">
-                {formatNumber(adsets.reduce((sum, a) => sum + a.conversions, 0))}
+                {formatNumber(displayData.reduce((sum, a) => sum + a.conversions, 0))}
               </div>
             </div>
           </div>

@@ -270,7 +270,7 @@ export function ConnectGoogleButton({
                 {availableAccounts.map((account) => (
                   <div
                     key={account.id}
-                    className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                    className="p-3 border rounded-lg cursor-pointer hover:bg-muted/50"
                     onClick={() => {
                       // Handle account selection
                       setShowAccountSelector(false);

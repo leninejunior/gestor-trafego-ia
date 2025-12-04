@@ -72,7 +72,7 @@ export function DashboardHeader() {
   }
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+    <header className="bg-background shadow-sm border-b border-border sticky top-0 z-40">
       <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4">
         {/* Left side - Mobile menu + Title */}
         <div className="flex items-center space-x-4">
@@ -88,7 +88,7 @@ export function DashboardHeader() {
 
           {/* Page title with admin badge */}
           <div className="flex items-center space-x-3">
-            <h1 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
+            <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">
               {getPageTitle()}
             </h1>
             {isAdminPage && (
@@ -103,11 +103,11 @@ export function DashboardHeader() {
         {/* Center - Search (hidden on mobile) */}
         <div className="hidden md:flex items-center flex-1 max-w-md mx-8">
           <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               type="text"
               placeholder="Buscar clientes, campanhas..."
-              className="pl-10 pr-4 py-2 w-full bg-gray-50 border-gray-200 focus:bg-white"
+              className="pl-10 pr-4 py-2 w-full bg-muted/50 border-border focus:bg-background"
             />
           </div>
         </div>
@@ -198,11 +198,11 @@ export function DashboardHeader() {
       {/* Mobile search bar */}
       <div className="md:hidden px-4 pb-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
           <Input
             type="text"
             placeholder="Buscar..."
-            className="pl-10 pr-4 py-2 w-full bg-gray-50 border-gray-200"
+            className="pl-10 pr-4 py-2 w-full bg-muted/50 border-border"
           />
         </div>
       </div>

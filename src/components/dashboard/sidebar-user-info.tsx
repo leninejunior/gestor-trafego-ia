@@ -100,13 +100,13 @@ export function SidebarUserInfo() {
 
   if (loading) {
     return (
-      <div className="p-3 border-t border-gray-200 bg-gray-50">
+      <div className="p-3 bg-muted/50">
         <div className="animate-pulse">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+            <div className="w-8 h-8 bg-muted rounded-full"></div>
             <div className="flex-1">
-              <div className="h-3 bg-gray-300 rounded w-3/4 mb-1"></div>
-              <div className="h-2 bg-gray-300 rounded w-1/2"></div>
+              <div className="h-3 bg-muted rounded w-3/4 mb-1"></div>
+              <div className="h-2 bg-muted rounded w-1/2"></div>
             </div>
           </div>
         </div>
@@ -126,25 +126,25 @@ export function SidebarUserInfo() {
     .slice(0, 2);
 
   return (
-    <div className="p-3 border-t border-gray-200 bg-gray-50">
+    <div className="p-3 bg-muted/50">
       <div className="flex items-center space-x-3">
         <Avatar className="w-8 h-8">
-          <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
+          <AvatarFallback className="text-xs bg-blue-500/20 text-blue-600 dark:text-blue-400">
             {initials}
           </AvatarFallback>
         </Avatar>
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1 mb-1">
-            <p className="text-xs font-medium text-gray-900 truncate">
+            <p className="text-xs font-medium text-foreground truncate">
               {userInfo.displayName}
             </p>
             {getRoleIcon(userInfo.role)}
           </div>
           
           <div className="flex items-center gap-1 mb-1">
-            <Building2 className="h-3 w-3 text-gray-400" />
-            <p className="text-xs text-gray-600 truncate">
+            <Building2 className="h-3 w-3 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground truncate">
               {userInfo.orgName}
             </p>
           </div>

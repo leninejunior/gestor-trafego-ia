@@ -114,7 +114,7 @@ export function TeamInvitesList({ invites }: TeamInvitesListProps) {
 
   if (!invites || invites.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-8 text-muted-foreground">
         <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
         <p>Nenhum convite pendente</p>
       </div>
@@ -130,11 +130,11 @@ export function TeamInvitesList({ invites }: TeamInvitesListProps) {
         return (
           <div
             key={invite.id}
-            className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+            className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
           >
             <div className="flex items-center space-x-4">
-              <div className="p-2 bg-blue-100 rounded-full">
-                <Mail className="h-4 w-4 text-blue-600" />
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
               
               <div>
@@ -151,7 +151,7 @@ export function TeamInvitesList({ invites }: TeamInvitesListProps) {
                   </Badge>
                 </div>
                 
-                <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                   <span>Enviado em {formatDate(invite.created_at)}</span>
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />

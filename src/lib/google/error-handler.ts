@@ -93,7 +93,7 @@ export class GoogleAdsErrorHandler {
    * Get user-friendly error message
    */
   private getUserFriendlyMessage(error: GoogleAdsError): string {
-    const code = error.code?.toUpperCase();
+    const code = String(error.code || '').toUpperCase();
 
     switch (code) {
       case 'AUTHENTICATION_ERROR':
@@ -172,7 +172,7 @@ export class GoogleAdsErrorHandler {
       'HTTP_504',
     ];
 
-    return retryableCodes.includes(error.code?.toUpperCase() || '');
+    return retryableCodes.includes(String(error.code || '').toUpperCase());
   }
 
   /**
@@ -242,7 +242,7 @@ export class GoogleAdsErrorHandler {
       'HTTP_403'
     ];
 
-    return criticalCodes.includes(error.code?.toUpperCase() || '');
+    return criticalCodes.includes(String(error.code || '').toUpperCase());
   }
 
   /**
@@ -279,7 +279,7 @@ export class GoogleAdsErrorHandler {
    * Get error type for notification
    */
   private getErrorType(error: GoogleAdsError): 'auth' | 'api' | 'sync' | 'connection' {
-    const code = error.code?.toUpperCase();
+    const code = String(error.code || '').toUpperCase();
     
     if (['AUTHENTICATION_ERROR', 'UNAUTHENTICATED', 'HTTP_401'].includes(code || '')) {
       return 'auth';

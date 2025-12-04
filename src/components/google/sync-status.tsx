@@ -146,7 +146,7 @@ export function GoogleSyncStatus({
         return <AlertCircle className="w-4 h-4 text-red-600" />;
       case 'idle':
       default:
-        return <Clock className="w-4 h-4 text-gray-600" />;
+        return <Clock className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
@@ -218,7 +218,7 @@ export function GoogleSyncStatus({
 
   if (compact) {
     return (
-      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
         <div className="flex items-center gap-2">
           {getStatusIcon()}
           {getStatusBadge()}

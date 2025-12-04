@@ -59,28 +59,28 @@ export function BalanceStatusCard({
       case 'critical':
         return {
           icon: <TrendingDown className="h-5 w-5" />,
-          color: 'text-red-600',
-          bgColor: 'bg-red-50',
-          borderColor: 'border-red-200',
-          badgeClass: 'bg-red-100 text-red-800',
+          color: 'text-red-600 dark:text-red-400',
+          bgColor: 'bg-red-50 dark:bg-red-950/50',
+          borderColor: 'border-red-200 dark:border-red-800',
+          badgeClass: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300',
           label: 'CRÍTICO'
         }
       case 'warning':
         return {
           icon: <AlertTriangle className="h-5 w-5" />,
-          color: 'text-yellow-600',
-          bgColor: 'bg-yellow-50',
-          borderColor: 'border-yellow-200',
-          badgeClass: 'bg-yellow-100 text-yellow-800',
+          color: 'text-yellow-600 dark:text-yellow-400',
+          bgColor: 'bg-yellow-50 dark:bg-yellow-950/50',
+          borderColor: 'border-yellow-200 dark:border-yellow-800',
+          badgeClass: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300',
           label: 'ATENÇÃO'
         }
       default:
         return {
           icon: <TrendingUp className="h-5 w-5" />,
-          color: 'text-green-600',
-          bgColor: 'bg-green-50',
-          borderColor: 'border-green-200',
-          badgeClass: 'bg-green-100 text-green-800',
+          color: 'text-green-600 dark:text-green-400',
+          bgColor: 'bg-green-50 dark:bg-green-950/50',
+          borderColor: 'border-green-200 dark:border-green-800',
+          badgeClass: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300',
           label: 'SAUDÁVEL'
         }
     }
@@ -156,14 +156,14 @@ export function BalanceStatusCard({
 
         {/* Alertas Críticos */}
         {status === 'critical' && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-lg">
             <div className="flex items-start space-x-2">
-              <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5" />
+              <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-red-800">
+                <p className="text-sm font-medium text-red-800 dark:text-red-300">
                   {balance <= 0 ? 'Saldo Zerado!' : 'Saldo Crítico!'}
                 </p>
-                <p className="text-xs text-red-700 mt-1">
+                <p className="text-xs text-red-700 dark:text-red-400 mt-1">
                   {balance <= 0 
                     ? 'Suas campanhas podem ser pausadas a qualquer momento. Adicione créditos imediatamente!'
                     : 'Saldo muito baixo. Adicione créditos em breve para evitar interrupções.'}

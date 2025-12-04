@@ -112,12 +112,12 @@ export function RecentTransactions({ showAll = false }: RecentTransactionsProps)
       <div className="space-y-3">
         {[...Array(showAll ? 10 : 5)].map((_, i) => (
           <div key={i} className="flex items-center space-x-4 p-4 border rounded-lg">
-            <div className="w-12 h-12 bg-gray-200 rounded animate-pulse"></div>
+            <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
             <div className="flex-1 space-y-2">
-              <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-3 bg-gray-200 rounded animate-pulse w-2/3"></div>
+              <div className="h-4 bg-muted rounded animate-pulse"></div>
+              <div className="h-3 bg-muted rounded animate-pulse w-2/3"></div>
             </div>
-            <div className="w-20 h-6 bg-gray-200 rounded animate-pulse"></div>
+            <div className="w-20 h-6 bg-muted rounded animate-pulse"></div>
           </div>
         ))}
       </div>
@@ -130,7 +130,7 @@ export function RecentTransactions({ showAll = false }: RecentTransactionsProps)
         <div className="flex items-center space-x-4">
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
                 placeholder="Buscar por ID, cliente ou descrição..."
                 value={filters.search}
@@ -183,7 +183,7 @@ export function RecentTransactions({ showAll = false }: RecentTransactionsProps)
           <TableBody>
             {transactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   Nenhuma transação encontrada
                 </TableCell>
               </TableRow>
@@ -196,7 +196,7 @@ export function RecentTransactions({ showAll = false }: RecentTransactionsProps)
                         {transaction.reference_id}
                       </div>
                       {transaction.description && (
-                        <div className="text-xs text-gray-500 truncate max-w-[200px]">
+                        <div className="text-xs text-muted-foreground truncate max-w-[200px]">
                           {transaction.description}
                         </div>
                       )}
@@ -209,7 +209,7 @@ export function RecentTransactions({ showAll = false }: RecentTransactionsProps)
                         {transaction.customer_data?.name || 'N/A'}
                       </div>
                       {transaction.customer_data?.email && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-muted-foreground">
                           {transaction.customer_data.email}
                         </div>
                       )}
@@ -220,7 +220,7 @@ export function RecentTransactions({ showAll = false }: RecentTransactionsProps)
                     <div className="font-medium">
                       {formatCurrency(transaction.amount)}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-muted-foreground">
                       {transaction.currency}
                     </div>
                   </TableCell>
@@ -258,7 +258,7 @@ export function RecentTransactions({ showAll = false }: RecentTransactionsProps)
 
       {showAll && pagination.pages > 1 && (
         <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             Mostrando {((pagination.page - 1) * pagination.limit) + 1} a{' '}
             {Math.min(pagination.page * pagination.limit, pagination.total)} de{' '}
             {pagination.total} transações

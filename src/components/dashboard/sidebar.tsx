@@ -17,21 +17,21 @@ import {
   AlertCircle,
   Database,
   Search,
-  Calendar,
   DollarSign,
   Eye,
   Zap,
   CheckCircle,
   XCircle,
-  Plus,
+  X,
   Edit,
-  Shield
+  Plus
 } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { useFeatureMatrix } from "@/hooks/use-feature-gate";
 import { Button } from "../ui/button";
 import { usePlatformConnections } from "@/hooks/use-platform-connections";
 import { Logo } from "../ui/logo";
+import { ThemeToggle } from "../ui/theme-toggle";
 
 interface NavigationItem {
   name: string;
@@ -165,7 +165,7 @@ const navigationSections: NavigationSection[] = [
       {
         name: "Política de Privacidade",
         href: "/privacy-policy",
-        icon: Shield,
+        icon: Eye,
       },
       {
         name: "Termos de Uso",
@@ -278,9 +278,29 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
         />
       )}
 
+      {/* Toggle button for desktop - positioned outside sidebar to avoid overflow clipping */}
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className={cn(
+          "hidden lg:flex fixed top-7 z-[60] w-7 h-7 bg-primary text-primary-foreground rounded-full items-center justify-center hover:bg-primary/90 transition-all duration-300 shadow-lg border-2 border-background",
+          isCollapsed ? "left-[68px]" : "left-[252px]"
+        )}
+        title={isCollapsed ? "Expandir sidebar" : "Recolher sidebar"}
+      >
+        <svg 
+          className="w-4 h-4 transition-transform duration-200" 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+          style={{ transform: isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+
       {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-50 bg-white shadow-xl transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col overflow-x-hidden",
+        "fixed inset-y-0 left-0 z-50 bg-background border-r border-border shadow-xl transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col overflow-hidden",
         isCollapsed ? "w-20" : "w-64",
         isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
@@ -297,27 +317,12 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
             )}
           </Link>
           
-          {/* Toggle button for desktop */}
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 text-white rounded-full items-center justify-center hover:bg-blue-700 transition-colors shadow-lg z-10"
-            title={isCollapsed ? "Expandir sidebar" : "Recolher sidebar"}
-          >
-            {isCollapsed ? (
-              <Plus className="w-4 h-4" />
-            ) : (
-              <Edit className="w-4 h-4" />
-            )}
-          </button>
-          
           {/* Close button for mobile */}
           <button
             onClick={onMobileClose}
             className="lg:hidden text-white hover:text-gray-200 p-1"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="w-6 h-6" />
           </button>
         </div>
 
@@ -345,7 +350,7 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
               <div key={section.title}>
                 {/* Section Title */}
                 {!isCollapsed && (
-                  <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                     {section.title}
                   </h3>
                 )}
@@ -368,10 +373,10 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
                           "flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group relative",
                           isActive
                             ? item.adminOnly 
-                              ? "bg-red-50 text-red-700 border-l-4 border-red-500"
-                              : "bg-blue-50 text-blue-700 border-l-4 border-blue-500"
-                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-l-4 hover:border-gray-300",
-                          item.adminOnly && !isActive && "hover:bg-red-50 hover:text-red-600 hover:border-red-300",
+                              ? "bg-red-500/10 text-red-600 dark:text-red-400 border-l-4 border-red-500"
+                              : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-l-4 border-blue-500"
+                            : "text-muted-foreground hover:bg-accent hover:text-foreground hover:border-l-4 hover:border-border",
+                          item.adminOnly && !isActive && "hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300",
                           isCollapsed && "justify-center"
                         )}
                       >
@@ -379,8 +384,8 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
                           "w-5 h-5 transition-colors flex-shrink-0",
                           !isCollapsed && "mr-3",
                           isActive 
-                            ? item.adminOnly ? "text-red-600" : "text-blue-600"
-                            : "text-gray-400 group-hover:text-gray-600"
+                            ? item.adminOnly ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400"
+                            : "text-muted-foreground group-hover:text-foreground"
                         )} />
                         {!isCollapsed && (
                           <>
@@ -404,7 +409,7 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
                         
                         {/* Tooltip for collapsed state */}
                         {isCollapsed && (
-                          <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                          <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground border border-border text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
                             {item.name}
                             {item.platform && (
                               <>
@@ -428,20 +433,28 @@ export function DashboardSidebar({ isMobileOpen = false, onMobileClose }: Dashbo
           })}
         </nav>
 
+        {/* Theme Toggle */}
+        <div className={cn(
+          "px-4 py-3 border-t border-border flex-shrink-0",
+          isCollapsed && "px-2"
+        )}>
+          <ThemeToggle collapsed={isCollapsed} />
+        </div>
+
         {/* User Info */}
-        <div className="border-t border-gray-200 flex-shrink-0">
+        <div className="border-t border-border flex-shrink-0">
           <SidebarUserInfo />
         </div>
 
         {/* Footer */}
         {!isCollapsed && (
-          <div className="p-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
-            <div className="text-xs text-gray-500 text-center">
-              <div className="font-semibold text-gray-700">Ads Manager SaaS</div>
+          <div className="p-4 border-t border-border bg-muted/50 flex-shrink-0">
+            <div className="text-xs text-muted-foreground text-center">
+              <div className="font-semibold text-foreground">Ads Manager SaaS</div>
               <div className="mt-1 flex items-center justify-center space-x-1">
                 <span>v2.0</span>
                 <span>•</span>
-                <span className="text-green-600 font-medium">Sistema Completo</span>
+                <span className="text-green-600 dark:text-green-400 font-medium">Sistema Completo</span>
               </div>
             </div>
           </div>

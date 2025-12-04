@@ -99,14 +99,14 @@ export function BalanceAccountsTable() {
         )
       case 'warning':
         return (
-          <Badge variant="outline" className="flex items-center gap-1 border-yellow-500 text-yellow-700 bg-yellow-50">
+          <Badge variant="outline" className="flex items-center gap-1 border-yellow-500 text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/50">
             <AlertTriangle className="h-3 w-3" />
             Aviso
           </Badge>
         )
       default:
         return (
-          <Badge variant="outline" className="flex items-center gap-1 border-green-500 text-green-700 bg-green-50">
+          <Badge variant="outline" className="flex items-center gap-1 border-green-500 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/50">
             <TrendingUp className="h-3 w-3" />
             Saudável
           </Badge>
@@ -117,11 +117,11 @@ export function BalanceAccountsTable() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'critical':
-        return 'bg-red-50 border-l-4 border-l-red-500'
+        return 'bg-red-50 dark:bg-red-950/30 border-l-4 border-l-red-500'
       case 'warning':
-        return 'bg-yellow-50 border-l-4 border-l-yellow-500'
+        return 'bg-yellow-50 dark:bg-yellow-950/30 border-l-4 border-l-yellow-500'
       default:
-        return 'bg-green-50 border-l-4 border-l-green-500'
+        return 'bg-green-50 dark:bg-green-950/30 border-l-4 border-l-green-500'
     }
   }
 
@@ -442,21 +442,21 @@ export function BalanceAccountsTable() {
         <div className="mt-6 pt-4 border-t">
           <p className="text-sm font-medium text-muted-foreground mb-3">Legenda de Status:</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="flex items-center gap-2 p-2 rounded bg-green-50 border border-green-200">
+            <div className="flex items-center gap-2 p-2 rounded bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm text-green-700">
+              <span className="text-sm text-green-700 dark:text-green-300">
                 <strong>Saudável:</strong> Saldo acima de 40% ou +7 dias
               </span>
             </div>
-            <div className="flex items-center gap-2 p-2 rounded bg-yellow-50 border border-yellow-200">
+            <div className="flex items-center gap-2 p-2 rounded bg-yellow-50 dark:bg-yellow-950/50 border border-yellow-200 dark:border-yellow-800">
               <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              <span className="text-sm text-yellow-700">
+              <span className="text-sm text-yellow-700 dark:text-yellow-300">
                 <strong>Aviso:</strong> Saldo entre 20-40% ou 3-7 dias
               </span>
             </div>
-            <div className="flex items-center gap-2 p-2 rounded bg-red-50 border border-red-200">
+            <div className="flex items-center gap-2 p-2 rounded bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800">
               <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-              <span className="text-sm text-red-700">
+              <span className="text-sm text-red-700 dark:text-red-300">
                 <strong>Crítico:</strong> Saldo abaixo de 20% ou -3 dias
               </span>
             </div>

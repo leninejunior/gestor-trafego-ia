@@ -80,7 +80,7 @@ export function TeamMembersList({ members, currentUserId, canManage, roles }: Te
       case 'manager':
         return <User className="h-4 w-4 text-green-500" />;
       default:
-        return <Eye className="h-4 w-4 text-gray-500" />;
+        return <Eye className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -183,7 +183,7 @@ export function TeamMembersList({ members, currentUserId, canManage, roles }: Te
 
   if (!members || members.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-8 text-muted-foreground">
         <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
         <p>Nenhum membro encontrado</p>
       </div>
@@ -202,7 +202,7 @@ export function TeamMembersList({ members, currentUserId, canManage, roles }: Te
           return (
             <div
               key={member.id}
-              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+              className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
             >
               <div className="flex items-center space-x-4">
                 <Avatar>
@@ -217,7 +217,7 @@ export function TeamMembersList({ members, currentUserId, canManage, roles }: Te
                     <h3 className="font-medium">
                       {displayName}
                       {isCurrentUser && (
-                        <span className="text-sm text-gray-500 ml-2">(Você)</span>
+                        <span className="text-sm text-muted-foreground ml-2">(Você)</span>
                       )}
                     </h3>
                     {getRoleIcon(member.role)}
@@ -233,7 +233,7 @@ export function TeamMembersList({ members, currentUserId, canManage, roles }: Te
                     </Badge>
                   </div>
                   
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Membro desde {formatDate(member.accepted_at || member.created_at)}
                   </p>
                 </div>
@@ -253,7 +253,7 @@ export function TeamMembersList({ members, currentUserId, canManage, roles }: Te
                     {/* Alterar função */}
                     {member.role !== 'owner' && (
                       <>
-                        <DropdownMenuLabel className="text-xs text-gray-500">
+                        <DropdownMenuLabel className="text-xs text-muted-foreground">
                           Alterar Função
                         </DropdownMenuLabel>
                         {roles

@@ -8,7 +8,7 @@
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "fetch"
       ],
@@ -20,7 +20,7 @@
         "-y",
         "chrome-devtools-mcp@latest"
       ],
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "navigate_page",
         "list_pages",
@@ -34,21 +34,8 @@
       ]
     },
     "supabase": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@supabase/mcp-server-supabase"
-      ],
-      "env": {
-        "SUPABASE_URL": "https://doiogabdzybqxnyhktbv.supabase.co",
-        "SUPABASE_ACCESS_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvaW9nYWJkenlicXhueWhrdGJ2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTg1ODcyOSwiZXhwIjoyMDc1NDM0NzI5fQ.HlJgXvaOLcAOvJa9iV2jNpAqx1du5Ge9-oBD9oYkXuw"
-      },
-      "disabled": true,
-      "autoApprove": [
-        "query",
-        "list_tables",
-        "describe_table"
-      ]
+      "url": "https://mcp.supabase.com/mcp?project_ref=doiogabdzybqxnyhktbv",
+      "disabled": false
     },
     "filesystem": {
       "command": "npx",
@@ -91,7 +78,7 @@
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "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"
       },
-      "disabled": false,
+      "disabled": true,
       "autoApprove": []
     }
   }

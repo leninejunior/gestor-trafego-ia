@@ -197,15 +197,6 @@ export default function SetupChecklist({ onComplete, onDismiss, compact = false 
     }
   };
 
-  const completedItems = checklist.filter(item => item.completed).length;
-  const totalItems = checklist.length;
-  const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
-  const isComplete = completedItems === totalItems;
-
-  const highPriorityIncomplete = checklist.filter(item => 
-    item.priority === 'high' && !item.completed
-  ).length;
-
   const handleDismiss = () => {
     setIsVisible(false);
     onDismiss?.();
@@ -220,6 +211,17 @@ export default function SetupChecklist({ onComplete, onDismiss, compact = false 
     } as any);
   };
 
+  // Calculate derived values BEFORE any conditional returns
+  // This ensures all hooks are called consistently
+  const completedItems = checklist.filter(item => item.completed).length;
+  const totalItems = checklist.length;
+  const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+  const isComplete = completedItems === totalItems;
+
+  const highPriorityIncomplete = checklist.filter(item =>
+    item.priority === 'high' && !item.completed
+  ).length;
+
   if (!isVisible || loading) {
     return null;
   }
@@ -230,12 +232,12 @@ export default function SetupChecklist({ onComplete, onDismiss, compact = false 
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <Target className="w-5 h-5 text-blue-600" />
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                <Target className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <h3 className="font-medium">Setup da Conta</h3>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   {completedItems}/{totalItems} concluído
                 </p>
               </div>
@@ -291,7 +293,7 @@ export default function SetupChecklist({ onComplete, onDismiss, compact = false 
 
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600">
+            <span className="text-muted-foreground">
               Progresso: {completedItems}/{totalItems}
             </span>
             <span className="font-medium">
@@ -305,7 +307,7 @@ export default function SetupChecklist({ onComplete, onDismiss, compact = false 
               <Badge variant="destructive" className="text-xs">
                 {highPriorityIncomplete} alta prioridade
               </Badge>
-              <span className="text-gray-500">pendentes</span>
+              <span className="text-muted-foreground">pendentes</span>
             </div>
           )}
         </div>
@@ -317,15 +319,15 @@ export default function SetupChecklist({ onComplete, onDismiss, compact = false 
             key={item.id}
             className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
               item.completed 
-                ? 'bg-green-50 border-green-200' 
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
                 : item.priority === 'high'
-                ? 'bg-red-50 border-red-200'
-                : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                : 'bg-muted/50 border-border hover:bg-muted'
             }`}
           >
             <div className="flex items-center space-x-3">
               <div className={`flex-shrink-0 ${
-                item.completed ? 'text-green-600' : 'text-gray-400'
+                item.completed ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
               }`}>
                 {item.completed ? (
                   <CheckCircle className="w-5 h-5" />
@@ -335,14 +337,14 @@ export default function SetupChecklist({ onComplete, onDismiss, compact = false 
               </div>
               
               <div className={`flex-shrink-0 ${
-                item.completed ? 'text-green-600' : 'text-blue-600'
+                item.completed ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'
               }`}>
                 {item.icon}
               </div>
               
               <div className="flex-1 min-w-0">
                 <h4 className={`font-medium ${
-                  item.completed ? 'text-green-800' : 'text-gray-900'
+                  item.completed ? 'text-green-800 dark:text-green-300' : 'text-foreground'
                 }`}>
                   {item.title}
                   {item.priority === 'high' && !item.completed && (
@@ -352,7 +354,7 @@ export default function SetupChecklist({ onComplete, onDismiss, compact = false 
                   )}
                 </h4>
                 <p className={`text-sm ${
-                  item.completed ? 'text-green-600' : 'text-gray-500'
+                  item.completed ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
                 }`}>
                   {item.description}
                 </p>
@@ -371,15 +373,15 @@ export default function SetupChecklist({ onComplete, onDismiss, compact = false 
         ))}
 
         {isComplete && (
-          <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center">
-            <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
-            <h3 className="font-medium text-green-800 mb-1">
+          <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-center">
+            <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
+            <h3 className="font-medium text-green-800 dark:text-green-300 mb-1">
               Parabéns! Setup Completo! 🎉
             </h3>
-            <p className="text-sm text-green-600 mb-3">
+            <p className="text-sm text-green-600 dark:text-green-400 mb-3">
               Sua conta está totalmente configurada e pronta para uso.
             </p>
-            <Button onClick={handleComplete} className="bg-green-600 hover:bg-green-700">
+            <Button onClick={handleComplete} className="bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">
               Ir para Dashboard
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>

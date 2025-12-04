@@ -104,7 +104,7 @@ export function BillingHistoryTable({ organizationId }: BillingHistoryTableProps
       case 'uncollectible':
         return <XCircle className="h-4 w-4 text-red-500" />;
       default:
-        return <AlertCircle className="h-4 w-4 text-gray-500" />;
+        return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
     }
   };
 

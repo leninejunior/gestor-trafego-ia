@@ -44,7 +44,7 @@ export function PaymentStats() {
               <CardTitle className="text-sm font-medium">Carregando...</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-8 bg-muted rounded animate-pulse"></div>
             </CardContent>
           </Card>
         ))}
@@ -56,7 +56,7 @@ export function PaymentStats() {
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-center text-gray-500">
+          <p className="text-center text-muted-foreground">
             Erro ao carregar estatísticas de pagamentos
           </p>
         </CardContent>
@@ -72,9 +72,9 @@ export function PaymentStats() {
   };
 
   const getSuccessRateColor = (rate: number) => {
-    if (rate >= 95) return 'text-green-600';
-    if (rate >= 85) return 'text-yellow-600';
-    return 'text-red-600';
+    if (rate >= 95) return 'text-green-600 dark:text-green-400';
+    if (rate >= 85) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-red-600 dark:text-red-400';
   };
 
   const getSuccessRateBadge = (rate: number) => {
@@ -173,7 +173,7 @@ export function PaymentStats() {
                   case 'processing':
                     return { label: 'Processando', color: 'text-blue-600', icon: Activity };
                   default:
-                    return { label: status, color: 'text-gray-600', icon: CreditCard };
+                    return { label: status, color: 'text-muted-foreground', icon: CreditCard };
                 }
               };
 
@@ -218,7 +218,7 @@ export function PaymentStats() {
                   case 'iugu': return 'bg-blue-500';
                   case 'pagseguro': return 'bg-yellow-500';
                   case 'mercadopago': return 'bg-cyan-500';
-                  default: return 'bg-gray-500';
+                  default: return 'bg-muted-foreground';
                 }
               };
 

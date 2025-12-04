@@ -80,13 +80,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify user has access to the client
-    const { data: membership, error: membershipError } = await supabase
-      .from('organization_memberships')
-      .select('client_id')
-      .eq('user_id', user.id)
-      .eq('client_id', clientId)
+    // Verify user has access to the client via organization membership
+    const { data: clientData, error: clientError } = await supabase
+      .from('clients')
+      .select('id, org_id')
+      .eq('id', clientId)
       .single();
+
+    if (clientError || !clientData) {
+      return NextResponse.json(
+        { error: 'Cliente não encontrado' },
+        { status: 404 }
+      );
+    }
+
+    // Check if user is member of the organization
+    const { data: membership, error: membershipError } = await supabase
+      .from('memberships')
+      .select('id')
+      .eq('organization_id', clientData.org_id)
+      .eq('user_id', user.id)
+      .maybeSingle();
 
     if (membershipError || !membership) {
       return NextResponse.json(

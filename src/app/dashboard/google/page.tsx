@@ -1,27 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Chrome, 
-  Plus, 
-  BarChart3, 
-  Users, 
-  DollarSign, 
-  Target, 
+import {
+  Chrome,
+  Plus,
+  BarChart3,
+  Users,
+  DollarSign,
+  Target,
   TrendingUp,
-  Calendar,
   RefreshCw,
   AlertCircle
 } from "lucide-react";
 import Link from "next/link";
-import { GoogleCampaignsList } from "@/components/google/google-campaigns-list";
 import { ConnectGoogleButton } from "@/components/google/connect-google-button";
 import { GoogleSyncStatus } from "@/components/google/sync-status";
 import { ExportButton } from "@/components/exports/export-button";
+import { GoogleMetricsCards } from "@/components/google/google-metrics-cards";
+import { GoogleFiltersHeader } from "@/components/google/google-filters-header";
+import { GoogleDashboardComplete } from "@/components/google/google-dashboard-complete";
 import { useToast } from "@/hooks/use-toast";
 
 interface GoogleConnection {
@@ -61,12 +62,21 @@ const DATE_FILTERS: DateFilter[] = [
   { value: 'last_14_days', label: 'Últimos 14 dias', days: 14 },
   { value: 'last_30_days', label: 'Últimos 30 dias', days: 30 },
   { value: 'last_90_days', label: 'Últimos 90 dias', days: 90 },
+  { value: 'custom', label: 'Personalizado', days: 0 },
 ];
 
 export default function GooglePage() {
+  const searchParams = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('last_30_days');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [showCustomDateInputs, setShowCustomDateInputs] = useState<boolean>(false);
+  const [currentDateRange, setCurrentDateRange] = useState<{ startDate: string; endDate: string }>({
+    startDate: '',
+    endDate: ''
+  });
   const [kpiData, setKpiData] = useState<KPIData>({
     totalSpend: 0,
     totalConversions: 0,
@@ -104,7 +114,7 @@ export default function GooglePage() {
       const data = await response.json();
       console.log('[Google Dashboard] 📋 DADOS RECEBIDOS:');
       console.log('[Google Dashboard] - Total de clientes:', data.clients?.length || 0);
-      console.log('[Google Dashboard] - Clientes com Google:', data.clients?.filter(c => c.googleConnections?.length > 0).length || 0);
+      console.log('[Google Dashboard] - Clientes com Google:', data.clients?.filter((c: any) => c.googleConnections?.length > 0).length || 0);
       console.log('[Google Dashboard] - Estrutura dos dados:', JSON.stringify(data, null, 2));
       
       setClients(data.clients || []);
@@ -112,8 +122,8 @@ export default function GooglePage() {
       console.log('='.repeat(80));
     } catch (error) {
       console.error('[Google Dashboard] ❌ ERRO AO CARREGAR CLIENTES:', error);
-      console.error('[Google Dashboard] - Mensagem:', error.message);
-      console.error('[Google Dashboard] - Stack:', error.stack);
+      console.error('[Google Dashboard] - Mensagem:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('[Google Dashboard] - Stack:', error instanceof Error ? error.stack : 'No stack available');
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar os clientes.',
@@ -130,13 +140,16 @@ export default function GooglePage() {
       console.log('[Google Dashboard] 📈 CARREGANDO DADOS DE KPI');
       console.log('[Google Dashboard] Timestamp:', new Date().toISOString());
       
-      const dateRange = getDateRange(dateFilter);
+      // Usar currentDateRange em vez de calcular do dateFilter
+      const dateFrom = currentDateRange.startDate || getDateRange(dateFilter).from;
+      const dateTo = currentDateRange.endDate || getDateRange(dateFilter).to;
       const clientParam = selectedClient !== 'all' ? `&clientId=${selectedClient}` : '';
-      const apiUrl = `/api/google/metrics-simple?dateFrom=${dateRange.from}&dateTo=${dateRange.to}&groupBy=campaign${clientParam}`;
+      const apiUrl = `/api/google/metrics-simple?dateFrom=${dateFrom}&dateTo=${dateTo}&groupBy=campaign${clientParam}`;
       
       console.log('[Google Dashboard] 🔗 PARÂMETROS DA REQUISIÇÃO:');
       console.log('[Google Dashboard] - Date filter:', dateFilter);
-      console.log('[Google Dashboard] - Date range:', dateRange);
+      console.log('[Google Dashboard] - Date range:', { from: dateFrom, to: dateTo });
+      console.log('[Google Dashboard] - Current date range state:', currentDateRange);
       console.log('[Google Dashboard] - Selected client:', selectedClient);
       console.log('[Google Dashboard] - API URL:', apiUrl);
       
@@ -192,8 +205,8 @@ export default function GooglePage() {
       console.log('='.repeat(80));
     } catch (error) {
       console.error('[Google Dashboard] ❌ ERRO AO CARREGAR KPIs:', error);
-      console.error('[Google Dashboard] - Mensagem:', error.message);
-      console.error('[Google Dashboard] - Stack:', error.stack);
+      console.error('[Google Dashboard] - Mensagem:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('[Google Dashboard] - Stack:', error instanceof Error ? error.stack : 'No stack available');
       // Don't show error toast for KPI data as it's not critical
     } finally {
       setRefreshing(false);
@@ -211,6 +224,13 @@ export default function GooglePage() {
       return {
         from: from.toISOString().split('T')[0],
         to: today.toISOString().split('T')[0],
+      };
+    }
+    
+    if (filter === 'custom') {
+      return {
+        from: customStartDate || getDefaultDateRange().startDate,
+        to: customEndDate || getDefaultDateRange().endDate,
       };
     }
     
@@ -238,6 +258,40 @@ export default function GooglePage() {
     };
   };
 
+  const getDefaultDateRange = () => {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+    };
+  };
+
+  const handleDateFilterChange = (value: string) => {
+    setDateFilter(value);
+    if (value === 'custom') {
+      setShowCustomDateInputs(true);
+    } else {
+      setShowCustomDateInputs(false);
+      const range = getDateRange(value);
+      setCurrentDateRange({
+        startDate: range.from,
+        endDate: range.to
+      });
+    }
+  };
+
+  const handleCustomDateApply = () => {
+    if (customStartDate && customEndDate) {
+      setCurrentDateRange({
+        startDate: customStartDate,
+        endDate: customEndDate
+      });
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -261,17 +315,54 @@ export default function GooglePage() {
     loadData();
   }, []);
 
+  // Initialize date range on mount
+  useEffect(() => {
+    const range = getDateRange(dateFilter);
+    setCurrentDateRange({
+      startDate: range.from,
+      endDate: range.to
+    });
+  }, []);
+
+  // Handle redirect after successful connection
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const accounts = searchParams.get('accounts');
+    
+    if (success === 'connected' && accounts === '1') {
+      console.log('[Google Dashboard] 🔄 DETECTADA CONEXÃO BEM-SUCEDIDA, REDIRECIONANDO...');
+      
+      // Find the most recently connected client
+      const redirectTimer = setTimeout(() => {
+        if (clients.length > 0) {
+          // Find client with most recent Google connection
+          const clientWithGoogle = clients.find(c =>
+            c.googleConnections && c.googleConnections.length > 0
+          );
+          
+          if (clientWithGoogle) {
+            console.log('[Google Dashboard] 🎯 REDIRECIONANDO PARA PÁGINA DE CLIENTE:', clientWithGoogle.id);
+            window.location.href = `/dashboard/clients/${clientWithGoogle.id}/google`;
+          }
+        }
+      }, 2000); // Wait 2 seconds to show success message
+      
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [searchParams, clients]);
+
   useEffect(() => {
     if (clients.length > 0) {
       console.log('[Google Dashboard] 🔄 TRIGGER PARA ATUALIZAR KPIs');
       console.log('[Google Dashboard] - Clientes carregados:', clients.length);
       console.log('[Google Dashboard] - Cliente selecionado:', selectedClient);
       console.log('[Google Dashboard] - Filtro de data:', dateFilter);
+      console.log('[Google Dashboard] - Current date range:', currentDateRange);
       fetchKPIData();
     } else {
       console.log('[Google Dashboard] ⏸️ AGUARDANDO CLIENTES SEREM CARREGADOS');
     }
-  }, [clients, selectedClient, dateFilter]);
+  }, [clients, selectedClient, currentDateRange]);
 
   const connectedClients = clients.filter(c =>
     c.googleConnections && c.googleConnections.length > 0 &&
@@ -310,8 +401,34 @@ export default function GooglePage() {
     );
   }
 
+  // Get first connected client ID for general metrics
+  const firstConnectedClient = connectedClients.length > 0 ? connectedClients[0].id : null;
+
+  // Show success message when redirected after connection
+  const isSuccess = searchParams.get('success') === 'connected';
+  const accounts = searchParams.get('accounts');
+
   return (
     <div className="space-y-6">
+      {/* Success Message */}
+      {isSuccess && accounts === '1' && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Chrome className="w-6 h-6 text-green-600" />
+              <div>
+                <h3 className="font-medium text-green-800">
+                  Conta Google Ads Conectada com Sucesso!
+                </h3>
+                <p className="text-sm text-green-700">
+                  Você será redirecionado para a página de campanhas em instantes...
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -335,7 +452,7 @@ export default function GooglePage() {
             <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
-          <Button 
+          <Button
             onClick={() => {
               console.log('[Google Dashboard] 🔙 VOLTANDO PARA LISTAGEM DE CLIENTES');
               window.location.href = '/dashboard/clients';
@@ -353,6 +470,16 @@ export default function GooglePage() {
           </Button>
         </div>
       </div>
+
+      {/* Google-specific Metrics - Show if there are connections */}
+      {hasConnections && currentDateRange.startDate && currentDateRange.endDate && (
+        <GoogleMetricsCards
+          clientId={selectedClient !== 'all' ? selectedClient : firstConnectedClient ?? undefined}
+          dateFilter={dateFilter}
+          startDate={currentDateRange.startDate}
+          endDate={currentDateRange.endDate}
+        />
+      )}
 
       {/* Configuration Warning */}
       {isGoogleAdsConfigured === false && (
@@ -382,42 +509,22 @@ export default function GooglePage() {
         </Card>
       )}
 
-      {/* Filters */}
+      {/* Sticky Header with Unified Filters */}
       {hasConnections && isGoogleAdsConfigured && (
-        <div className="flex gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-500" />
-            <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Selecionar período" />
-              </SelectTrigger>
-              <SelectContent>
-                {DATE_FILTERS.map((filter) => (
-                  <SelectItem key={filter.value} value={filter.value}>
-                    {filter.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-gray-500" />
-            <Select value={selectedClient} onValueChange={setSelectedClient}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Todos os clientes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os clientes</SelectItem>
-                {connectedClients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        <GoogleFiltersHeader
+          selectedClient={selectedClient}
+          onClientChange={setSelectedClient}
+          dateFilter={dateFilter}
+          onDateFilterChange={handleDateFilterChange}
+          clients={clients}
+          connectedClients={connectedClients}
+          showCustomDateInputs={showCustomDateInputs}
+          customStartDate={customStartDate}
+          customEndDate={customEndDate}
+          onCustomStartDateChange={setCustomStartDate}
+          onCustomEndDateChange={setCustomEndDate}
+          onCustomDateApply={handleCustomDateApply}
+        />
       )}
 
       {/* KPI Cards */}
@@ -559,10 +666,15 @@ export default function GooglePage() {
         </div>
       )}
 
-      {/* Campaigns List */}
+      {/* Dashboard Completo com Campanhas */}
       {hasConnections && isGoogleAdsConfigured ? (
-        selectedClient !== 'all' ? (
-          <GoogleCampaignsList clientId={selectedClient} />
+        selectedClient !== 'all' && currentDateRange.startDate && currentDateRange.endDate ? (
+          <GoogleDashboardComplete
+            clientId={selectedClient}
+            startDate={currentDateRange.startDate}
+            endDate={currentDateRange.endDate}
+            onRefresh={handleRefresh}
+          />
         ) : (
           <Card>
             <CardContent className="text-center py-12">
@@ -571,7 +683,7 @@ export default function GooglePage() {
                 Selecione um Cliente
               </h3>
               <p className="text-gray-500">
-                Para visualizar as campanhas, selecione um cliente específico no filtro acima.
+                Para visualizar o dashboard completo, selecione um cliente específico no filtro acima.
               </p>
             </CardContent>
           </Card>

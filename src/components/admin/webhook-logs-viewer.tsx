@@ -231,7 +231,7 @@ export function WebhookLogsViewer({ intentId, className }: WebhookLogsViewerProp
 
       {/* Filters */}
       {!intentId && (
-        <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-lg">
+        <div className="flex flex-wrap gap-4 p-4 bg-muted/50 rounded-lg">
           <Select
             value={filters.status}
             onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
@@ -393,7 +393,7 @@ export function WebhookLogsViewer({ intentId, className }: WebhookLogsViewerProp
                               
                               <div>
                                 <label className="text-sm font-medium">Payload</label>
-                                <pre className="text-xs bg-gray-50 p-4 rounded border overflow-auto max-h-96">
+                                <pre className="text-xs bg-muted/50 p-4 rounded border overflow-auto max-h-96">
                                   {JSON.stringify(selectedLog.payload, null, 2)}
                                 </pre>
                               </div>

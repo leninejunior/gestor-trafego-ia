@@ -389,7 +389,7 @@ export function GoogleDateRangeSelector({
       {/* Current Selection Display */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <CalendarIcon className="w-4 h-4 text-gray-500" />
+          <CalendarIcon className="w-4 h-4 text-muted-foreground" />
           <span className="font-medium">{formatDateRange(value)}</span>
           {currentPreset && (
             <Badge variant="secondary" className="text-xs">

@@ -82,17 +82,17 @@ export function GoogleAdsCard({ clientId, showCampaigns = false }: GoogleAdsCard
           {loading ? (
             <div className="text-center py-4">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
-              <p className="text-sm text-gray-500">Verificando conexões...</p>
+              <p className="text-sm text-muted-foreground">Verificando conexões...</p>
             </div>
           ) : !isConnected ? (
             <div className="text-center py-4">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Settings className="w-8 h-8 text-gray-400" />
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                <Settings className="w-8 h-8 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Conectar Google Ads
               </h3>
-              <p className="text-gray-500 mb-4">
+              <p className="text-muted-foreground mb-4">
                 Conecte sua conta do Google Ads para importar campanhas e métricas.
               </p>
               <Button 
@@ -113,11 +113,11 @@ export function GoogleAdsCard({ clientId, showCampaigns = false }: GoogleAdsCard
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Google Ads Conectado
               </h3>
-              <p className="text-gray-500 mb-2">
+              <p className="text-muted-foreground mb-2">
                 {connections.length} conta{connections.length > 1 ? 's' : ''} conectada{connections.length > 1 ? 's' : ''}
               </p>
               {connections.length > 0 && (
-                <div className="text-sm text-gray-600 mb-4">
+                <div className="text-sm text-muted-foreground mb-4">
                   {connections.map((conn, index) => (
                     <div key={conn.id} className="py-1">
                       Customer ID: {conn.customer_id}
@@ -126,10 +126,10 @@ export function GoogleAdsCard({ clientId, showCampaigns = false }: GoogleAdsCard
                 </div>
               )}
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="flex-1"
-                  onClick={() => window.location.href = `/dashboard/google?client=${clientId}`}
+                  onClick={() => window.location.href = `/dashboard/clients/${clientId}/google`}
                 >
                   <Settings className="w-4 h-4 mr-2" />
                   Ver Campanhas

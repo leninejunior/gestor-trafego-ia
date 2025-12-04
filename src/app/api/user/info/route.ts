@@ -47,7 +47,7 @@ export async function GET(request: Request) {
       .from('memberships')
       .select(`
         role,
-        org_id,
+        organization_id,
         user_roles (
           name
         )
@@ -63,11 +63,11 @@ export async function GET(request: Request) {
 
     // Buscar organização
     let orgName = 'Minha Organização';
-    if (membership?.org_id) {
+    if (membership?.organization_id) {
       const { data: org } = await serviceSupabase
         .from('organizations')
         .select('name')
-        .eq('id', membership.org_id)
+        .eq('id', membership.organization_id)
         .single();
       
       if (org?.name) {

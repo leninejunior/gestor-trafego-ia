@@ -168,13 +168,13 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'urgent':
-        return 'bg-red-100 border-red-500 text-red-800';
+        return 'bg-red-100 dark:bg-red-900/30 border-red-500 text-red-800 dark:text-red-300';
       case 'high':
-        return 'bg-orange-100 border-orange-500 text-orange-800';
+        return 'bg-orange-100 dark:bg-orange-900/30 border-orange-500 text-orange-800 dark:text-orange-300';
       case 'medium':
-        return 'bg-yellow-100 border-yellow-500 text-yellow-800';
+        return 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-500 text-yellow-800 dark:text-yellow-300';
       default:
-        return 'bg-blue-100 border-blue-500 text-blue-800';
+        return 'bg-blue-100 dark:bg-blue-900/30 border-blue-500 text-blue-800 dark:text-blue-300';
     }
   };
 
@@ -266,11 +266,11 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
           <div className="max-h-96 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : filteredNotifications.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Bell className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <div className="text-center py-8 text-muted-foreground">
+                <Bell className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
                 <p>Nenhuma notificação encontrada</p>
               </div>
             ) : (
@@ -278,8 +278,8 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
                 {filteredNotifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${
-                      !notification.is_read ? 'bg-blue-50' : ''
+                    className={`p-4 border-l-4 hover:bg-muted/50 transition-colors ${
+                      !notification.is_read ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                     } ${getPriorityColor(notification.priority).split(' ')[1]}`}
                   >
                     <div className="flex items-start space-x-3">
@@ -291,11 +291,11 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <h4 className={`text-sm font-medium ${
-                              !notification.is_read ? 'text-gray-900' : 'text-gray-700'
+                              !notification.is_read ? 'text-foreground' : 'text-muted-foreground'
                             }`}>
                               {notification.title}
                             </h4>
-                            <p className="text-sm text-gray-600 mt-1">
+                            <p className="text-sm text-muted-foreground mt-1">
                               {notification.message}
                             </p>
                             
@@ -303,7 +303,7 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
                               <Badge variant="outline" className="text-xs">
                                 {notification.category}
                               </Badge>
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-muted-foreground">
                                 {formatTimeAgo(notification.created_at)}
                               </span>
                             </div>
@@ -354,7 +354,7 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
         </CardContent>
 
         {/* Footer */}
-        <div className="p-4 border-t bg-gray-50">
+        <div className="p-4 border-t bg-muted/50">
           <div className="flex items-center justify-between">
             <Button variant="outline" size="sm">
               <Settings className="w-4 h-4 mr-2" />

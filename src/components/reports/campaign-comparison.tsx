@@ -15,19 +15,32 @@ interface Campaign {
 
 interface CampaignComparisonProps {
   clientId: string;
+  selectedCampaigns?: string[];
+  campaigns?: Campaign[];
 }
 
-export function CampaignComparison({ clientId }: CampaignComparisonProps) {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
+export function CampaignComparison({ clientId, selectedCampaigns: propSelectedCampaigns, campaigns: propCampaigns }: CampaignComparisonProps) {
+  const [campaigns, setCampaigns] = useState<Campaign[]>(propCampaigns || []);
+  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>(propSelectedCampaigns || []);
   const [comparisonData, setComparisonData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (clientId) {
+    if (propCampaigns) {
+      setCampaigns(propCampaigns);
+    } else if (clientId) {
       loadCampaigns();
     }
-  }, [clientId]);
+  }, [clientId, propCampaigns]);
+
+  useEffect(() => {
+    if (propSelectedCampaigns) {
+      setSelectedCampaigns(propSelectedCampaigns);
+      if (propSelectedCampaigns.length >= 2) {
+        compareSelected(propSelectedCampaigns);
+      }
+    }
+  }, [propSelectedCampaigns]);
 
   const loadCampaigns = async () => {
     try {
@@ -42,6 +55,9 @@ export function CampaignComparison({ clientId }: CampaignComparisonProps) {
   };
 
   const handleCampaignToggle = (campaignId: string) => {
+    // If props are provided, we don't allow internal toggling (controlled by parent)
+    if (propSelectedCampaigns) return;
+
     setSelectedCampaigns(prev => {
       if (prev.includes(campaignId)) {
         return prev.filter(id => id !== campaignId);
@@ -52,12 +68,12 @@ export function CampaignComparison({ clientId }: CampaignComparisonProps) {
     });
   };
 
-  const compareSelected = async () => {
-    if (selectedCampaigns.length < 2) return;
+  const compareSelected = async (campaignsToCompare = selectedCampaigns) => {
+    if (campaignsToCompare.length < 2) return;
 
     setIsLoading(true);
     try {
-      const promises = selectedCampaigns.map(async (campaignId) => {
+      const promises = campaignsToCompare.map(async (campaignId) => {
         const response = await fetch(`/api/meta/insights?clientId=${clientId}&campaignId=${campaignId}`);
         if (response.ok) {
           const data = await response.json();
@@ -97,11 +113,11 @@ export function CampaignComparison({ clientId }: CampaignComparisonProps) {
 
   const getBestPerformer = (metric: string) => {
     if (comparisonData.length === 0) return null;
-    
+
     return comparisonData.reduce((best, current) => {
       const currentValue = current[metric] || 0;
       const bestValue = best[metric] || 0;
-      
+
       // Para CTR, queremos o maior valor
       if (metric === 'ctr') {
         return currentValue > bestValue ? current : best;
@@ -127,34 +143,38 @@ export function CampaignComparison({ clientId }: CampaignComparisonProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div>
-          <label className="text-sm font-medium mb-2 block">
-            Selecionar Campanhas (máximo 3)
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {campaigns.map((campaign) => (
-              <div
-                key={campaign.id}
-                className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                  selectedCampaigns.includes(campaign.id)
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => handleCampaignToggle(campaign.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{campaign.name}</span>
-                  <Badge variant={campaign.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                    {campaign.status}
-                  </Badge>
+        {/* Only show selector if not controlled by props */}
+        {!propSelectedCampaigns && (
+          <div>
+            <label className="text-sm font-medium mb-2 block">
+              Selecionar Campanhas (máximo 3)
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {campaigns.map((campaign) => (
+                <div
+                  key={campaign.id}
+                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${selectedCampaigns.includes(campaign.id)
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-border hover:border-muted-foreground'
+                    }`}
+                  onClick={() => handleCampaignToggle(campaign.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{campaign.name}</span>
+                    <Badge variant={campaign.status === 'ACTIVE' ? 'default' : 'secondary'}>
+                      {campaign.status}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
+        {/* Show button only if not auto-comparing (or maybe always show to refresh?) */}
+        {/* If controlled, we auto-compare, but maybe user wants to retry? */}
         <Button
-          onClick={compareSelected}
+          onClick={() => compareSelected()}
           disabled={selectedCampaigns.length < 2 || isLoading}
           className="w-full"
         >
@@ -171,15 +191,15 @@ export function CampaignComparison({ clientId }: CampaignComparisonProps) {
         {comparisonData.length > 0 && (
           <div className="space-y-4">
             <h4 className="font-medium">Resultados da Comparação</h4>
-            
+
             {/* Tabela de Comparação */}
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse border border-gray-200">
+              <table className="w-full border-collapse border border-border">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="border border-gray-200 p-3 text-left">Métrica</th>
+                  <tr className="bg-muted/50">
+                    <th className="border border-border p-3 text-left">Métrica</th>
                     {comparisonData.map((campaign) => (
-                      <th key={campaign.id} className="border border-gray-200 p-3 text-left">
+                      <th key={campaign.id} className="border border-border p-3 text-left">
                         {campaign.name}
                       </th>
                     ))}
@@ -187,83 +207,83 @@ export function CampaignComparison({ clientId }: CampaignComparisonProps) {
                 </thead>
                 <tbody>
                   <tr>
-                    <td className="border border-gray-200 p-3 font-medium">Impressões</td>
+                    <td className="border border-border p-3 font-medium">Impressões</td>
                     {comparisonData.map((campaign) => {
                       const best = getBestPerformer('impressions');
                       const isBest = best?.id === campaign.id;
                       return (
-                        <td key={campaign.id} className="border border-gray-200 p-3">
+                        <td key={campaign.id} className="border border-border p-3">
                           <div className="flex items-center">
                             {formatNumber(campaign.impressions || 0)}
-                            {isBest && <TrendingUp className="w-4 h-4 text-green-500 ml-2" />}
+                            {isBest && <TrendingUp className="w-4 h-4 text-green-500 dark:text-green-400 ml-2" />}
                           </div>
                         </td>
                       );
                     })}
                   </tr>
                   <tr>
-                    <td className="border border-gray-200 p-3 font-medium">Cliques</td>
+                    <td className="border border-border p-3 font-medium">Cliques</td>
                     {comparisonData.map((campaign) => {
                       const best = getBestPerformer('clicks');
                       const isBest = best?.id === campaign.id;
                       return (
-                        <td key={campaign.id} className="border border-gray-200 p-3">
+                        <td key={campaign.id} className="border border-border p-3">
                           <div className="flex items-center">
                             {formatNumber(campaign.clicks || 0)}
-                            {isBest && <TrendingUp className="w-4 h-4 text-green-500 ml-2" />}
+                            {isBest && <TrendingUp className="w-4 h-4 text-green-500 dark:text-green-400 ml-2" />}
                           </div>
                         </td>
                       );
                     })}
                   </tr>
                   <tr>
-                    <td className="border border-gray-200 p-3 font-medium">CTR</td>
+                    <td className="border border-border p-3 font-medium">CTR</td>
                     {comparisonData.map((campaign) => {
                       const best = getBestPerformer('ctr');
                       const isBest = best?.id === campaign.id;
                       return (
-                        <td key={campaign.id} className="border border-gray-200 p-3">
+                        <td key={campaign.id} className="border border-border p-3">
                           <div className="flex items-center">
                             {formatPercentage(campaign.ctr || 0)}
-                            {isBest && <TrendingUp className="w-4 h-4 text-green-500 ml-2" />}
+                            {isBest && <TrendingUp className="w-4 h-4 text-green-500 dark:text-green-400 ml-2" />}
                           </div>
                         </td>
                       );
                     })}
                   </tr>
                   <tr>
-                    <td className="border border-gray-200 p-3 font-medium">Gasto</td>
+                    <td className="border border-border p-3 font-medium">Gasto</td>
                     {comparisonData.map((campaign) => (
-                      <td key={campaign.id} className="border border-gray-200 p-3">
+                      <td key={campaign.id} className="border border-border p-3">
                         {formatCurrency(campaign.spend || 0)}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td className="border border-gray-200 p-3 font-medium">CPM</td>
+                    <td className="border border-border p-3 font-medium">CPM</td>
                     {comparisonData.map((campaign) => {
                       const best = getBestPerformer('cpm');
                       const isBest = best?.id === campaign.id;
                       return (
-                        <td key={campaign.id} className="border border-gray-200 p-3">
+                        <td key={campaign.id} className="border border-border p-3">
                           <div className="flex items-center">
                             {formatCurrency(campaign.cpm || 0)}
-                            {isBest && <TrendingDown className="w-4 h-4 text-green-500 ml-2" />}
+                            {isBest && <TrendingDown className="w-4 h-4 text-green-500 dark:text-green-400 ml-2" />}
                           </div>
                         </td>
                       );
                     })}
                   </tr>
                   <tr>
-                    <td className="border border-gray-200 p-3 font-medium">CPC</td>
+                    <td className="border border-border p-3 font-medium">CPC</td>
                     {comparisonData.map((campaign) => {
                       const best = getBestPerformer('cpc');
                       const isBest = best?.id === campaign.id;
                       return (
-                        <td key={campaign.id} className="border border-gray-200 p-3">
+                        <td key={campaign.id} className="border border-border p-3">
                           <div className="flex items-center">
                             {formatCurrency(campaign.cpc || 0)}
-                            {isBest && <TrendingDown className="w-4 h-4 text-green-500 ml-2" />}
+                            {isBest && <TrendingDown className="w-4 h-4 text-green-500 dark:text-green-400 ml-2" />}
                           </div>
                         </td>
                       );
@@ -274,9 +294,9 @@ export function CampaignComparison({ clientId }: CampaignComparisonProps) {
             </div>
 
             {/* Insights da Comparação */}
-            <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
-              <h5 className="font-medium mb-2">💡 Insights da Comparação</h5>
-              <ul className="text-sm space-y-1">
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 dark:border-blue-600 rounded">
+              <h5 className="font-medium mb-2 text-blue-800 dark:text-blue-300">💡 Insights da Comparação</h5>
+              <ul className="text-sm space-y-1 text-blue-700 dark:text-blue-400">
                 <li>🏆 Melhor CTR: {getBestPerformer('ctr')?.name} ({formatPercentage(getBestPerformer('ctr')?.ctr || 0)})</li>
                 <li>💰 Menor CPM: {getBestPerformer('cpm')?.name} ({formatCurrency(getBestPerformer('cpm')?.cpm || 0)})</li>
                 <li>🎯 Menor CPC: {getBestPerformer('cpc')?.name} ({formatCurrency(getBestPerformer('cpc')?.cpc || 0)})</li>

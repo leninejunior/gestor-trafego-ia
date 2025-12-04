@@ -153,15 +153,15 @@ const getDefaultDateRange = () => {
 
 const getWinnerIcon = (winner?: string, significance?: string) => {
   if (!winner || winner === 'tie' || significance === 'none') {
-    return <div className="h-4 w-4 text-gray-400">-</div>;
+    return <div className="h-4 w-4 text-muted-foreground">-</div>;
   }
   
   if (significance === 'high') {
-    return <TrendingUp className="h-4 w-4 text-green-600" />;
+    return <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />;
   } else if (significance === 'medium') {
-    return <TrendingUp className="h-4 w-4 text-yellow-600" />;
+    return <TrendingUp className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />;
   } else {
-    return <TrendingUp className="h-4 w-4 text-blue-600" />;
+    return <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
   }
 };
 
@@ -314,19 +314,21 @@ export function PlatformComparisonChart({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-500">{error}</p>
+          <p className="text-sm text-muted-foreground">{error}</p>
         </CardContent>
       </Card>
     );
   }
 
-  if (!comparison) {
-    return null;
-  }
-
+  // Calculate derived values BEFORE any conditional returns
+  // This ensures all hooks are called consistently
   const chartData = getChartData();
   const metricsData = getMetricsTableData();
   const { betterPerformingPlatform } = comparison.comparison;
+
+  if (!comparison) {
+    return null;
+  }
 
   // ==========================================================================
   // Main Render
@@ -457,7 +459,7 @@ export function PlatformComparisonChart({
                   <div className="text-right">
                     <div className="flex items-center space-x-2">
                       <div className="w-3 h-3 bg-blue-600 rounded-full" />
-                      <span className="text-sm text-gray-600">Meta</span>
+                      <span className="text-sm text-muted-foreground">Meta</span>
                     </div>
                     <div className="font-medium">
                       {row.meta !== undefined 
@@ -471,7 +473,7 @@ export function PlatformComparisonChart({
                   <div className="text-right">
                     <div className="flex items-center space-x-2">
                       <div className="w-3 h-3 bg-green-600 rounded-full" />
-                      <span className="text-sm text-gray-600">Google</span>
+                      <span className="text-sm text-muted-foreground">Google</span>
                     </div>
                     <div className="font-medium">
                       {row.google !== undefined 
@@ -509,9 +511,9 @@ export function PlatformComparisonChart({
           <CardContent>
             <div className="space-y-3">
               {comparison.insights.map((insight, index) => (
-                <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
-                  <TrendingUp className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-blue-800">{insight}</p>
+                <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-blue-800 dark:text-blue-300">{insight}</p>
                 </div>
               ))}
             </div>

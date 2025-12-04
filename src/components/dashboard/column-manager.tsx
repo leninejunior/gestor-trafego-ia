@@ -138,7 +138,7 @@ export function ColumnManager({ columns, onColumnsChange, customMetrics = [] }: 
       case 'custom_metric':
         return 'bg-purple-100 text-purple-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-muted-foreground';
     }
   };
 

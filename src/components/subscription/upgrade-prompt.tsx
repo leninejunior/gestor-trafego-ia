@@ -60,23 +60,23 @@ export function UpgradePrompt({
           </div>
 
           {/* Benefits */}
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg">
-            <h4 className="font-semibold text-gray-900 mb-2">Com o upgrade você terá:</h4>
-            <ul className="space-y-1 text-sm text-gray-700">
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-4 rounded-lg">
+            <h4 className="font-semibold text-foreground mb-2">Com o upgrade você terá:</h4>
+            <ul className="space-y-1 text-sm text-muted-foreground">
               <li className="flex items-center">
-                <ArrowRight className="w-3 h-3 mr-2 text-blue-600" />
+                <ArrowRight className="w-3 h-3 mr-2 text-blue-600 dark:text-blue-400" />
                 Mais clientes e campanhas
               </li>
               <li className="flex items-center">
-                <ArrowRight className="w-3 h-3 mr-2 text-blue-600" />
+                <ArrowRight className="w-3 h-3 mr-2 text-blue-600 dark:text-blue-400" />
                 Analytics avançados
               </li>
               <li className="flex items-center">
-                <ArrowRight className="w-3 h-3 mr-2 text-blue-600" />
+                <ArrowRight className="w-3 h-3 mr-2 text-blue-600 dark:text-blue-400" />
                 Relatórios personalizados
               </li>
               <li className="flex items-center">
-                <ArrowRight className="w-3 h-3 mr-2 text-blue-600" />
+                <ArrowRight className="w-3 h-3 mr-2 text-blue-600 dark:text-blue-400" />
                 Suporte prioritário
               </li>
             </ul>

@@ -139,10 +139,10 @@ export function GoogleCampaignDetails({ campaignId, clientId, onBack }: Campaign
     }
   };
 
-  const formatCurrency = (amount: number, currency: string = 'USD') => {
+  const formatCurrency = (amount: number, _currency: string = 'BRL') => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: currency === 'USD' ? 'USD' : 'BRL',
+      currency: 'BRL',
     }).format(amount);
   };
 
@@ -406,7 +406,7 @@ export function GoogleCampaignDetails({ campaignId, clientId, onBack }: Campaign
                   <div key={step.name} className="flex items-center gap-4">
                     <div className="w-24 text-sm font-medium">{step.name}</div>
                     <div className="flex-1">
-                      <div className="bg-gray-200 rounded-full h-8 relative">
+                      <div className="bg-muted rounded-full h-8 relative">
                         <div 
                           className="bg-blue-500 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
                           style={{ width: `${step.percentage}%` }}

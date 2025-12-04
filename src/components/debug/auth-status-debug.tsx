@@ -101,7 +101,7 @@ export function AuthStatusDebug() {
 
         <details className="mt-4">
           <summary className="cursor-pointer font-medium">Detalhes das Verificações</summary>
-          <pre className="mt-2 p-3 bg-gray-50 rounded text-xs overflow-auto">
+          <pre className="mt-2 p-3 bg-muted/50 rounded text-xs overflow-auto">
             {JSON.stringify(status.checks, null, 2)}
           </pre>
         </details>

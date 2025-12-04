@@ -217,7 +217,7 @@ export default function InteractiveTutorial({ onComplete, onSkip }: InteractiveT
             </div>
             
             <div className="space-y-2">
-              <div className="flex justify-between text-xs text-gray-500">
+              <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Passo {currentStep + 1} de {tutorialSteps.length}</span>
                 <span>{Math.round(progress)}%</span>
               </div>

@@ -25,10 +25,10 @@ export default async function BalancePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-3xl font-bold text-foreground">
             Saldo das Contas
           </h1>
-          <p className="text-gray-600 mt-2">
+          <p className="text-muted-foreground mt-2">
             Monitore o saldo, limite de gastos e meio de pagamento das suas contas
           </p>
         </div>

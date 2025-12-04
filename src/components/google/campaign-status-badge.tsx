@@ -63,8 +63,8 @@ const STATUS_CONFIG: Record<CampaignStatus, StatusConfig> = {
   DRAFT: {
     label: 'Rascunho',
     variant: 'outline',
-    color: 'text-gray-800',
-    bgColor: 'bg-gray-100',
+    color: 'text-muted-foreground',
+    bgColor: 'bg-muted',
     icon: <Clock className="w-3 h-3" />,
     description: 'Campanha está em modo rascunho',
   },
@@ -87,8 +87,8 @@ const STATUS_CONFIG: Record<CampaignStatus, StatusConfig> = {
   UNKNOWN: {
     label: 'Desconhecido',
     variant: 'secondary',
-    color: 'text-gray-800',
-    bgColor: 'bg-gray-100',
+    color: 'text-muted-foreground',
+    bgColor: 'bg-muted',
     icon: <AlertTriangle className="w-3 h-3" />,
     description: 'Status da campanha não identificado',
   },

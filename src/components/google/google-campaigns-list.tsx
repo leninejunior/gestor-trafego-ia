@@ -51,9 +51,12 @@ interface FilterOptions {
 interface GoogleCampaignsListProps {
   clientId: string;
   connectionId?: string;
+  dateFilter?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
-export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsListProps) {
+export function GoogleCampaignsList({ clientId, connectionId, dateFilter, startDate, endDate }: GoogleCampaignsListProps) {
   const [campaigns, setCampaigns] = useState<GoogleCampaign[]>([]);
   const [filteredCampaigns, setFilteredCampaigns] = useState<GoogleCampaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,7 +70,7 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
 
   useEffect(() => {
     fetchCampaigns();
-  }, [clientId, connectionId]);
+  }, [clientId, connectionId, dateFilter, startDate, endDate]);
 
   // Forçar atualização quando a página for carregada
   useEffect(() => {
@@ -86,10 +89,25 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
   const fetchCampaigns = async () => {
     try {
       setIsLoading(true);
-      const url = `/api/google/campaigns?clientId=${clientId}${connectionId ? `&connectionId=${connectionId}` : ''}`;
+      
+      // Construir URL com parâmetros de data se fornecidos
+      let url = `/api/google/campaigns?clientId=${clientId}${connectionId ? `&connectionId=${connectionId}` : ''}`;
+      
+      // Adicionar parâmetros de data se disponíveis
+      if (startDate && endDate) {
+        url += `&startDate=${startDate}&endDate=${endDate}`;
+      } else if (dateFilter) {
+        // Calcular datas baseado no filtro se não houver datas explícitas
+        const dateRange = getDateRangeFromFilter(dateFilter);
+        url += `&startDate=${dateRange.from}&endDate=${dateRange.to}`;
+      }
+      
+      console.log('🔍 GoogleCampaignsList: Fetching campaigns from:', url);
       
       const response = await fetch(url);
       const data = await response.json();
+      
+      console.log('🔍 GoogleCampaignsList: Response:', data);
       
       if (response.ok) {
         setCampaigns(data.campaigns || []);
@@ -104,6 +122,28 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const getDateRangeFromFilter = (filter: string) => {
+    const today = new Date();
+    
+    const filters: Record<string, number> = {
+      'today': 0,
+      'yesterday': 1,
+      'last_7_days': 7,
+      'last_14_days': 14,
+      'last_30_days': 30,
+      'last_90_days': 90,
+    };
+    
+    const days = filters[filter] || 30;
+    const from = new Date(today);
+    from.setDate(today.getDate() - days);
+    
+    return {
+      from: from.toISOString().split('T')[0],
+      to: today.toISOString().split('T')[0],
+    };
   };
 
   const getStatusBadge = (status: string) => {
@@ -236,14 +276,14 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
   };
 
   const calculateTotals = () => {
-    return filteredCampaigns.reduce((acc: any, campaign) => {
-      const metrics = campaign.metrics || {};
+    return filteredCampaigns.reduce((acc, campaign) => {
+      const metrics = campaign.metrics;
       return {
-        impressions: acc.impressions + (metrics.impressions || 0),
-        clicks: acc.clicks + (metrics.clicks || 0),
-        conversions: acc.conversions + (metrics.conversions || 0),
-        cost: acc.cost + (metrics.cost || 0),
-        cpa: acc.cpa + (metrics.cpa || 0)
+        impressions: acc.impressions + (metrics?.impressions || 0),
+        clicks: acc.clicks + (metrics?.clicks || 0),
+        conversions: acc.conversions + (metrics?.conversions || 0),
+        cost: acc.cost + (metrics?.cost || 0),
+        cpa: acc.cpa + (metrics?.cpa || 0)
       };
     }, { impressions: 0, clicks: 0, conversions: 0, cost: 0, cpa: 0 });
   };
@@ -262,6 +302,11 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
     return totalCPA / validCPACampaigns.length;
   };
 
+  // Calculate totals and averages BEFORE any conditional returns
+  // This ensures all hooks are called consistently
+  const totals = calculateTotals();
+  const averageCPA = calculateAverageCPA();
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -276,15 +321,15 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
       <Card>
         <CardContent className="pt-6">
           <div className="text-center py-8">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 className="text-lg font-semibold text-foreground mb-2">
               Nenhuma Campanha Sincronizada
             </h3>
-            <p className="text-gray-500 mb-4">
+            <p className="text-muted-foreground mb-4">
               Suas campanhas do Google Ads serão sincronizadas automaticamente após a conexão.
             </p>
             <Button onClick={fetchCampaigns} variant="outline">
@@ -297,15 +342,12 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
     );
   }
 
-  const totals = calculateTotals();
-  const averageCPA = calculateAverageCPA();
-
   return (
     <div className="space-y-6">
       {/* KPIs Summary */}
-      <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-        <p className="text-sm font-medium text-green-800">
-          💰 <strong>Valores exibidos em Real Brasileiro (BRL)</strong> - Taxa de conversão: 1 USD = 5.8 BRL
+      <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+        <p className="text-sm font-medium text-green-800 dark:text-green-300">
+          💰 <strong>Valores exibidos na moeda configurada na conta Google Ads</strong> (geralmente BRL para contas brasileiras)
         </p>
       </div>
 
@@ -314,11 +356,11 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Gasto Total</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(totals.cost)}</p>
-                <p className="text-xs text-green-600 mt-1 font-semibold">BRL • últimos 30 dias</p>
+                <p className="text-sm font-medium text-muted-foreground">Gasto Total</p>
+                <p className="text-2xl font-bold text-foreground">{formatCurrency(totals.cost)}</p>
+                <p className="text-xs text-muted-foreground mt-1">período selecionado</p>
               </div>
-              <div className="p-2 bg-blue-100 rounded-full">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full">
                 {getKPIIcon('cost')}
               </div>
             </div>
@@ -329,11 +371,11 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Conversões</p>
-                <p className="text-2xl font-bold text-gray-900">{formatNumber(totals.conversions)}</p>
-                <p className="text-xs text-green-600 mt-1 font-semibold">conversões totais</p>
+                <p className="text-sm font-medium text-muted-foreground">Conversões</p>
+                <p className="text-2xl font-bold text-foreground">{formatNumber(totals.conversions)}</p>
+                <p className="text-xs text-muted-foreground mt-1">conversões totais</p>
               </div>
-              <div className="p-2 bg-orange-100 rounded-full">
+              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-full">
                 {getKPIIcon('conversions')}
               </div>
             </div>
@@ -344,11 +386,11 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">CPA Médio</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(averageCPA)}</p>
-                <p className="text-xs text-green-600 mt-1 font-semibold">BRL • custo por aquisição</p>
+                <p className="text-sm font-medium text-muted-foreground">CPA Médio</p>
+                <p className="text-2xl font-bold text-foreground">{formatCurrency(averageCPA)}</p>
+                <p className="text-xs text-muted-foreground mt-1">custo por aquisição</p>
               </div>
-              <div className="p-2 bg-purple-100 rounded-full">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-full">
                 <TrendingDown className="w-4 h-4" />
               </div>
             </div>
@@ -359,12 +401,12 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Investimento Total</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(totals.cost)}</p>
-                <p className="text-xs text-green-600 mt-1 font-semibold">BRL • total investido</p>
+                <p className="text-sm font-medium text-muted-foreground">Cliques</p>
+                <p className="text-2xl font-bold text-foreground">{formatNumber(totals.clicks)}</p>
+                <p className="text-xs text-muted-foreground mt-1">cliques totais</p>
               </div>
-              <div className="p-2 bg-green-100 rounded-full">
-                <TrendingUp className="w-4 h-4" />
+              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-full">
+                {getKPIIcon('clicks')}
               </div>
             </div>
           </CardContent>
@@ -411,12 +453,12 @@ export function GoogleCampaignsList({ clientId, connectionId }: GoogleCampaignsL
 
           {/* Filters Panel */}
           {showFilters && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-4">
+            <div className="mt-4 p-4 bg-muted/50 rounded-lg space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="text-sm font-medium mb-2 block">Buscar</label>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                     <Input
                       placeholder="Nome da campanha..."
                       value={filters.search}

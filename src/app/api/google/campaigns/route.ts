@@ -5,9 +5,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const clientId = searchParams.get('clientId');
   const connectionId = searchParams.get('connectionId');
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
   
   console.log('🔍 [GOOGLE CAMPAIGNS API] Iniciando busca de campanhas...');
-  console.log('📋 [GOOGLE CAMPAIGNS API] Parâmetros:', { clientId, connectionId });
+  console.log('📋 [GOOGLE CAMPAIGNS API] Parâmetros:', { clientId, connectionId, startDate, endDate });
   
   if (!clientId) {
     return NextResponse.json({ error: 'Client ID é obrigatório' }, { status: 400 });
@@ -76,16 +78,17 @@ export async function GET(request: NextRequest) {
           date
         )
       `)
-      .eq('client_id', clientId)
-      .order('created_at', { ascending: false });
+      .eq('client_id', clientId);
 
     // Filtrar por conexão específica se fornecido
     if (connectionId) {
       query = query.eq('connection_id', connectionId);
-    } else {
+    } else if (connectionToUse) {
       // Se não especificou, usar a conexão encontrada (ativa ou não)
       query = query.eq('connection_id', connectionToUse.id);
     }
+
+    query = query.order('created_at', { ascending: false });
 
     const { data: campaigns, error: campaignsError } = await query;
 
@@ -99,15 +102,23 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ [GOOGLE CAMPAIGNS API] Campanhas encontradas:', campaigns?.length || 0);
 
-    // Taxa de conversão USD para BRL (aproximada - pode ser dinâmica no futuro)
-    const USD_TO_BRL_RATE = 5.8; // Taxa de conversão fixa para exemplo
-
-    console.log('🔄 [CONVERSÃO] Iniciando conversão de USD para BRL com taxa:', USD_TO_BRL_RATE);
+    // NOTA: Os valores já vêm na moeda configurada na conta Google Ads (geralmente BRL para contas brasileiras)
+    // A API do Google Ads retorna valores em micros que são convertidos pelo client.ts
+    // NÃO aplicamos conversão de câmbio aqui - os valores já estão na moeda correta
 
     // Mapear dados para o formato esperado pelo frontend com métricas
     const mappedCampaigns = (campaigns || []).map(campaign => {
+      // Filtrar métricas por data se fornecido
+      let metrics = campaign.metrics || [];
+      if (startDate && endDate) {
+        metrics = metrics.filter((metric: any) => {
+          const metricDate = metric.date;
+          return metricDate >= startDate && metricDate <= endDate;
+        });
+        console.log(`📅 [GOOGLE CAMPAIGNS API] Campanha ${campaign.campaign_name}: ${metrics.length} métricas após filtro de data`);
+      }
+
       // Calcular métricas agregadas
-      const metrics = campaign.metrics || [];
       const totalMetrics = metrics.reduce((acc: any, metric: any) => ({
         impressions: acc.impressions + (parseInt(metric.impressions) || 0),
         clicks: acc.clicks + (parseInt(metric.clicks) || 0),
@@ -128,25 +139,20 @@ export async function GET(request: NextRequest) {
         roas: 0
       });
 
-      console.log('💵 [CONVERSÃO] Valores originais (USD):', {
-        cost: totalMetrics.cost,
-        cpc: totalMetrics.clicks > 0 ? totalMetrics.cost / totalMetrics.clicks : 0,
-        cpa: totalMetrics.conversions > 0 ? totalMetrics.cost / totalMetrics.conversions : 0
-      });
-
-      // Calcular médias e converter para BRL
+      // Calcular médias (valores já estão na moeda da conta - BRL para contas brasileiras)
       const avgMetrics = {
         impressions: totalMetrics.impressions,
         clicks: totalMetrics.clicks,
         conversions: totalMetrics.conversions,
-        cost: totalMetrics.cost * USD_TO_BRL_RATE, // Converter USD para BRL
+        cost: totalMetrics.cost, // Já está na moeda da conta (BRL)
         ctr: metrics.length > 0 ? totalMetrics.ctr / metrics.length : 0,
-        cpc: totalMetrics.clicks > 0 ? (totalMetrics.cost * USD_TO_BRL_RATE) / totalMetrics.clicks : 0, // Converter USD para BRL
-        cpa: totalMetrics.conversions > 0 ? (totalMetrics.cost * USD_TO_BRL_RATE) / totalMetrics.conversions : 0, // Converter USD para BRL
+        cpc: totalMetrics.clicks > 0 ? totalMetrics.cost / totalMetrics.clicks : 0, // Já está na moeda da conta (BRL)
+        cpa: totalMetrics.conversions > 0 ? totalMetrics.cost / totalMetrics.conversions : 0, // Já está na moeda da conta (BRL)
         roas: totalMetrics.cost > 0 ? totalMetrics.conversions / totalMetrics.cost : 0
       };
 
-      console.log('💰 [CONVERSÃO] Valores convertidos (BRL):', {
+      console.log('💰 [GOOGLE CAMPAIGNS API] Métricas calculadas (moeda da conta):', {
+        campaignName: campaign.campaign_name,
         cost: avgMetrics.cost,
         cpc: avgMetrics.cpc,
         cpa: avgMetrics.cpa

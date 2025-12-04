@@ -152,7 +152,7 @@ export default function PredictiveAnalytics({ data }: PredictiveAnalyticsProps) 
       case 'optimization':
         return 'bg-purple-50 border-purple-200';
       default:
-        return 'bg-gray-50 border-gray-200';
+        return 'bg-muted/50 border-border';
     }
   };
 

@@ -211,3 +211,54 @@
     background: rgba(148, 163, 184, 0.5);
   }
 }
+
+/* Dark mode hover states - melhorar contraste */
+@layer utilities {
+  /* Hover states para modo escuro */
+  .dark .hover\:bg-gray-100:hover {
+    background-color: hsl(var(--accent));
+  }
+  
+  .dark .hover\:bg-gray-50:hover {
+    background-color: hsl(var(--accent));
+  }
+  
+  /* Garantir que textos cinza tenham contraste adequado no modo escuro */
+  .dark .text-gray-500 {
+    color: hsl(var(--muted-foreground));
+  }
+  
+  .dark .text-gray-600 {
+    color: hsl(var(--muted-foreground));
+  }
+  
+  .dark .text-gray-700 {
+    color: hsl(var(--foreground) / 0.8);
+  }
+  
+  .dark .text-gray-900 {
+    color: hsl(var(--foreground));
+  }
+  
+  /* Backgrounds cinza no modo escuro */
+  .dark .bg-gray-50 {
+    background-color: hsl(var(--muted));
+  }
+  
+  .dark .bg-gray-100 {
+    background-color: hsl(var(--muted));
+  }
+  
+  .dark .bg-gray-200 {
+    background-color: hsl(var(--accent));
+  }
+  
+  /* Bordas cinza no modo escuro */
+  .dark .border-gray-200 {
+    border-color: hsl(var(--border));
+  }
+  
+  .dark .border-gray-300 {
+    border-color: hsl(var(--border));
+  }
+}

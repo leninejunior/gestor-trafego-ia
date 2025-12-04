@@ -36,7 +36,7 @@ export function CheckoutProgress({ steps, currentStep, className }: CheckoutProg
                     {
                       "bg-green-500 border-green-500 text-white": isCompleted,
                       "bg-blue-500 border-blue-500 text-white": isCurrent && !isCompleted,
-                      "bg-gray-100 border-gray-300 text-gray-400": !isCurrent && !isCompleted,
+                      "bg-muted border-border text-muted-foreground": !isCurrent && !isCompleted,
                     }
                   )}
                 >
@@ -103,7 +103,7 @@ export function CheckoutProgressMobile({ steps, currentStep, className }: Checko
           <span>Passo {currentStep} de {totalSteps}</span>
           <span>{Math.round((currentStep / totalSteps) * 100)}%</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-muted rounded-full h-2">
           <div
             className="bg-blue-500 h-2 rounded-full transition-all duration-300"
             style={{ width: `${(currentStep / totalSteps) * 100}%` }}

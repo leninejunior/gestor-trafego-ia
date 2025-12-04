@@ -112,6 +112,7 @@ export default function CampaignsPage() {
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [sortBy, setSortBy] = useState<string>('spend')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [showOnlyWithResults, setShowOnlyWithResults] = useState<boolean>(true) // Filtro para mostrar apenas campanhas com resultados
 
   // Mapeamento de objetivos para português
   const objectiveLabels: Record<string, string> = {
@@ -274,10 +275,24 @@ export default function CampaignsPage() {
       return campaign.id === selectedCampaign;
     }
     
+    // Filtro para mostrar apenas campanhas com resultados
+    if (showOnlyWithResults) {
+      const hasResults = campaign.spend > 0 || 
+                        campaign.impressions > 0 || 
+                        campaign.clicks > 0 || 
+                        campaign.conversions > 0;
+      if (!hasResults) return false;
+    }
+    
     // Filtro por termo de busca (mantido para compatibilidade)
     return campaign.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
            campaign.account_name.toLowerCase().includes(searchTerm.toLowerCase());
   })
+
+  // Contagem de campanhas sem resultados (para exibir no filtro)
+  const campaignsWithoutResults = campaigns.filter(c => 
+    c.spend === 0 && c.impressions === 0 && c.clicks === 0 && c.conversions === 0
+  ).length
 
   const totalMetrics = filteredCampaigns.reduce((acc, campaign) => ({
     spend: acc.spend + campaign.spend,
@@ -613,6 +628,33 @@ export default function CampaignsPage() {
                   <SelectItem value="asc">Menor para maior</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+          
+          {/* Filtro de campanhas com resultados */}
+          <div className="mt-4 pt-4 border-t flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Switch
+                id="show-results-only"
+                checked={showOnlyWithResults}
+                onCheckedChange={setShowOnlyWithResults}
+              />
+              <label 
+                htmlFor="show-results-only" 
+                className="text-sm font-medium cursor-pointer"
+              >
+                Mostrar apenas campanhas com resultados
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              {campaignsWithoutResults > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {campaignsWithoutResults} campanha(s) sem resultados {showOnlyWithResults ? 'oculta(s)' : ''}
+                </span>
+              )}
+              <Badge variant="secondary" className="text-xs">
+                {filteredCampaigns.length} de {campaigns.length} campanhas
+              </Badge>
             </div>
           </div>
         </CardContent>

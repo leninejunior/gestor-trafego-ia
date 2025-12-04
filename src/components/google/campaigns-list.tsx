@@ -195,10 +195,10 @@ export function GoogleCampaignsList({ clientId, onCampaignSelect }: CampaignsLis
     }
   };
 
-  const formatCurrency = (amount: number, currency: string = 'USD') => {
+  const formatCurrency = (amount: number, _currency: string = 'BRL') => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: currency === 'USD' ? 'USD' : 'BRL',
+      currency: 'BRL',
     }).format(amount);
   };
 
@@ -231,7 +231,7 @@ export function GoogleCampaignsList({ clientId, onCampaignSelect }: CampaignsLis
         {/* Filters */}
         <div className="flex gap-4 items-center">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               placeholder="Buscar campanhas..."
               value={searchTerm}
@@ -269,7 +269,7 @@ export function GoogleCampaignsList({ clientId, onCampaignSelect }: CampaignsLis
               <TableHeader>
                 <TableRow>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-muted/50"
                     onClick={() => handleSort('campaign_name')}
                   >
                     <div className="flex items-center gap-2">
@@ -278,7 +278,7 @@ export function GoogleCampaignsList({ clientId, onCampaignSelect }: CampaignsLis
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-muted/50"
                     onClick={() => handleSort('status')}
                   >
                     <div className="flex items-center gap-2">
@@ -287,7 +287,7 @@ export function GoogleCampaignsList({ clientId, onCampaignSelect }: CampaignsLis
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50 text-right"
+                    className="cursor-pointer hover:bg-muted/50 text-right"
                     onClick={() => handleSort('cost')}
                   >
                     <div className="flex items-center gap-2 justify-end">
@@ -298,7 +298,7 @@ export function GoogleCampaignsList({ clientId, onCampaignSelect }: CampaignsLis
                   <TableHead className="text-right">Impressões</TableHead>
                   <TableHead className="text-right">Cliques</TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50 text-right"
+                    className="cursor-pointer hover:bg-muted/50 text-right"
                     onClick={() => handleSort('conversions')}
                   >
                     <div className="flex items-center gap-2 justify-end">
@@ -307,7 +307,7 @@ export function GoogleCampaignsList({ clientId, onCampaignSelect }: CampaignsLis
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50 text-right"
+                    className="cursor-pointer hover:bg-muted/50 text-right"
                     onClick={() => handleSort('ctr')}
                   >
                     <div className="flex items-center gap-2 justify-end">
@@ -316,7 +316,7 @@ export function GoogleCampaignsList({ clientId, onCampaignSelect }: CampaignsLis
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50 text-right"
+                    className="cursor-pointer hover:bg-muted/50 text-right"
                     onClick={() => handleSort('roas')}
                   >
                     <div className="flex items-center gap-2 justify-end">
@@ -329,7 +329,7 @@ export function GoogleCampaignsList({ clientId, onCampaignSelect }: CampaignsLis
               </TableHeader>
               <TableBody>
                 {paginatedCampaigns.map((campaign) => (
-                  <TableRow key={campaign.id} className="hover:bg-gray-50">
+                  <TableRow key={campaign.id} className="hover:bg-muted/50">
                     <TableCell className="font-medium">
                       {campaign.campaign_name}
                     </TableCell>

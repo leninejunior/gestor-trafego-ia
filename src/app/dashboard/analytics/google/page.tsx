@@ -12,7 +12,6 @@ import {
   TrendingUp, 
   Calendar,
   RefreshCw,
-  Download,
   Filter,
   Users,
   Target,
@@ -20,6 +19,7 @@ import {
   MousePointer,
   Eye
 } from "lucide-react";
+import { Download } from "lucide-react";
 import { GooglePerformanceChart } from "@/components/google/performance-chart";
 import { GoogleMetricsCards } from "@/components/google/metrics-cards";
 import { GoogleDateRangeSelector } from "@/components/google/date-range-selector";
@@ -105,20 +105,25 @@ export default function GoogleAnalyticsPage() {
   };
 
   const fetchAnalyticsData = async () => {
+    // Se nenhum cliente específico selecionado, limpar dados e não buscar
+    if (selectedClient === 'all' || !selectedClient) {
+      setAnalyticsData(null);
+      setCampaignTypes([]);
+      setRefreshing(false);
+      return;
+    }
+
     try {
       setRefreshing(true);
       
       const params = new URLSearchParams({
+        clientId: selectedClient,
         dateFrom: dateRange.from,
         dateTo: dateRange.to,
         granularity,
         groupBy: 'campaign_date',
         compareWith,
       });
-
-      if (selectedClient !== 'all') {
-        params.append('clientId', selectedClient);
-      }
 
       if (selectedCampaigns.length > 0) {
         params.append('campaignIds', selectedCampaigns.join(','));
@@ -127,7 +132,19 @@ export default function GoogleAnalyticsPage() {
       const response = await fetch(`/api/google/metrics?${params}`);
       
       if (!response.ok) {
-        throw new Error('Falha ao carregar dados de analytics');
+        const errorData = await response.json().catch(() => ({}));
+        console.warn('Analytics API error:', errorData);
+        // Não mostrar toast para erros esperados (ex: sem dados)
+        if (response.status !== 404 && response.status !== 503) {
+          toast({
+            title: 'Erro',
+            description: errorData.message || 'Não foi possível carregar os dados de analytics.',
+            variant: 'destructive',
+          });
+        }
+        setAnalyticsData(null);
+        setCampaignTypes([]);
+        return;
       }
       
       const data = await response.json();
@@ -137,7 +154,6 @@ export default function GoogleAnalyticsPage() {
       const typeMap = new Map<string, CampaignType>();
       
       data.metrics?.forEach((metric: any) => {
-        // For now, we'll group by campaign status as we don't have campaign type in the schema
         const type = metric.campaignStatus || 'UNKNOWN';
         
         if (!typeMap.has(type)) {
@@ -168,6 +184,8 @@ export default function GoogleAnalyticsPage() {
         description: 'Não foi possível carregar os dados de analytics.',
         variant: 'destructive',
       });
+      setAnalyticsData(null);
+      setCampaignTypes([]);
     } finally {
       setRefreshing(false);
     }
@@ -224,7 +242,7 @@ export default function GoogleAnalyticsPage() {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'BRL',
     }).format(amount);
   };
 
@@ -475,7 +493,7 @@ export default function GoogleAnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {analyticsData ? formatCurrency(analyticsData.summary.averageCpa) : '$0'}
+                  {analyticsData ? formatCurrency(analyticsData.summary.averageCpa) : 'R$ 0'}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   custo por aquisição
@@ -505,7 +523,7 @@ export default function GoogleAnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {analyticsData ? formatCurrency(analyticsData.summary.averageCpa) : '$0'}
+                  {analyticsData ? formatCurrency(analyticsData.summary.averageCpa) : 'R$ 0'}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   valor médio

@@ -70,15 +70,15 @@ export function PaymentProviders() {
 
   const getHealthStatus = (provider: PaymentProvider) => {
     if (!provider.is_active) {
-      return { status: 'inactive', color: 'text-gray-500', icon: Clock };
+      return { status: 'inactive', color: 'text-muted-foreground', icon: Clock };
     }
     
     if (provider.success_rate >= 95) {
-      return { status: 'healthy', color: 'text-green-500', icon: CheckCircle };
+      return { status: 'healthy', color: 'text-green-500 dark:text-green-400', icon: CheckCircle };
     } else if (provider.success_rate >= 85) {
-      return { status: 'warning', color: 'text-yellow-500', icon: CheckCircle };
+      return { status: 'warning', color: 'text-yellow-500 dark:text-yellow-400', icon: CheckCircle };
     } else {
-      return { status: 'error', color: 'text-red-500', icon: CheckCircle };
+      return { status: 'error', color: 'text-red-500 dark:text-red-400', icon: CheckCircle };
     }
   };
 
@@ -93,12 +93,12 @@ export function PaymentProviders() {
         {[...Array(3)].map((_, i) => (
           <Card key={i}>
             <CardHeader>
-              <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-6 bg-muted rounded animate-pulse"></div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3"></div>
+                <div className="h-4 bg-muted rounded animate-pulse"></div>
+                <div className="h-4 bg-muted rounded animate-pulse w-2/3"></div>
               </div>
             </CardContent>
           </Card>
@@ -132,7 +132,7 @@ export function PaymentProviders() {
         {providers.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-center">
-              <div className="text-gray-500 mb-4">
+              <div className="text-muted-foreground mb-4">
                 <Settings className="mx-auto h-12 w-12 mb-2" />
                 <p>Nenhum provedor configurado</p>
                 <p className="text-sm">Configure um provedor para começar a processar pagamentos</p>
@@ -192,13 +192,13 @@ export function PaymentProviders() {
                     {provider.is_active && (
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <div className="text-gray-500">Taxa de Sucesso</div>
+                          <div className="text-muted-foreground">Taxa de Sucesso</div>
                           <div className="font-semibold">
                             {provider.success_rate.toFixed(1)}%
                           </div>
                         </div>
                         <div>
-                          <div className="text-gray-500">Tempo Médio</div>
+                          <div className="text-muted-foreground">Tempo Médio</div>
                           <div className="font-semibold">
                             {provider.avg_response_time > 0 
                               ? `${(provider.avg_response_time / 1000).toFixed(1)}s`
@@ -210,7 +210,7 @@ export function PaymentProviders() {
                     )}
 
                     {/* Última Verificação */}
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-muted-foreground">
                       Última verificação: {new Date(provider.last_health_check).toLocaleString('pt-BR')}
                     </div>
 
@@ -259,7 +259,7 @@ export function PaymentProviders() {
                     {getProviderIcon(provider.name)}
                   </div>
                   <h4 className="font-semibold mb-1">{provider.display_name}</h4>
-                  <p className="text-xs text-gray-500 mb-3">{provider.description}</p>
+                  <p className="text-xs text-muted-foreground mb-3">{provider.description}</p>
                   <Button
                     size="sm"
                     variant="outline"

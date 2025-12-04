@@ -119,7 +119,7 @@ export function GoogleAdsMonitoringDashboard() {
       case 'healthy': return 'text-green-600';
       case 'degraded': return 'text-yellow-600';
       case 'unhealthy': return 'text-red-600';
-      default: return 'text-gray-600';
+      default: return 'text-muted-foreground';
     }
   };
 
@@ -128,7 +128,7 @@ export function GoogleAdsMonitoringDashboard() {
       case 'healthy': return <CheckCircle className="h-5 w-5 text-green-600" />;
       case 'degraded': return <AlertTriangle className="h-5 w-5 text-yellow-600" />;
       case 'unhealthy': return <XCircle className="h-5 w-5 text-red-600" />;
-      default: return <Activity className="h-5 w-5 text-gray-600" />;
+      default: return <Activity className="h-5 w-5 text-muted-foreground" />;
     }
   };
 

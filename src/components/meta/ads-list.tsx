@@ -136,8 +136,8 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
 
   if (isLoading) {
     return (
-      <div className="ml-8 mt-2 border-l-2 border-gray-200 pl-4">
-        <div className="text-center py-4 text-sm text-gray-500">
+      <div className="ml-8 mt-2 border-l-2 border-border pl-4">
+        <div className="text-center py-4 text-sm text-muted-foreground">
           Carregando anúncios...
         </div>
       </div>
@@ -146,8 +146,8 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
 
   if (ads.length === 0) {
     return (
-      <div className="ml-8 mt-2 border-l-2 border-gray-200 pl-4">
-        <div className="text-center py-4 text-sm text-gray-500">
+      <div className="ml-8 mt-2 border-l-2 border-border pl-4">
+        <div className="text-center py-4 text-sm text-muted-foreground">
           Nenhum anúncio encontrado
         </div>
       </div>
@@ -155,8 +155,8 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
   }
 
   return (
-    <div className="ml-8 mt-2 border-l-2 border-gray-200 pl-4">
-      <div className="mb-3 text-sm font-medium text-gray-700">
+    <div className="ml-8 mt-2 border-l-2 border-border pl-4">
+      <div className="mb-3 text-sm font-medium text-muted-foreground">
         Anúncios ({adsetName}) - {ads.length} {ads.length === 1 ? 'anúncio' : 'anúncios'}
       </div>
       
@@ -164,7 +164,7 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
         {ads.map((ad) => (
           <div 
             key={ad.id} 
-            className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+            className="bg-card border border-border rounded-lg p-4 hover:shadow-md transition-shadow"
           >
             <div className="flex gap-4">
               {/* Preview da imagem/vídeo */}
@@ -176,7 +176,7 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
                         <img 
                           src={ad.creative.image_url || ad.creative.thumbnail_url} 
                           alt="Creative" 
-                          className="w-32 h-32 object-cover rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                          className="w-32 h-32 object-cover rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                           onClick={() => {
                             const url = ad.creative?.image_url || ad.creative?.thumbnail_url;
                             if (url) window.open(url, '_blank');
@@ -191,18 +191,18 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
                         )}
                       </div>
                     ) : ad.creative.video_id ? (
-                      <div className="w-32 h-32 rounded-lg border border-gray-300 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
-                        <Play className="h-10 w-10 text-blue-600 mb-1" />
-                        <span className="text-xs text-gray-600 font-medium">Vídeo</span>
+                      <div className="w-32 h-32 rounded-lg border border-border flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
+                        <Play className="h-10 w-10 text-blue-600 dark:text-blue-400 mb-1" />
+                        <span className="text-xs text-muted-foreground font-medium">Vídeo</span>
                       </div>
                     ) : (
-                      <div className="w-32 h-32 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50">
+                      <div className="w-32 h-32 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/50">
                         <span className="text-3xl">📄</span>
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="w-32 h-32 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50">
+                  <div className="w-32 h-32 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/50">
                     <span className="text-3xl">❓</span>
                   </div>
                 )}
@@ -213,11 +213,11 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
                 {/* Cabeçalho com nome e status */}
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-gray-900 truncate mb-1">
+                    <h4 className="font-medium text-foreground truncate mb-1">
                       {ad.name}
                     </h4>
                     {ad.creative?.name && ad.creative.name !== ad.name && (
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-muted-foreground">
                         {ad.creative.name}
                       </div>
                     )}
@@ -232,21 +232,21 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
                   <div className="space-y-2">
                     {/* Título */}
                     {ad.creative.title && (
-                      <div className="font-medium text-sm text-gray-900 line-clamp-2">
+                      <div className="font-medium text-sm text-foreground line-clamp-2">
                         {ad.creative.title}
                       </div>
                     )}
                     
                     {/* Corpo do texto */}
                     {ad.creative.body && (
-                      <div className="text-sm text-gray-600 line-clamp-3">
+                      <div className="text-sm text-muted-foreground line-clamp-3">
                         {ad.creative.body}
                       </div>
                     )}
                     
                     {/* Call to Action */}
                     {ad.creative.call_to_action_type && (
-                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs font-medium">
                         <ExternalLink className="h-3 w-3" />
                         {ad.creative.call_to_action_type}
                       </div>
@@ -254,9 +254,9 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
                     
                     {/* Mensagem quando não há preview */}
                     {!ad.creative.title && !ad.creative.body && !ad.creative.image_url && !ad.creative.thumbnail_url && !ad.creative.video_id && (
-                      <div className="text-sm text-gray-400 italic">
+                      <div className="text-sm text-muted-foreground/70 italic">
                         Criativo sem preview disponível
-                        <div className="text-xs text-gray-300 mt-1">
+                        <div className="text-xs text-muted-foreground/50 mt-1">
                           ID: {ad.creative.id}
                         </div>
                       </div>
@@ -264,20 +264,20 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
                     
                     {/* Apenas imagem sem texto */}
                     {!ad.creative.title && !ad.creative.body && (ad.creative.image_url || ad.creative.thumbnail_url || ad.creative.video_id) && (
-                      <div className="text-sm text-gray-500 italic">
+                      <div className="text-sm text-muted-foreground italic">
                         {ad.creative.video_id ? 'Vídeo sem texto' : 'Apenas imagem (sem texto)'}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-muted-foreground">
                     Criativo não disponível
                   </div>
                 )}
 
                 {/* Rodapé com data e ações */}
-                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                  <div className="text-xs text-gray-500">
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+                  <div className="text-xs text-muted-foreground">
                     Criado em {new Date(ad.created_time).toLocaleDateString('pt-BR')}
                   </div>
                   <div className="flex gap-2">

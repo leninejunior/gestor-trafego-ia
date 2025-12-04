@@ -63,7 +63,7 @@ function MetricCard({ title, value, icon, color, change, subtitle }: MetricCardP
   const getTrendColor = () => {
     if (!change) return '';
     
-    if (change.percentage === 0) return 'text-gray-500';
+    if (change.percentage === 0) return 'text-muted-foreground';
     
     // For metrics like CPC and CPA, lower is better
     const isLowerBetter = title.includes('CPC') || title.includes('CPA');
@@ -114,7 +114,7 @@ export function GoogleMetricsCards({ data, comparison, compareWith }: GoogleMetr
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'BRL',
     }).format(amount);
   };
 
@@ -301,7 +301,7 @@ export function GoogleMetricsCards({ data, comparison, compareWith }: GoogleMetr
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Gasto por Impressão</CardTitle>
-                <Eye className="h-4 w-4 text-gray-600" />
+                <Eye className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
@@ -316,7 +316,7 @@ export function GoogleMetricsCards({ data, comparison, compareWith }: GoogleMetr
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Impressões por Clique</CardTitle>
-                <MousePointer className="h-4 w-4 text-gray-600" />
+                <MousePointer className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
@@ -331,7 +331,7 @@ export function GoogleMetricsCards({ data, comparison, compareWith }: GoogleMetr
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Cliques por Conversão</CardTitle>
-                <Target className="h-4 w-4 text-gray-600" />
+                <Target className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
@@ -346,7 +346,7 @@ export function GoogleMetricsCards({ data, comparison, compareWith }: GoogleMetr
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Eficiência de Gasto</CardTitle>
-                <DollarSign className="h-4 w-4 text-gray-600" />
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">

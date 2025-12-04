@@ -276,7 +276,7 @@ export default function ROIAnalysis({ data }: ROIAnalysisProps) {
                   </div>
                 </div>
 
-                <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="bg-muted/50 p-4 rounded-lg">
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-medium">Lucro Final</span>
                     <span className="text-2xl font-bold text-green-600">
@@ -413,7 +413,7 @@ export default function ROIAnalysis({ data }: ROIAnalysisProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <h4 className="font-medium">Cenário Atual</h4>
-                  <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                  <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
                     <div className="flex justify-between">
                       <span>Investimento:</span>
                       <span className="font-medium">{formatCurrency(data.totalSpend)}</span>

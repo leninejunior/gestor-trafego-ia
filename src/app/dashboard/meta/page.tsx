@@ -3,8 +3,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Facebook, Plus, BarChart3, Users } from "lucide-react";
 import Link from "next/link";
+import { GeneralMetricsCards } from "@/components/dashboard";
 
 export const dynamic = 'force-dynamic';
+
+// Create date range outside the component to avoid recreation on every render
+const getDefaultDateRange = () => {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 30);
+  
+  return {
+    startDate: startDate.toISOString().split('T')[0],
+    endDate: endDate.toISOString().split('T')[0],
+  };
+};
 
 export default async function MetaPage() {
   const supabase = await createClient();
@@ -19,6 +32,12 @@ export default async function MetaPage() {
       )
     `)
     .eq("is_active", true);
+
+  // Get first client ID for general metrics
+  const firstClient = metaConnections?.[0]?.client_id;
+  
+  // Get date range once
+  const dateRange = getDefaultDateRange();
 
   return (
     <div className="space-y-6">
@@ -39,6 +58,16 @@ export default async function MetaPage() {
           </Link>
         </Button>
       </div>
+
+      {/* General Metrics - Show if there are connections */}
+      {metaConnections && metaConnections.length > 0 && firstClient && (
+        <GeneralMetricsCards
+          clientId={firstClient}
+          hasMetaConnections={true}
+          hasGoogleConnections={false}
+          dateRange={dateRange}
+        />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>

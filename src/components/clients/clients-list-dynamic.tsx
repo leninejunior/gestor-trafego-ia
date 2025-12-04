@@ -164,7 +164,7 @@ export function ClientsListDynamic() {
       {clients.length > 0 ? (
         <div className="divide-y divide-gray-200">
           {clients.map((client) => (
-            <div key={client.id} className="p-6 hover:bg-gray-50">
+            <div key={client.id} className="p-6 hover:bg-muted/50">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-medium text-gray-900">{client.name}</h3>
@@ -243,8 +243,8 @@ export function ClientsListDynamic() {
         </div>
       ) : (
         <div className="text-center py-12">
-          <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-            <Eye className="w-12 h-12 text-gray-400" />
+          <div className="mx-auto w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
+            <Eye className="w-12 h-12 text-muted-foreground" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum cliente encontrado</h3>
           <p className="text-gray-500 mb-6">

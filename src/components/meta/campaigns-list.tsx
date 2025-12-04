@@ -226,26 +226,26 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
     return (
       <div className="text-center py-8">
         <div className="max-w-md mx-auto">
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 shadow-sm">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6 shadow-sm">
+            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12z"/>
               </svg>
             </div>
             
-            <h3 className="text-xl font-semibold text-blue-800 mb-2">Nenhuma Campanha Encontrada</h3>
-            <p className="text-blue-700 mb-4">
+            <h3 className="text-xl font-semibold text-blue-800 dark:text-blue-300 mb-2">Nenhuma Campanha Encontrada</h3>
+            <p className="text-blue-700 dark:text-blue-400 mb-4">
               Não encontramos campanhas ativas na sua conta do Meta Ads.
             </p>
             
-            <div className="text-left bg-white/50 rounded-lg p-4 mb-6">
-              <h4 className="font-medium text-blue-800 mb-2 flex items-center">
+            <div className="text-left bg-white/50 dark:bg-white/5 rounded-lg p-4 mb-6">
+              <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-2 flex items-center">
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 Possíveis motivos:
               </h4>
-              <ul className="list-disc list-inside space-y-1 text-sm text-blue-600">
+              <ul className="list-disc list-inside space-y-1 text-sm text-blue-600 dark:text-blue-400">
                 <li>Sua conta não tem campanhas ativas no momento</li>
                 <li>Você pode ter conectado uma conta diferente</li>
                 <li>O token de acesso pode ter expirado</li>
@@ -266,13 +266,13 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
               <Button 
                 onClick={fetchCampaigns} 
                 variant="outline"
-                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                className="border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
               >
                 Tentar Novamente
               </Button>
             </div>
             
-            <p className="text-xs text-blue-500 mt-4">
+            <p className="text-xs text-blue-500 dark:text-blue-400 mt-4">
               Ao reconectar, você poderá selecionar contas diferentes ou atualizar as permissões.
             </p>
           </div>
@@ -311,7 +311,7 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
                       variant="ghost"
                       size="sm"
                       onClick={() => toggleCampaignExpansion(campaign.id)}
-                      className="h-8 w-8 p-0 hover:bg-gray-100"
+                      className="h-8 w-8 p-0 hover:bg-muted"
                       title={expandedCampaigns.has(campaign.id) ? "Colapsar" : "Expandir"}
                     >
                       {expandedCampaigns.has(campaign.id) ? (

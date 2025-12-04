@@ -137,7 +137,7 @@ export function TeamInviteDialog({ children, roles }: TeamInviteDialogProps) {
                     <SelectItem key={role.id} value={role.name}>
                       <div>
                         <div className="font-medium capitalize">{role.name}</div>
-                        <div className="text-sm text-gray-500">{role.description}</div>
+                        <div className="text-sm text-muted-foreground">{role.description}</div>
                       </div>
                     </SelectItem>
                   ))}

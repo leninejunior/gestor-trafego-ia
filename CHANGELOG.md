@@ -7,6 +7,42 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### 2025-12-03 - Dashboard Google Ads Completo e Correção de Moeda
+
+#### Corrigido
+- **Valores Monetários Google Ads**: Removida conversão duplicada USD→BRL
+  - Os valores do Google Ads API já vêm na moeda da conta (BRL para contas brasileiras)
+  - A conversão de micros para moeda já é feita no cliente (`src/lib/google/client.ts`)
+  - Arquivo corrigido: `src/app/api/google/campaigns/route.ts`
+  - Removida taxa fixa de 5.8 que estava sendo aplicada incorretamente
+
+- **Lista de Campanhas Google**: `src/components/google/google-campaigns-list.tsx`
+  - Removida mensagem incorreta sobre conversão USD→BRL
+  - Atualizado texto para indicar que valores estão na moeda da conta
+
+#### Adicionado
+- **Gráfico de Performance**: `src/components/google/google-performance-chart.tsx`
+  - Gráfico de área com evolução temporal das métricas
+  - Seletor de métrica (Investimento, Impressões, Cliques, Conversões, CTR, CPC)
+  - Indicador de tendência (comparação primeira vs segunda metade do período)
+  - Formatação automática de valores e datas
+
+- **Resumo de Campanhas**: `src/components/google/google-campaign-summary.tsx`
+  - Gráfico de pizza com distribuição por status
+  - Lista de top campanhas por conversões
+  - Barras de progresso para visualização de proporções
+
+#### Atualizado
+- **Dashboard Google Ads Completo**: `src/components/google/google-dashboard-complete.tsx`
+  - Corrigido import de ícone (Percent → CircleDot)
+  - Mantém todas as funcionalidades: KPIs, gráficos, tabelas, tabs
+
+- **Página Google Ads**: `src/app/dashboard/google/page.tsx`
+  - Limpeza de imports não utilizados
+  - Integração com dashboard completo quando cliente selecionado
+
+---
+
 ### 2025-11-27 - Deploy em Produção: Sistema Pronto
 
 #### Adicionado

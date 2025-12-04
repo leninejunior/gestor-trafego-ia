@@ -276,10 +276,10 @@ export function UnifiedMetricsCards({
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2 className="text-2xl font-bold text-foreground mb-2">
             Métricas Consolidadas
           </h2>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             Carregando dados de ambas as plataformas...
           </p>
         </div>
@@ -288,13 +288,13 @@ export function UnifiedMetricsCards({
             <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-24" />
+                  <div className="h-4 bg-muted rounded animate-pulse w-24" />
                 </CardTitle>
                 <div className="h-4 w-4 animate-spin text-muted-foreground">⟳</div>
               </CardHeader>
               <CardContent>
-                <div className="h-8 bg-gray-200 rounded animate-pulse mb-2" />
-                <div className="h-3 bg-gray-100 rounded animate-pulse w-32" />
+                <div className="h-8 bg-muted rounded animate-pulse mb-2" />
+                <div className="h-3 bg-muted/50 rounded animate-pulse w-32" />
               </CardContent>
             </Card>
           ))}
@@ -307,18 +307,18 @@ export function UnifiedMetricsCards({
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2 className="text-2xl font-bold text-foreground mb-2">
             Métricas Consolidadas
           </h2>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             Erro ao carregar dados das plataformas
           </p>
         </div>
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-red-600 mb-2">Erro ao carregar métricas</p>
-              <p className="text-sm text-gray-500">{error}</p>
+              <p className="text-red-600 dark:text-red-400 mb-2">Erro ao carregar métricas</p>
+              <p className="text-sm text-muted-foreground">{error}</p>
             </div>
           </CardContent>
         </Card>
@@ -326,11 +326,13 @@ export function UnifiedMetricsCards({
     );
   }
 
+  // Calculate derived values BEFORE any conditional returns
+  // This ensures all hooks are called consistently
+  const metricCards = getMetricCards();
+
   if (!metrics) {
     return null;
   }
-
-  const metricCards = getMetricCards();
 
   // ==========================================================================
   // Main Render
@@ -341,10 +343,10 @@ export function UnifiedMetricsCards({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2 className="text-2xl font-bold text-foreground mb-2">
             Métricas Consolidadas
           </h2>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             Dados agregados de {hasMetaConnections && hasGoogleConnections ? 'Meta Ads e Google Ads' : 
               hasMetaConnections ? 'Meta Ads' : 'Google Ads'} - Últimos 30 dias
           </p>
@@ -388,7 +390,7 @@ export function UnifiedMetricsCards({
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center">
                         <div className="w-2 h-2 bg-blue-600 rounded-full mr-2" />
-                        <span className="text-gray-600">Meta</span>
+                        <span className="text-muted-foreground">Meta</span>
                       </div>
                       <span className="font-medium">
                         {card.format === 'currency' 
@@ -404,7 +406,7 @@ export function UnifiedMetricsCards({
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center">
                         <div className="w-2 h-2 bg-green-600 rounded-full mr-2" />
-                        <span className="text-gray-600">Google</span>
+                        <span className="text-muted-foreground">Google</span>
                       </div>
                       <span className="font-medium">
                         {card.format === 'currency' 
@@ -427,7 +429,7 @@ export function UnifiedMetricsCards({
       {metrics.dataQuality.totalCampaigns > 0 && (
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between text-sm text-gray-600">
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>
                 Dados de {metrics.dataQuality.totalCampaigns} campanhas ativas
               </span>

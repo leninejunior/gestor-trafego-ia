@@ -376,7 +376,7 @@ export function GooglePerformanceChart({
         {/* Chart Controls */}
         <div className="flex flex-wrap gap-4 pt-4">
           <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-gray-500" />
+            <BarChart3 className="w-4 h-4 text-muted-foreground" />
             <Select value={chartType} onValueChange={(value: ChartType) => setChartType(value)}>
               <SelectTrigger className="w-32">
                 <SelectValue />
@@ -391,7 +391,7 @@ export function GooglePerformanceChart({
           </div>
           
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Métrica 1:</span>
+            <span className="text-sm text-muted-foreground">Métrica 1:</span>
             <Select value={primaryMetric} onValueChange={(value: MetricType) => setPrimaryMetric(value)}>
               <SelectTrigger className="w-40">
                 <SelectValue />
@@ -408,7 +408,7 @@ export function GooglePerformanceChart({
           
           {(chartType === 'line' || chartType === 'composed') && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">Métrica 2:</span>
+              <span className="text-sm text-muted-foreground">Métrica 2:</span>
               <Select value={secondaryMetric} onValueChange={(value: MetricType) => setSecondaryMetric(value)}>
                 <SelectTrigger className="w-40">
                   <SelectValue />
@@ -442,7 +442,7 @@ export function GooglePerformanceChart({
                   chartData.reduce((sum, item) => sum + (item[primaryMetric] || 0), 0)
                 )}
               </div>
-              <div className="text-gray-500">Total {METRIC_CONFIG[primaryMetric].label}</div>
+              <div className="text-muted-foreground">Total {METRIC_CONFIG[primaryMetric].label}</div>
             </div>
             
             <div className="text-center">
@@ -451,12 +451,12 @@ export function GooglePerformanceChart({
                   chartData.reduce((sum, item) => sum + (item[secondaryMetric] || 0), 0)
                 )}
               </div>
-              <div className="text-gray-500">Total {METRIC_CONFIG[secondaryMetric].label}</div>
+              <div className="text-muted-foreground">Total {METRIC_CONFIG[secondaryMetric].label}</div>
             </div>
             
             <div className="text-center">
-              <div className="font-medium text-gray-900">{chartData.length}</div>
-              <div className="text-gray-500">Pontos de Dados</div>
+              <div className="font-medium text-foreground">{chartData.length}</div>
+              <div className="text-muted-foreground">Pontos de Dados</div>
             </div>
             
             <div className="text-center">
@@ -464,7 +464,7 @@ export function GooglePerformanceChart({
                 {granularity === 'daily' ? 'Diário' : 
                  granularity === 'weekly' ? 'Semanal' : 'Mensal'}
               </div>
-              <div className="text-gray-500">Granularidade</div>
+              <div className="text-muted-foreground">Granularidade</div>
             </div>
           </div>
         </div>

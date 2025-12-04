@@ -210,17 +210,17 @@ export function ManageConnections({ clientId, connections }: ManageConnectionsPr
 
       <div className="space-y-3">
         {connections.map((connection) => (
-          <div key={connection.id} className="flex items-center justify-between p-4 border rounded-lg bg-white">
+          <div key={connection.id} className="flex items-center justify-between p-4 border rounded-lg bg-card">
             <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <Facebook className="w-5 h-5 text-blue-600" />
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                <Facebook className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <h4 className="font-medium">{connection.account_name}</h4>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   ID: {connection.ad_account_id} • {connection.currency}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-muted-foreground/70">
                   Conectado em {new Date(connection.created_at).toLocaleDateString('pt-BR')}
                 </p>
               </div>
@@ -260,9 +260,9 @@ export function ManageConnections({ clientId, connections }: ManageConnectionsPr
         ))}
       </div>
 
-      <div className="text-sm text-gray-500 bg-blue-50 p-3 rounded-lg">
-        <p className="font-medium text-blue-800 mb-1">💡 Dica:</p>
-        <p>
+      <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+        <p className="font-medium text-blue-800 dark:text-blue-300 mb-1">💡 Dica:</p>
+        <p className="text-blue-700 dark:text-blue-400">
           Use "Reconectar" para escolher contas específicas. O Meta mostrará todas as suas 
           contas disponíveis e você poderá selecionar apenas as que deseja conectar.
         </p>

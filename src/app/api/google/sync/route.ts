@@ -61,9 +61,10 @@ function checkRateLimit(clientId: string): { allowed: boolean; resetTime?: numbe
 // ============================================================================
 
 export async function POST(request: NextRequest) {
+  let body: any = null;
   try {
     // Parse and validate request body
-    const body = await request.json();
+    body = await request.json();
     
     // Log incoming request parameters
     const requestId = `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -169,7 +170,7 @@ export async function POST(request: NextRequest) {
     // Validate customer IDs for all connections
     const invalidConnections: Array<{ id: string; customerId: string; errors: string[] }> = [];
     
-    for (const connection of finalConnections) {
+    for (const connection of connections) {
       const validation = validateCustomerId(connection.customer_id);
       
       if (!validation.isValid) {
@@ -191,7 +192,7 @@ export async function POST(request: NextRequest) {
     if (invalidConnections.length > 0) {
       console.error(`[Google Sync API] Invalid customer IDs found [${requestId}]:`, {
         invalidConnections,
-        totalConnections: finalConnections.length,
+        totalConnections: connections.length,
         clientId,
         timestamp: new Date().toISOString(),
       });
@@ -212,8 +213,8 @@ export async function POST(request: NextRequest) {
     }
     
     console.log(`[Google Sync API] All customer IDs validated successfully [${requestId}]:`, {
-      connectionsCount: finalConnections.length,
-      customerIds: finalConnections.map(c => c.customer_id),
+      connectionsCount: connections.length,
+      customerIds: connections.map(c => c.customer_id),
       timestamp: new Date().toISOString(),
     });
 
@@ -221,7 +222,7 @@ export async function POST(request: NextRequest) {
     const { data: activeSyncs } = await supabase
       .from('google_ads_sync_logs')
       .select('id, connection_id, sync_type, started_at')
-      .in('connection_id', finalConnections.map(c => c.id))
+      .in('connection_id', connections.map(c => c.id))
       .is('completed_at', null)
       .gte('started_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()); // Last 30 minutes
 
@@ -246,7 +247,7 @@ export async function POST(request: NextRequest) {
     // Start sync for each connection
     const syncResults = [];
     
-    for (const connection of finalConnections) {
+    for (const connection of connections) {
       try {
         const syncOptions = {
           clientId,
@@ -290,7 +291,17 @@ export async function POST(request: NextRequest) {
           connectionId: connection.id,
           customerId: connection.customer_id,
           clientId,
-          syncOptions,
+          syncOptions: {
+            clientId,
+            connectionId: connection.id,
+            customerId: connection.customer_id,
+            fullSync,
+            syncType,
+            dateRange: dateFrom && dateTo ? {
+              startDate: dateFrom,
+              endDate: dateTo,
+            } : undefined,
+          },
           requestId,
           timestamp: new Date().toISOString(),
         });
@@ -327,7 +338,7 @@ export async function POST(request: NextRequest) {
       fullSync,
       results: syncResults,
       summary: {
-        total: finalConnections.length,
+        total: connections.length,
         successful: successfulSyncs.length,
         failed: failedSyncs.length,
         estimatedTime: Math.max(...successfulSyncs.map(s => s.estimatedTime || 0)),
@@ -498,9 +509,9 @@ export async function GET(request: NextRequest) {
       error: error instanceof Error ? error.message : String(error),
       errorName: error instanceof Error ? error.name : 'Unknown',
       errorStack: error instanceof Error ? error.stack : undefined,
-      clientId: searchParams.get('clientId'),
-      connectionId: searchParams.get('connectionId'),
-      limit: searchParams.get('limit'),
+      clientId: new URL(request.url).searchParams.get('clientId'),
+      connectionId: new URL(request.url).searchParams.get('connectionId'),
+      limit: new URL(request.url).searchParams.get('limit'),
       timestamp: new Date().toISOString(),
     });
     return NextResponse.json(

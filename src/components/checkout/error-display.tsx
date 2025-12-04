@@ -50,7 +50,7 @@ const errorBgColors = {
   network: 'bg-blue-50 border-blue-200',
   server: 'bg-purple-50 border-purple-200',
   timeout: 'bg-orange-50 border-orange-200',
-  rate_limit: 'bg-gray-50 border-gray-200'
+  rate_limit: 'bg-muted/50 border-border'
 };
 
 export function ErrorDisplay({ error, onRetry, onBack, className }: ErrorDisplayProps) {

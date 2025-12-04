@@ -157,8 +157,8 @@ export function AdSetsList({ campaignId, campaignName, clientId, adAccountId }: 
 
   if (isLoading) {
     return (
-      <div className="ml-8 mt-2 border-l-2 border-gray-200 pl-4">
-        <div className="text-center py-4 text-sm text-gray-500">
+      <div className="ml-8 mt-2 border-l-2 border-border pl-4">
+        <div className="text-center py-4 text-sm text-muted-foreground">
           Carregando conjuntos...
         </div>
       </div>
@@ -167,8 +167,8 @@ export function AdSetsList({ campaignId, campaignName, clientId, adAccountId }: 
 
   if (adsets.length === 0) {
     return (
-      <div className="ml-8 mt-2 border-l-2 border-gray-200 pl-4">
-        <div className="text-center py-4 text-sm text-gray-500">
+      <div className="ml-8 mt-2 border-l-2 border-border pl-4">
+        <div className="text-center py-4 text-sm text-muted-foreground">
           Nenhum conjunto de anúncios encontrado
         </div>
       </div>
@@ -176,8 +176,8 @@ export function AdSetsList({ campaignId, campaignName, clientId, adAccountId }: 
   }
 
   return (
-    <div className="ml-8 mt-2 border-l-2 border-gray-200 pl-4">
-      <div className="mb-2 text-sm font-medium text-gray-700">
+    <div className="ml-8 mt-2 border-l-2 border-border pl-4">
+      <div className="mb-2 text-sm font-medium text-muted-foreground">
         Conjuntos de Anúncios ({campaignName})
       </div>
       
@@ -201,7 +201,7 @@ export function AdSetsList({ campaignId, campaignName, clientId, adAccountId }: 
                       variant="ghost"
                       size="sm"
                       onClick={() => toggleAdSetExpansion(adset.id)}
-                      className="h-8 w-8 p-0 hover:bg-gray-100"
+                      className="h-8 w-8 p-0 hover:bg-muted"
                       title={expandedAdSets.has(adset.id) ? "Colapsar" : "Expandir"}
                     >
                       {expandedAdSets.has(adset.id) ? (

@@ -73,17 +73,17 @@ export function LimitErrorDialog({
         <div className="py-4">
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">{labels[limitType]} Atuais</span>
+              <span className="text-sm font-medium text-muted-foreground">{labels[limitType]} Atuais</span>
               <span className="text-lg font-bold text-orange-600">
                 {current} / {limit === -1 ? '∞' : limit}
               </span>
             </div>
-            <div className="text-xs text-gray-600">
+            <div className="text-xs text-muted-foreground">
               Para adicionar mais {limitType === 'clients' ? 'clientes' : 'campanhas'}, faça upgrade do seu plano.
             </div>
           </div>
 
-          <div className="space-y-2 text-sm text-gray-600">
+          <div className="space-y-2 text-sm text-muted-foreground">
             <p>Com um plano superior você terá:</p>
             <ul className="list-disc list-inside space-y-1 ml-2">
               {benefits[limitType].map((benefit, index) => (

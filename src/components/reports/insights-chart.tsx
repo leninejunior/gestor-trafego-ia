@@ -27,12 +27,12 @@ export function InsightsChart({ data, isLoading = false }: InsightsChartProps) {
         {[...Array(4)].map((_, i) => (
           <Card key={i}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
-              <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-4 bg-muted rounded animate-pulse w-20"></div>
+              <div className="h-4 w-4 bg-muted rounded animate-pulse"></div>
             </CardHeader>
             <CardContent>
-              <div className="h-8 bg-gray-200 rounded animate-pulse w-16 mb-2"></div>
-              <div className="h-3 bg-gray-200 rounded animate-pulse w-24"></div>
+              <div className="h-8 bg-muted rounded animate-pulse w-16 mb-2"></div>
+              <div className="h-3 bg-muted rounded animate-pulse w-24"></div>
             </CardContent>
           </Card>
         ))}
