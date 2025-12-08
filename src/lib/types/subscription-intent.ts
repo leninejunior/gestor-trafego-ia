@@ -20,8 +20,14 @@ export interface SubscriptionIntent {
   organization_name: string;
   cpf_cnpj?: string | null;
   phone?: string | null;
+  // Iugu fields
   iugu_customer_id?: string | null;
   iugu_subscription_id?: string | null;
+  // Stripe fields
+  stripe_customer_id?: string | null;
+  stripe_session_id?: string | null;
+  stripe_subscription_id?: string | null;
+  // Common fields
   checkout_url?: string | null;
   user_id?: string | null;
   metadata: Record<string, any>;
@@ -68,8 +74,14 @@ export interface CreateSubscriptionIntentResponse {
 
 export interface UpdateSubscriptionIntentRequest {
   status?: SubscriptionIntentStatus;
+  // Iugu fields
   iugu_customer_id?: string;
   iugu_subscription_id?: string;
+  // Stripe fields
+  stripe_customer_id?: string;
+  stripe_session_id?: string;
+  stripe_subscription_id?: string;
+  // Common fields
   checkout_url?: string;
   user_id?: string;
   metadata?: Record<string, any>;

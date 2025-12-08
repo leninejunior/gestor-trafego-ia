@@ -24,7 +24,7 @@ export async function PATCH(
     // Verificar se usuário é admin
     const { data: adminMembership } = await supabase
       .from('memberships')
-      .select('org_id, role')
+      .select('organization_id, role')
       .eq('user_id', user.id)
       .single();
 
@@ -35,7 +35,7 @@ export async function PATCH(
     // Buscar membership do usuário alvo
     const { data: targetMembership } = await supabase
       .from('memberships')
-      .select('org_id, role')
+      .select('organization_id, role')
       .eq('user_id', params.userId)
       .single();
 
@@ -44,7 +44,7 @@ export async function PATCH(
     }
 
     // Verificar se pertence à mesma organização
-    if (targetMembership.org_id !== adminMembership.org_id) {
+    if (targetMembership.organization_id !== adminMembership.organization_id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -58,7 +58,7 @@ export async function PATCH(
       .from('memberships')
       .update({ role })
       .eq('user_id', params.userId)
-      .eq('org_id', adminMembership.org_id);
+      .eq('organization_id', adminMembership.organization_id);
 
     if (updateError) throw updateError;
 

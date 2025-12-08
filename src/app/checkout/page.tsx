@@ -61,6 +61,14 @@ function CheckoutContent() {
   })
 
   const planId = searchParams.get('plan')
+  const intentId = searchParams.get('intentId')
+
+  // Se tiver intentId, redirecionar para a página de status
+  useEffect(() => {
+    if (intentId) {
+      router.push(`/checkout/status/${intentId}`)
+    }
+  }, [intentId, router])
 
   const steps: CheckoutStep[] = [
     {
@@ -279,8 +287,8 @@ function CheckoutContent() {
     setProcessing(true)
 
     try {
-      // Criar subscription intent
-      const checkoutResponse = await fetch('/api/subscriptions/checkout-iugu', {
+      // Criar subscription intent com Stripe
+      const checkoutResponse = await fetch('/api/subscriptions/checkout-stripe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -304,12 +312,12 @@ function CheckoutContent() {
 
       const response = await checkoutResponse.json()
 
-      // Redirecionar para página de status com o intent_id
-      if (response.success && response.intent_id) {
-        router.push(`/checkout/status/${response.intent_id}`)
-      } else if (response.checkout_url) {
-        // Fallback para redirecionamento direto
+      // Redirecionar para Stripe Checkout
+      if (response.success && response.checkout_url) {
         window.location.href = response.checkout_url
+      } else if (response.intent_id) {
+        // Fallback para página de status
+        router.push(`/checkout/status/${response.intent_id}`)
       } else {
         throw new Error('Resposta inválida do servidor')
       }

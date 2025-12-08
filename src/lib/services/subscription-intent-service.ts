@@ -214,22 +214,27 @@ export class SubscriptionIntentService {
       // Cache the result
       this.setCachedIntent(intentId, intent);
 
+      // Garantir que plan sempre tenha valores válidos
+      const planData = data.plan || {
+        id: intent.plan_id || data.plan_id || 'unknown',
+        name: 'Plano não encontrado',
+        description: '',
+        monthly_price: 0,
+        annual_price: 0,
+        features: {},
+      };
+
       return {
         ...intent,
-        plan: data.plan || {
-          id: intent.plan_id,
-          name: 'Unknown Plan',
-          monthly_price: 0,
-          annual_price: 0,
-          features: {},
-        },
+        plan: planData,
       };
     } catch (error) {
       if (error instanceof SubscriptionIntentError) {
         throw error;
       }
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       throw new SubscriptionIntentError(
-        `Failed to get subscription intent: ${error.message}`,
+        `Failed to get subscription intent: ${errorMessage}`,
         'GET_FAILED',
         { intentId }
       );
@@ -290,8 +295,14 @@ export class SubscriptionIntentService {
         // For non-status updates, use direct table update
         const updateData: any = {};
         if (updates.checkout_url !== undefined) updateData.checkout_url = updates.checkout_url;
+        // Iugu fields
         if (updates.iugu_customer_id !== undefined) updateData.iugu_customer_id = updates.iugu_customer_id;
         if (updates.iugu_subscription_id !== undefined) updateData.iugu_subscription_id = updates.iugu_subscription_id;
+        // Stripe fields
+        if (updates.stripe_customer_id !== undefined) updateData.stripe_customer_id = updates.stripe_customer_id;
+        if (updates.stripe_session_id !== undefined) updateData.stripe_session_id = updates.stripe_session_id;
+        if (updates.stripe_subscription_id !== undefined) updateData.stripe_subscription_id = updates.stripe_subscription_id;
+        // Common fields
         if (updates.user_id !== undefined) updateData.user_id = updates.user_id;
         if (updates.metadata !== undefined) updateData.metadata = updates.metadata;
 
@@ -737,8 +748,14 @@ export class SubscriptionIntentService {
       organization_name: data.organization_name,
       cpf_cnpj: data.cpf_cnpj,
       phone: data.phone,
+      // Iugu fields
       iugu_customer_id: data.iugu_customer_id,
       iugu_subscription_id: data.iugu_subscription_id,
+      // Stripe fields
+      stripe_customer_id: data.stripe_customer_id,
+      stripe_session_id: data.stripe_session_id,
+      stripe_subscription_id: data.stripe_subscription_id,
+      // Common fields
       checkout_url: data.checkout_url,
       user_id: data.user_id,
       metadata: data.metadata || {},

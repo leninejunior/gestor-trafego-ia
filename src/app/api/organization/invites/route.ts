@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     const { data: membership } = await supabase
       .from('memberships')
-      .select('org_id, role')
+      .select('organization_id, role')
       .eq('user_id', user.id)
       .single();
 
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const { data: invites, error } = await supabase
       .from('user_invites')
       .select('*')
-      .eq('org_id', membership.org_id)
+      .eq('org_id', membership.organization_id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     // Verificar se usuário é admin
     const { data: membership } = await supabase
       .from('memberships')
-      .select('org_id, role')
+      .select('organization_id, role')
       .eq('user_id', user.id)
       .single();
 
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar limite de usuários
     const { data: limits } = await supabase
-      .rpc('get_org_user_limit', { org_uuid: membership.org_id })
+      .rpc('get_org_user_limit', { org_uuid: membership.organization_id })
       .single();
 
     if (limits && !limits.can_add_more) {
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     const { data: existingUser } = await supabase
       .from('organization_users')
       .select('email')
-      .eq('org_id', membership.org_id)
+      .eq('org_id', membership.organization_id)
       .eq('email', email)
       .single();
 
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     const { data: existingInvite } = await supabase
       .from('user_invites')
       .select('id')
-      .eq('org_id', membership.org_id)
+      .eq('org_id', membership.organization_id)
       .eq('email', email)
       .eq('status', 'pending')
       .single();
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     const { data: invite, error: inviteError } = await supabase
       .from('user_invites')
       .insert({
-        org_id: membership.org_id,
+        org_id: membership.organization_id,
         email,
         role,
         invited_by: user.id,
@@ -174,7 +174,7 @@ export async function DELETE(request: NextRequest) {
     // Verificar se usuário é admin
     const { data: membership } = await supabase
       .from('memberships')
-      .select('org_id, role')
+      .select('organization_id, role')
       .eq('user_id', user.id)
       .single();
 
@@ -187,7 +187,7 @@ export async function DELETE(request: NextRequest) {
       .from('user_invites')
       .update({ status: 'cancelled' })
       .eq('id', inviteId)
-      .eq('org_id', membership.org_id);
+      .eq('org_id', membership.organization_id);
 
     if (updateError) throw updateError;
 

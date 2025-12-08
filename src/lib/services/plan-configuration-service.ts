@@ -178,7 +178,7 @@ export class PlanConfigurationService {
     // Buscar organização do usuário via memberships
     const { data: membership, error: memberError } = await supabase
       .from('memberships')
-      .select('org_id')
+      .select('organization_id')
       .eq('user_id', userId)
       .single();
 
@@ -188,7 +188,7 @@ export class PlanConfigurationService {
     }
 
     // Buscar limites da organização
-    return this.getOrganizationPlanLimits(membership.org_id);
+    return this.getOrganizationPlanLimits(membership.organization_id);
   }
 
   /**
@@ -215,7 +215,7 @@ export class PlanConfigurationService {
     // Buscar organização do usuário
     const { data: membership, error: memberError } = await supabase
       .from('memberships')
-      .select('org_id')
+      .select('organization_id')
       .eq('user_id', userId)
       .single();
 
@@ -227,7 +227,7 @@ export class PlanConfigurationService {
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
       .select('plan_id')
-      .eq('organization_id', membership.org_id)
+      .eq('organization_id', membership.organization_id)
       .eq('status', 'active')
       .single();
 
@@ -256,7 +256,7 @@ export class PlanConfigurationService {
     const { count, error } = await supabase
       .from('clients')
       .select('*', { count: 'exact', head: true })
-      .eq('org_id', membership.org_id);
+      .eq('org_id', membership.organization_id);
 
     if (error) {
       console.error('Erro ao contar clientes:', error);

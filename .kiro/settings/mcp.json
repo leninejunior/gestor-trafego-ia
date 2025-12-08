@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "stripe": {
+      "url": "https://mcp.stripe.com",
+      "disabled": false
+    },
     "fetch": {
       "command": "uvx",
       "args": [
@@ -35,7 +39,7 @@
     },
     "supabase": {
       "url": "https://mcp.supabase.com/mcp?project_ref=doiogabdzybqxnyhktbv",
-      "disabled": false
+      "disabled": true
     },
     "filesystem": {
       "command": "npx",

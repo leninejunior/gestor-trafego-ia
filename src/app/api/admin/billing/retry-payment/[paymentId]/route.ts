@@ -4,7 +4,7 @@ import { requireAdminAuth } from '@/lib/middleware/admin-auth';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { paymentId: string } }
+  { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
     // Check admin authentication
@@ -13,7 +13,7 @@ export async function POST(
       return authError;
     }
 
-    const { paymentId } = params;
+    const { paymentId } = await params;
     const supabase = await createClient();
 
     // Get the invoice details

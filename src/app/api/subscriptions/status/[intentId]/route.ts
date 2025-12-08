@@ -6,9 +6,9 @@ import {
 } from '@/lib/types/subscription-intent';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     intentId: string;
-  };
+  }>;
 }
 
 /**
@@ -21,7 +21,7 @@ export async function GET(
   { params }: RouteParams
 ) {
   try {
-    const { intentId } = params;
+    const { intentId } = await params;
 
     if (!intentId) {
       return NextResponse.json(
@@ -108,7 +108,6 @@ export async function GET(
           success: false,
           error: 'Intenção de assinatura não encontrada',
           code: 'INTENT_NOT_FOUND',
-          intent_id: params.intentId,
           timestamp: new Date().toISOString(),
         },
         { status: 404 }

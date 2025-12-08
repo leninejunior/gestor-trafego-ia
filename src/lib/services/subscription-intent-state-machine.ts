@@ -33,7 +33,7 @@ export interface StateTransitionContext {
 
 export interface StateTransitionLog {
   id: string;
-  intent_id: string;
+  subscription_intent_id: string;
   from_status: SubscriptionIntentStatus;
   to_status: SubscriptionIntentStatus;
   reason?: string;
@@ -118,7 +118,8 @@ export class SubscriptionIntentStateMachine {
       return true;
     } catch (error) {
       // Log failed transition attempt
-      await this.logFailedTransition(context, error.message);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.logFailedTransition(context, errorMessage);
       throw error;
     }
   }
@@ -156,7 +157,7 @@ export class SubscriptionIntentStateMachine {
       const { data, error } = await this.supabase
         .from('subscription_intent_transitions')
         .select('*')
-        .eq('intent_id', intentId)
+        .eq('subscription_intent_id', intentId)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -172,8 +173,9 @@ export class SubscriptionIntentStateMachine {
       if (error instanceof SubscriptionIntentError) {
         throw error;
       }
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       throw new SubscriptionIntentError(
-        `Unexpected error getting transition history: ${error.message}`,
+        `Unexpected error getting transition history: ${errorMessage}`,
         'UNEXPECTED_ERROR',
         { intentId }
       );
@@ -300,13 +302,12 @@ export class SubscriptionIntentStateMachine {
       const { error } = await this.supabase
         .from('subscription_intent_transitions')
         .insert({
-          intent_id: context.intentId,
+          subscription_intent_id: context.intentId,
           from_status: context.fromStatus,
           to_status: context.toStatus,
           reason: context.reason,
           metadata: context.metadata || {},
           triggered_by: context.triggeredBy,
-          success: true,
           created_at: context.timestamp,
         });
 
@@ -329,7 +330,7 @@ export class SubscriptionIntentStateMachine {
       const { error } = await this.supabase
         .from('subscription_intent_transitions')
         .insert({
-          intent_id: context.intentId,
+          subscription_intent_id: context.intentId,
           from_status: context.fromStatus,
           to_status: context.toStatus,
           reason: context.reason,
@@ -338,7 +339,6 @@ export class SubscriptionIntentStateMachine {
             error: errorMessage,
           },
           triggered_by: context.triggeredBy,
-          success: false,
           created_at: context.timestamp,
         });
 

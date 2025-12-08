@@ -4,7 +4,7 @@ import { requireAdminAuth } from '@/lib/middleware/admin-auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { customerId: string } }
+  { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
     // Check admin authentication
@@ -13,7 +13,7 @@ export async function GET(
       return authError;
     }
 
-    const { customerId } = params;
+    const { customerId } = await params;
     const supabase = await createClient();
 
     // Get billing history for the customer (subscription)

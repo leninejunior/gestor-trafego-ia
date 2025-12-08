@@ -21,7 +21,19 @@
 
 ---
 
-## 📝 Última Atualização: 2025-11-25
+## 📝 Última Atualização: 2025-12-05
+
+### Correção: Coluna subscription_intent_transitions
+
+**Erro:** `column "intent_id" does not exist` ao buscar status de pagamento
+
+**Causa:** Código usava `intent_id` mas a coluna correta é `subscription_intent_id`
+
+**Arquivos Corrigidos:**
+- `src/lib/services/subscription-intent-state-machine.ts`
+- `src/app/api/admin/subscription-intents/[intentId]/route.ts`
+
+---
 
 ### Problema Identificado: Cache do Schema Desatualizado
 
@@ -43,7 +55,8 @@
 ### Organizations & Memberships
 - `organizations` - Tabela de organizações
 - `memberships` - Associação usuário-organização (NÃO `organization_members`)
-  - Campos: `user_id`, `organization_id`, `role`, `org_id`
+  - Campos: `user_id`, `organization_id`, `role`
+  - ⚠️ IMPORTANTE: Use `organization_id` e NÃO `org_id`! A coluna `org_id` NÃO existe nesta tabela!
 
 ### Clients
 - `clients` - Clientes das organizações
@@ -74,13 +87,23 @@
 
 ### Subscriptions
 - `subscription_plans` - Planos de assinatura
+  - Campos Stripe: `stripe_product_id`, `stripe_price_id_monthly`, `stripe_price_id_annual`
 - `subscriptions` - Assinaturas ativas
 - `subscription_intents` - Intenções de assinatura
+  - Campos Iugu: `iugu_customer_id`, `iugu_subscription_id`
+  - Campos Stripe: `stripe_customer_id`, `stripe_session_id`, `stripe_subscription_id`
+  - Campos comuns: `checkout_url`, `user_id`, `metadata`
+- `subscription_intent_transitions` - Histórico de transições de estado
+  - Campos: `subscription_intent_id` (NÃO `intent_id`!), `from_status`, `to_status`, `reason`, `triggered_by`, `metadata`
+  - ⚠️ IMPORTANTE: Use `subscription_intent_id` e não `intent_id`
 
 ## Important Notes
 
 1. **Use `memberships` table** - NOT `organization_members`
-2. **Organization ID field** - Use `org_id` OR `organization_id` (check table structure)
+2. **Organization ID field**:
+   - `memberships` → use `organization_id` (NÃO `org_id`!)
+   - `clients` → use `org_id`
+   - `subscriptions` → use `organization_id`
 3. **Client isolation** - Always filter by `client_id` or `org_id`
 4. **RLS Policies** - All client data must have RLS enabled
 
@@ -124,6 +147,25 @@ const supabase = createClient();
 const supabase = await createClient();
 ```
 
+### Route Params (SEMPRE use await!)
+```typescript
+// ❌ ERRADO - Next.js 15 params é Promise
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params; // ERRO!
+}
+
+// ✅ CORRETO - params deve ser Promise e usar await
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params; // OK!
+}
+```
+
 ### Tabela client_meta_connections
 ```typescript
 // ❌ ERRADO - Coluna não existe
@@ -137,6 +179,27 @@ const supabase = await createClient();
   account_name: 'Nome da conta',
   is_active: true
 }
+```
+
+### Tabela memberships (CRÍTICO!)
+```typescript
+// ❌ ERRADO - Coluna org_id NÃO existe na tabela memberships!
+const { data: membership } = await supabase
+  .from('memberships')
+  .select('org_id')
+  .eq('user_id', userId);
+
+// ✅ CORRETO - Use organization_id
+const { data: membership } = await supabase
+  .from('memberships')
+  .select('organization_id')
+  .eq('user_id', userId);
+
+// Depois, para buscar clientes:
+const { data: clients } = await supabase
+  .from('clients')
+  .select('*')
+  .eq('org_id', membership.organization_id); // clients usa org_id
 ```
 
 

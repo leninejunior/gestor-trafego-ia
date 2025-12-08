@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     // Buscar organização do usuário
     const { data: membership } = await supabase
       .from('memberships')
-      .select('org_id, role')
+      .select('organization_id, role')
       .eq('user_id', user.id)
       .single();
 
@@ -27,14 +27,14 @@ export async function GET(request: NextRequest) {
     const { data: users, error } = await supabase
       .from('organization_users')
       .select('*')
-      .eq('org_id', membership.org_id)
+      .eq('org_id', membership.organization_id)
       .order('joined_at', { ascending: false });
 
     if (error) throw error;
 
     // Buscar limites do plano
     const { data: limits } = await supabase
-      .rpc('get_org_user_limit', { org_uuid: membership.org_id })
+      .rpc('get_org_user_limit', { org_uuid: membership.organization_id })
       .single();
 
     return NextResponse.json({
@@ -73,7 +73,7 @@ export async function DELETE(request: NextRequest) {
     // Verificar se usuário é admin
     const { data: adminMembership } = await supabase
       .from('memberships')
-      .select('org_id, role')
+      .select('organization_id, role')
       .eq('user_id', user.id)
       .single();
 
@@ -84,7 +84,7 @@ export async function DELETE(request: NextRequest) {
     // Buscar membership a ser removido
     const { data: targetMembership } = await supabase
       .from('memberships')
-      .select('user_id, org_id')
+      .select('user_id, organization_id')
       .eq('id', membershipId)
       .single();
 
@@ -93,7 +93,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verificar se pertence à mesma organização
-    if (targetMembership.org_id !== adminMembership.org_id) {
+    if (targetMembership.organization_id !== adminMembership.organization_id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

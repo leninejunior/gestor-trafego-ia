@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { stripe, STRIPE_WEBHOOK_SECRET } from '@/lib/stripe/config';
+import { getStripe, STRIPE_WEBHOOK_SECRET } from '@/lib/stripe/config';
 import { StripeService } from '@/lib/stripe/stripe-service';
 import { SubscriptionService } from '@/lib/services/subscription-service';
+import { getSubscriptionIntentService } from '@/lib/services/subscription-intent-service';
 import { createClient } from '@/lib/supabase/server';
 
 const stripeService = new StripeService();
@@ -91,10 +92,53 @@ export async function POST(request: NextRequest) {
  */
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
   try {
+    const stripe = getStripe();
+    const intentId = session.metadata?.intent_id;
     const organizationId = session.metadata?.organization_id;
     const planId = session.metadata?.plan_id;
     const billingCycle = session.metadata?.billing_cycle as 'monthly' | 'annual';
 
+    console.log('Checkout session completed:', {
+      sessionId: session.id,
+      intentId,
+      organizationId,
+      planId,
+      billingCycle
+    });
+
+    // Handle subscription_intent flow (new checkout)
+    if (intentId) {
+      const subscriptionIntentService = getSubscriptionIntentService();
+      
+      // Get the subscription from Stripe
+      const stripeSubscription = session.subscription 
+        ? await stripe.subscriptions.retrieve(session.subscription as string)
+        : null;
+
+      // Update subscription intent to completed
+      await subscriptionIntentService.updateIntent(
+        intentId,
+        {
+          status: 'completed',
+          stripe_subscription_id: stripeSubscription?.id,
+          metadata: {
+            stripe_session_id: session.id,
+            stripe_subscription_status: stripeSubscription?.status,
+            completed_at: new Date().toISOString(),
+            payment_status: session.payment_status,
+          }
+        },
+        {
+          reason: 'Stripe checkout session completed',
+          triggeredBy: 'stripe_webhook',
+        }
+      );
+
+      console.log(`Subscription intent ${intentId} marked as completed`);
+      return;
+    }
+
+    // Handle legacy flow (direct organization subscription)
     if (!organizationId || !planId || !billingCycle) {
       console.error('Missing required metadata in checkout session');
       return;
@@ -239,6 +283,7 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   try {
     if (!invoice.subscription) return;
 
+    const stripe = getStripe();
     const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
     const organizationId = subscription.metadata?.organization_id;
     
@@ -290,6 +335,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   try {
     if (!invoice.subscription) return;
 
+    const stripe = getStripe();
     const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
     const organizationId = subscription.metadata?.organization_id;
     
@@ -366,6 +412,7 @@ async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod) 
   try {
     // Update customer's default payment method if this is their first one
     if (paymentMethod.customer) {
+      const stripe = getStripe();
       const customer = await stripe.customers.retrieve(paymentMethod.customer as string);
       
       if (customer && !customer.deleted && !customer.invoice_settings.default_payment_method) {

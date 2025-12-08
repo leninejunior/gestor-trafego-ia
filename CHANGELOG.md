@@ -7,6 +7,182 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### 2025-12-05 - Nova Conta Stripe Configurada (Gestor de Tráfego)
+
+#### Configurado
+- **Nova conta Stripe**: `acct_1KyxUHKABoiEfF8T` (Gestor de Tráfego)
+- **Produtos e preços criados no Stripe**:
+
+| Plano | Product ID | Price Mensal | Price Anual |
+|-------|------------|--------------|-------------|
+| Basic ($29/$290) | `prod_TYDh2m12mOwZUt` | `price_1Sb7G6KABoiEfF8TsDoZn2oT` | `price_1Sb7GBKABoiEfF8TkGCL54R6` |
+| Pro ($79/$790) | `prod_TYDhPcLUZKOszA` | `price_1Sb7GRKABoiEfF8TG4SIYQDz` | `price_1Sb7HWKABoiEfF8TQRr8hjf7` |
+| Enterprise ($199/$1990) | `prod_TYDhoLQ2nln2ZW` | `price_1Sb7HbKABoiEfF8TQdtDpxs3` | `price_1Sb7HeKABoiEfF8TUSnKBsGA` |
+
+#### Atualizado
+- **Migração SQL**: `database/migrations/07-add-stripe-fields-to-subscription-plans.sql`
+  - Atualizado com novos IDs da conta Gestor de Tráfego
+
+#### Próximos Passos
+1. Aplicar migração no Supabase SQL Editor
+2. Configurar webhook no Stripe Dashboard
+3. Atualizar variáveis de ambiente (.env)
+
+---
+
+### 2025-12-05 - Sincronização Stripe com Planos
+
+#### Adicionado
+- **Campos Stripe na tabela subscription_plans**:
+  - `stripe_product_id` - ID do produto no Stripe
+  - `stripe_price_id_monthly` - ID do preço mensal
+  - `stripe_price_id_annual` - ID do preço anual
+
+- **Migração SQL**: `database/migrations/07-add-stripe-fields-to-subscription-plans.sql`
+  - Adiciona colunas para IDs do Stripe
+  - Popula IDs dos planos existentes (Basic, Pro, Enterprise)
+
+- **API de sincronização**: `src/app/api/admin/plans/[planId]/sync-stripe/route.ts`
+  - Sincroniza plano com Stripe (cria/atualiza produto e preços)
+  - Apenas super admins podem usar
+
+- **API de gerenciamento de planos**: `src/app/api/admin/plans/[planId]/route.ts`
+  - GET: Busca detalhes do plano
+  - PATCH: Atualiza plano com sincronização automática no Stripe
+  - DELETE: Desativa plano (soft delete)
+
+#### Modificado
+- **Checkout Stripe**: `src/app/api/subscriptions/checkout-stripe/route.ts`
+  - Agora usa preços cadastrados no Stripe quando disponíveis
+  - Fallback para criação dinâmica de preços
+
+---
+
+### 2025-12-05 - Integração Stripe Checkout
+
+#### Adicionado
+- **Nova rota de checkout com Stripe**: `src/app/api/subscriptions/checkout-stripe/route.ts`
+  - Cria Stripe Checkout Session para assinaturas
+  - Suporta planos mensais e anuais
+  - Integra com subscription_intents para rastreamento
+  - Redireciona para página de checkout hospedada do Stripe
+
+- **Campos Stripe na tabela subscription_intents**:
+  - `stripe_customer_id` - ID do cliente no Stripe
+  - `stripe_session_id` - ID da sessão de checkout
+  - `stripe_subscription_id` - ID da assinatura no Stripe
+
+- **Migração SQL**: `database/migrations/06-add-stripe-fields-to-subscription-intents.sql`
+  - Adiciona colunas para Stripe
+  - Cria índices para performance
+
+- **Documentação**: `STRIPE_CHECKOUT_SETUP.md`
+  - Guia completo de configuração
+  - Cartões de teste
+  - Troubleshooting
+
+#### Modificado
+- **Página de checkout**: `src/app/checkout/page.tsx`
+  - Agora usa `/api/subscriptions/checkout-stripe` em vez de Iugu
+  - Redireciona para Stripe Checkout hospedado
+
+- **Webhook Stripe**: `src/app/api/webhooks/stripe/route.ts`
+  - Atualizado para processar subscription_intents
+  - Marca intent como completed após pagamento bem-sucedido
+
+- **Tipos**: `src/lib/types/subscription-intent.ts`
+  - Adicionados campos `stripe_customer_id`, `stripe_session_id`, `stripe_subscription_id`
+
+- **Serviço**: `src/lib/services/subscription-intent-service.ts`
+  - Suporte para atualizar campos do Stripe
+
+#### Variáveis de Ambiente Necessárias
+```env
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxx
+STRIPE_SECRET_KEY=sk_test_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+```
+
+---
+
+### 2025-12-05 - Correção Coluna org_id vs organization_id na tabela memberships
+
+#### Corrigido
+- **Erro 400 em queries de memberships**: Múltiplos arquivos estavam usando `org_id` quando a tabela `memberships` usa `organization_id`
+  - Problema: Erro 400 "column org_id does not exist" ao buscar organizações do usuário
+  - Causa: Código legado usando nome de coluna incorreto
+  - Arquivos corrigidos:
+    - `src/lib/middleware/plan-limits.ts` - `getUserPlanLimits()` e `getUserUsage()`
+    - `src/lib/middleware/super-admin-middleware.ts` - `getDataForSuperAdmin()`
+    - `src/lib/services/plan-configuration-service.ts` - `getUserPlanLimits()` e `canAddClient()`
+    - `src/app/api/meta/check-connections/route.ts` - GET handler
+    - `src/app/api/organization/invites/route.ts` - GET, POST, DELETE handlers
+    - `src/app/api/organization/users/route.ts` - GET, DELETE handlers
+    - `src/app/api/organization/users/[userId]/route.ts` - PATCH handler
+
+#### Nota
+- A tabela `memberships` usa `organization_id` para FK com `organizations`
+- A tabela `clients` usa `org_id` para FK com `organizations`
+- Sempre verificar a estrutura da tabela antes de fazer queries
+
+---
+
+### 2025-12-05 - Correção Next.js 15 Breaking Changes - params async
+
+#### Corrigido
+- **API Status de Assinatura**: `src/app/api/subscriptions/status/[intentId]/route.ts`
+  - Problema: Erro 500 ao buscar status de pagamento
+  - Causa: Next.js 15 requer `await params` em rotas dinâmicas
+  - Solução: Alterado `params` para `Promise<{ intentId: string }>` e adicionado `await`
+
+- **API Stream de Status**: `src/app/api/subscriptions/status/[intentId]/stream/route.ts`
+  - Mesma correção de `await params`
+
+- **APIs Admin corrigidas**:
+  - `src/app/api/admin/webhook-logs/[logId]/reprocess/route.ts`
+  - `src/app/api/admin/billing/history/[customerId]/route.ts`
+  - `src/app/api/admin/alerts/[alertId]/resolve/route.ts`
+  - `src/app/api/admin/billing/retry-payment/[paymentId]/route.ts`
+  - Todas corrigidas para usar `await params` e `await createClient()`
+
+---
+
+### 2025-12-05 - Correção API Status de Assinatura e Integração Iugu
+
+#### Corrigido
+- **State Machine de Subscription Intent**: `src/lib/services/subscription-intent-state-machine.ts`
+  - Problema: Erro 500 ao buscar status de pagamento - coluna `intent_id` não existe
+  - Causa: Código usava `intent_id` mas a tabela usa `subscription_intent_id`
+  - Solução: Corrigido nome da coluna em todas as queries:
+    - `getTransitionHistory()` - SELECT
+    - `logTransition()` - INSERT
+    - `logFailedTransition()` - INSERT
+  - Removida coluna `success` inexistente dos INSERTs
+  - Corrigido tipo `StateTransitionLog` para usar `subscription_intent_id`
+  - Corrigido tratamento de erros `unknown` do TypeScript
+
+- **API Admin Subscription Intents**: `src/app/api/admin/subscription-intents/[intentId]/route.ts`
+  - Corrigido nome da coluna `intent_id` → `subscription_intent_id`
+  - Adicionado `await` no `createClient()` (Next.js 15)
+  - Corrigido uso do serviço: `new SubscriptionIntentService()` → `getSubscriptionIntentService()`
+  - Removidos métodos inexistentes e adaptado para usar métodos disponíveis:
+    - `manualActivation` → `executeStateTransition`
+    - `cancelIntent` → `deleteIntent`
+    - `updateStatus` → `updateIntent`
+    - Removidos: `resendConfirmationEmail`, `regenerateCheckoutUrl`
+
+---
+
+### 2025-12-04 - Correção RLS subscription_intents
+
+#### Corrigido
+- **Políticas RLS `subscription_intents`**: Erro 500 ao fazer upgrade de plano
+  - Problema: Políticas `ALL` sem `WITH CHECK` bloqueavam INSERT
+  - Solução: Recriadas políticas com `WITH CHECK` adequado
+  - Migração: `fix_subscription_intents_insert_policy`
+
+---
+
 ### 2025-12-04 - Revisão Completa do Sistema SaaS
 
 #### Corrigido

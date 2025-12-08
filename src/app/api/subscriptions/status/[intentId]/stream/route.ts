@@ -6,9 +6,9 @@ import {
 } from '@/lib/types/subscription-intent';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     intentId: string;
-  };
+  }>;
 }
 
 /**
@@ -20,7 +20,7 @@ export async function GET(
   request: NextRequest,
   { params }: RouteParams
 ) {
-  const { intentId } = params;
+  const { intentId } = await params;
 
   if (!intentId) {
     return NextResponse.json(

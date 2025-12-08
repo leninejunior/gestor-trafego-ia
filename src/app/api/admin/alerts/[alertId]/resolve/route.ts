@@ -6,15 +6,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     alertId: string;
-  };
+  }>;
 }
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = createClient();
-    const { alertId } = params;
+    const supabase = await createClient();
+    const { alertId } = await params;
 
     // Verificar autenticação e permissões de admin
     const { data: { user }, error: authError } = await supabase.auth.getUser();

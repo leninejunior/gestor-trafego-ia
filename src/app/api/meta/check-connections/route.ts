@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     // Buscar organizações do usuário
     const { data: memberships, error: membershipsError } = await supabase
       .from('memberships')
-      .select('org_id, role')
+      .select('organization_id, role')
       .eq('user_id', user.id)
       .eq('status', 'active');
 
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar clientes das organizações
-    const orgIds = memberships?.map(m => m.org_id) || [];
+    const orgIds = memberships?.map(m => m.organization_id) || [];
     
     const { data: clients, error: clientsError } = await supabase
       .from('clients')

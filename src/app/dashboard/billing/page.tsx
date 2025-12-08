@@ -88,7 +88,15 @@ export default function BillingPage() {
       }
 
       const data = await response.json();
-      alert(`Sucesso! ${data.message}`);
+      
+      // Redirecionar para checkout se houver URL
+      if (data.redirectUrl) {
+        window.location.href = data.redirectUrl;
+        return;
+      }
+      
+      // Fallback para mensagem de sucesso
+      alert(`Sucesso! ${data.message || 'Upgrade iniciado'}`);
       
       // Recarregar dados do plano
       const planResponse = await fetch('/api/plan-limits');

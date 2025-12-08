@@ -69,14 +69,14 @@ export async function getDataForSuperAdmin<T>(
     // Usuário normal - aplicar filtros de organização
     const { data: memberships } = await supabase
       .from('memberships')
-      .select('org_id')
+      .select('organization_id')
       .eq('user_id', userId)
     
     if (!memberships || memberships.length === 0) {
       return []
     }
     
-    const orgIds = memberships.map(m => m.org_id)
+    const orgIds = memberships.map(m => m.organization_id)
     
     const { data, error } = await supabase
       .from(tableName)

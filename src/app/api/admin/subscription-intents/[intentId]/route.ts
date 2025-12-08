@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { SubscriptionIntentService } from '@/lib/services/subscription-intent-service';
+import { getSubscriptionIntentService } from '@/lib/services/subscription-intent-service';
 
 interface RouteParams {
   params: {
@@ -15,7 +15,7 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     
     // Verificar se é admin
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: stateTransitions } = await supabase
       .from('subscription_intent_transitions')
       .select('*')
-      .eq('intent_id', params.intentId)
+      .eq('subscription_intent_id', params.intentId)
       .order('created_at', { ascending: false });
 
     return NextResponse.json({
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     
     // Verificar se é admin
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -118,12 +118,20 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
     const { action, ...updateData } = body;
 
-    const intentService = new SubscriptionIntentService();
+    const intentService = getSubscriptionIntentService();
 
     switch (action) {
       case 'activate':
-        // Ativar manualmente uma assinatura
-        const activatedIntent = await intentService.manualActivation(params.intentId, user.id);
+        // Ativar manualmente uma assinatura (transição para completed)
+        const activatedIntent = await intentService.executeStateTransition(
+          params.intentId,
+          'completed',
+          {
+            reason: 'Manual activation by admin',
+            triggeredBy: user.id,
+            metadata: { admin_action: true }
+          }
+        );
         return NextResponse.json({ 
           success: true, 
           intent: activatedIntent,
@@ -131,29 +139,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         });
 
       case 'cancel':
-        // Cancelar uma intenção
-        const cancelledIntent = await intentService.cancelIntent(params.intentId, user.id);
+        // Cancelar uma intenção (transição para expired)
+        const cancelledIntent = await intentService.deleteIntent(params.intentId);
         return NextResponse.json({ 
           success: true, 
-          intent: cancelledIntent,
+          deleted: cancelledIntent,
           message: 'Subscription intent cancelled'
-        });
-
-      case 'resend_email':
-        // Reenviar email de confirmação
-        await intentService.resendConfirmationEmail(params.intentId);
-        return NextResponse.json({ 
-          success: true,
-          message: 'Confirmation email sent'
-        });
-
-      case 'regenerate_checkout':
-        // Gerar nova URL de checkout
-        const newCheckoutUrl = await intentService.regenerateCheckoutUrl(params.intentId);
-        return NextResponse.json({ 
-          success: true,
-          checkout_url: newCheckoutUrl,
-          message: 'New checkout URL generated'
         });
 
       case 'update_status':
@@ -165,10 +156,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           );
         }
         
-        const updatedIntent = await intentService.updateStatus(
+        const updatedIntent = await intentService.updateIntent(
           params.intentId, 
-          updateData.status,
-          user.id
+          { status: updateData.status },
+          {
+            reason: updateData.reason || 'Admin status update',
+            triggeredBy: user.id
+          }
         );
         
         return NextResponse.json({ 
@@ -179,7 +173,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       default:
         return NextResponse.json(
-          { error: 'Invalid action' },
+          { error: 'Invalid action. Valid actions: activate, cancel, update_status' },
           { status: 400 }
         );
     }
@@ -195,7 +189,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     
     // Verificar se é admin
     const { data: { user }, error: authError } = await supabase.auth.getUser();

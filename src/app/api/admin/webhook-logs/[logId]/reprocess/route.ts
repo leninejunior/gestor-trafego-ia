@@ -7,11 +7,11 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { logId: string } }
+  { params }: { params: Promise<{ logId: string }> }
 ) {
   try {
-    const supabase = createClient();
-    const { logId } = params;
+    const supabase = await createClient();
+    const { logId } = await params;
 
     // Verificar autenticação e permissões de admin
     const { data: { user }, error: authError } = await supabase.auth.getUser();
