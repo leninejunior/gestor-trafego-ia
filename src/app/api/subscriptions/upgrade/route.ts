@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
       line_items: lineItems,
       mode: 'subscription',
       success_url: `${appUrl}/checkout/status/${intent.id}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/checkout/status/${intent.id}?canceled=true`,
+      cancel_url: `${appUrl}/dashboard/billing?canceled=true`,
       metadata: {
         intent_id: intent.id,
         plan_id: plan.id,
