@@ -1,0 +1,42 @@
+{
+  "name": "flying-fox-v2",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test:unit": "node ../../node_modules/jest/bin/jest.js --config ./jest.config.js --runInBand",
+    "backup:postgres": "sh ./scripts/postgres-backup.sh",
+    "restore:postgres": "sh ./scripts/postgres-restore.sh",
+    "backup:staging:once": "docker compose -f docker-compose.staging.yml --env-file .env.staging run --rm backup sh /opt/ops/postgres-backup.sh",
+    "deploy:staging:up": "docker compose -f docker-compose.staging.yml --env-file .env.staging up --build -d",
+    "deploy:staging:down": "docker compose -f docker-compose.staging.yml --env-file .env.staging down",
+    "etl:initial-load": "node ./scripts/etl-initial-load.cjs",
+    "etl:initial-load:dry-run": "node ./scripts/etl-initial-load.cjs --dry-run",
+    "sync:delta": "node ./scripts/sync-delta.cjs",
+    "sync:delta:dry-run": "node ./scripts/sync-delta.cjs --dry-run",
+    "parity:check": "node ./scripts/parity-v1-v2.cjs",
+    "cutover:rollback": "node ./scripts/cutover-rollback.cjs",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.4.1",
+    "@prisma/client": "^7.4.1",
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.98.0",
+    "next": "^15.4.0",
+    "pg": "^8.19.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "prisma": "^7.4.1",
+    "typescript": "^5"
+  }
+}
