@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { UserAccessControlService } from '@/lib/services/user-access-control';
 
 export async function DELETE(
   request: NextRequest,
@@ -22,75 +23,61 @@ export async function DELETE(
 
     console.log('Usuário autenticado:', user.id);
 
-    // Verificar se a conexão existe e pertence ao usuário
-    // Primeiro, buscar a conexão e o cliente
-    const { data: connection, error: connectionError } = await supabase
+    const serviceSupabase = createServiceClient();
+    const accessControl = new UserAccessControlService();
+
+    const { data: connection, error: connectionError } = await serviceSupabase
       .from('client_meta_connections')
-      .select(`
-        *,
-        clients!inner (
-          id,
-          org_id
-        )
-      `)
+      .select('id, client_id')
       .eq('id', connectionId)
       .single();
 
     if (connectionError || !connection) {
-      console.log('Conexão não encontrada:', connectionError);
+      console.log('Conexão não encontrada no Supabase:', connectionId, connectionError?.message);
       return NextResponse.json({ 
         error: 'Conexão não encontrada',
         connectionId: connectionId,
-        details: connectionError?.message 
       }, { status: 404 });
     }
 
-    // Verificar se o usuário tem acesso à organização do cliente
-    const { data: membership, error: membershipError } = await supabase
-      .from('organization_memberships')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('org_id', connection.clients.org_id)
-      .single();
-
-    if (membershipError || !membership) {
-      console.log('Usuário sem permissão para esta organização:', membershipError);
+    const hasAccess = await accessControl.hasClientAccess(user.id, connection.client_id);
+    if (!hasAccess) {
+      console.log('Usuário sem permissão para este cliente:', {
+        userId: user.id,
+        clientId: connection.client_id,
+      });
       return NextResponse.json({ 
         error: 'Sem permissão para acessar esta conexão',
         connectionId: connectionId
       }, { status: 403 });
     }
 
-
-
     // Deletar a conexão
     console.log('Deletando conexão...');
-    const { data: deletedData, error: deleteError } = await supabase
+    const { data: deletedRows, error: deleteError } = await serviceSupabase
       .from('client_meta_connections')
       .delete()
       .eq('id', connectionId)
-      .select();
+      .select('id');
 
     if (deleteError) {
-      console.error('Erro ao deletar conexão:', deleteError);
-      return NextResponse.json({ 
-        error: 'Erro ao deletar conexão', 
-        details: deleteError.message,
-        code: deleteError.code 
-      }, { status: 500 });
+      console.error('Erro ao deletar conexão no Supabase:', deleteError);
+      return NextResponse.json({ error: 'Erro ao deletar conexão' }, { status: 500 });
     }
 
-    console.log('Conexão deletada com sucesso. Registros afetados:', deletedData?.length || 0);
+    const deletedCount = deletedRows?.length ?? 0;
+
+    console.log('Conexão deletada com sucesso. Registros afetados:', deletedCount);
     
-    if (!deletedData || deletedData.length === 0) {
-      console.log('Nenhum registro foi deletado - possível problema de RLS');
+    if (deletedCount === 0) {
+      console.log('Nenhum registro foi deletado');
       return NextResponse.json({ 
-        error: 'Nenhum registro foi deletado. Verifique as permissões.',
+        error: 'Nenhum registro foi deletado.',
         connectionId: connectionId
       }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, deletedCount: deletedData.length });
+    return NextResponse.json({ success: true, deletedCount });
 
   } catch (error) {
     console.error('Erro na API de deletar conexão:', error);
@@ -111,19 +98,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const serviceSupabase = createServiceClient();
+    const accessControl = new UserAccessControlService();
     const { connectionId } = await params;
     const body = await request.json();
 
-    // Verificar se a conexão pertence ao usuário
-    const { data: connection, error: connectionError } = await supabase
+    const { data: connection, error: connectionError } = await serviceSupabase
       .from('client_meta_connections')
-      .select(`
-        *,
-        clients!inner (
-          id,
-          org_id
-        )
-      `)
+      .select('id, client_id')
       .eq('id', connectionId)
       .single();
 
@@ -131,31 +113,33 @@ export async function PATCH(
       return NextResponse.json({ error: 'Conexão não encontrada' }, { status: 404 });
     }
 
-    // Verificar se o usuário tem acesso à organização do cliente
-    const { data: membership, error: membershipError } = await supabase
-      .from('organization_memberships')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('org_id', connection.clients.org_id)
-      .single();
-
-    if (membershipError || !membership) {
+    const hasAccess = await accessControl.hasClientAccess(user.id, connection.client_id);
+    if (!hasAccess) {
       return NextResponse.json({ error: 'Sem permissão para acessar esta conexão' }, { status: 403 });
     }
 
-    // Atualizar a conexão
-    const { data: updatedConnection, error: updateError } = await supabase
+    const updates: Record<string, unknown> = {};
+    if (typeof body?.is_active === 'boolean') {
+      updates.is_active = body.is_active;
+    }
+    if (typeof body?.account_name === 'string' && body.account_name.trim().length > 0) {
+      updates.account_name = body.account_name.trim();
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'Nenhum campo válido para atualizar' }, { status: 400 });
+    }
+
+    updates.updated_at = new Date().toISOString();
+
+    const { data: updatedConnection, error: updateError } = await serviceSupabase
       .from('client_meta_connections')
-      .update({
-        is_active: body.is_active,
-        account_name: body.account_name,
-        updated_at: new Date().toISOString()
-      })
+      .update(updates)
       .eq('id', connectionId)
-      .select()
+      .select('*')
       .single();
 
-    if (updateError) {
+    if (updateError || !updatedConnection) {
       console.error('Erro ao atualizar conexão:', updateError);
       return NextResponse.json({ error: 'Erro ao atualizar conexão' }, { status: 500 });
     }

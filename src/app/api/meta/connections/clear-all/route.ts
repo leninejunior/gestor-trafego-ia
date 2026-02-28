@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { UserAccessControlService } from '@/lib/services/user-access-control';
 
 export async function DELETE(request: NextRequest) {
   console.log('=== CLEAR ALL CONNECTIONS ===');
@@ -20,50 +21,41 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const serviceSupabase = createServiceClient();
+    const accessControl = new UserAccessControlService();
+
     console.log('Limpando todas as conexões para cliente:', clientId);
 
-    // Verificar se o cliente pertence ao usuário antes de deletar
-    const { data: client, error: clientError } = await supabase
+    // Verificar se cliente existe
+    const { data: client, error: clientError } = await serviceSupabase
       .from('clients')
-      .select('id, org_id')
+      .select('id')
       .eq('id', clientId)
       .single();
 
     if (clientError || !client) {
-      console.log('Cliente não encontrado:', clientError);
+      console.log('Cliente não encontrado no Supabase:', clientId, clientError?.message);
       return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
     }
 
-    // Verificar se o usuário tem acesso à organização do cliente
-    const { data: membership, error: membershipError } = await supabase
-      .from('memberships')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('org_id', client.org_id)
-      .single();
-
-    if (membershipError || !membership) {
-      console.log('Usuário sem permissão para esta organização:', membershipError);
+    const hasAccess = await accessControl.hasClientAccess(user.id, clientId);
+    if (!hasAccess) {
+      console.log('Usuário sem permissão para este cliente:', { userId: user.id, clientId });
       return NextResponse.json({ error: 'Sem permissão para acessar este cliente' }, { status: 403 });
     }
 
-    // Deletar todas as conexões do cliente
-    const { data: deletedData, error: deleteError } = await supabase
+    const { data: deletedRows, error: deleteError } = await serviceSupabase
       .from('client_meta_connections')
       .delete()
       .eq('client_id', clientId)
-      .select();
+      .select('id');
 
     if (deleteError) {
-      console.error('Erro ao deletar conexões:', deleteError);
-      return NextResponse.json({ 
-        error: 'Erro ao deletar conexões', 
-        details: deleteError.message,
-        code: deleteError.code 
-      }, { status: 500 });
+      console.error('Erro ao remover conexões:', deleteError);
+      return NextResponse.json({ error: 'Erro ao limpar conexões' }, { status: 500 });
     }
 
-    const deletedCount = deletedData?.length || 0;
+    const deletedCount = deletedRows?.length ?? 0;
     console.log('Conexões removidas:', deletedCount);
     
     if (deletedCount === 0) {
