@@ -438,7 +438,7 @@ export class CheckoutMetricsService {
         .gte('completed_at', startDate.toISOString())
         .lte('completed_at', endDate.toISOString())
 
-      // Métricas básicas (valores simulados para exemplo)
+      // Métricas básicas com valores conservadores quando não há fonte dedicada
       return {
         daily_revenue: totalRevenue / Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))),
         monthly_revenue: totalRevenue,

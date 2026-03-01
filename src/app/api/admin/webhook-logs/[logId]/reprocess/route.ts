@@ -68,7 +68,7 @@ export async function POST(
     // Aqui você pode adicionar lógica para reprocessar o webhook
     // Por exemplo, enviar para uma fila de processamento
     try {
-      // Simular reprocessamento do webhook
+      // Reprocessar webhook com o processador real
       const webhookProcessor = await import('@/lib/webhooks/webhook-processor');
       await webhookProcessor.processWebhook(webhookLog.payload, webhookLog.event_type);
 

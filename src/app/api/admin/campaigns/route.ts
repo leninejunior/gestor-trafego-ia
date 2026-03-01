@@ -6,9 +6,62 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+type DateRange = {
+  since: string
+  until: string
+  label: string
+}
+
+function toDateOnly(date: Date): string {
+  return date.toISOString().split('T')[0]
+}
+
+function parseDateRange(daysParam: string): DateRange {
+  const now = new Date()
+
+  if (daysParam.startsWith('custom:')) {
+    const [, since, until] = daysParam.split(':')
+    if (since && until) {
+      return { since, until, label: 'custom' }
+    }
+  }
+
+  switch (daysParam) {
+    case 'this_week': {
+      const start = new Date(now)
+      const mondayOffset = (now.getDay() + 6) % 7
+      start.setDate(now.getDate() - mondayOffset)
+      return { since: toDateOnly(start), until: toDateOnly(now), label: 'this_week' }
+    }
+    case 'last_week': {
+      const end = new Date(now)
+      const mondayOffset = (now.getDay() + 6) % 7
+      end.setDate(now.getDate() - mondayOffset - 1)
+      const start = new Date(end)
+      start.setDate(end.getDate() - 6)
+      return { since: toDateOnly(start), until: toDateOnly(end), label: 'last_week' }
+    }
+    case 'this_month': {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      return { since: toDateOnly(start), until: toDateOnly(now), label: 'this_month' }
+    }
+    case 'last_month': {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const end = new Date(now.getFullYear(), now.getMonth(), 0)
+      return { since: toDateOnly(start), until: toDateOnly(end), label: 'last_month' }
+    }
+    default: {
+      const numericDays = Number.parseInt(daysParam, 10)
+      const safeDays = Number.isFinite(numericDays) && numericDays > 0 ? numericDays : 30
+      const start = new Date(now)
+      start.setDate(now.getDate() - safeDays)
+      return { since: toDateOnly(start), until: toDateOnly(now), label: `${safeDays}_days` }
+    }
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticação
     const supabase = createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
 
@@ -16,7 +69,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verificar se é super admin
     const { data: userRole } = await supabase
       .from('user_roles')
       .select('role')
@@ -28,19 +80,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = request.nextUrl
-    
-    // Parâmetros de filtro
     const status = searchParams.get('status') || 'all'
     const objective = searchParams.get('objective') || 'all'
-    const days = parseInt(searchParams.get('days') || '30')
+    const daysParam = searchParams.get('days') || 'this_month'
     const sortBy = searchParams.get('sort') || 'spend'
-    const sortOrder = searchParams.get('order') || 'desc'
+    const sortOrder = searchParams.get('order') === 'asc' ? 'asc' : 'desc'
 
-    // Data de início baseada no período
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - days)
+    const range = parseDateRange(daysParam)
 
-    // Query base para campanhas
     let campaignsQuery = supabase
       .from('meta_campaigns')
       .select(`
@@ -55,91 +102,100 @@ export async function GET(request: NextRequest) {
         daily_budget,
         lifetime_budget,
         account_id,
-        organization_id,
-        meta_accounts!inner(
+        connection_id,
+        client_meta_connections!inner(
           id,
-          name,
-          currency
+          client_id,
+          account_name,
+          ad_account_id
         )
       `)
 
-    // Aplicar filtros
     if (status !== 'all') {
-      campaignsQuery = campaignsQuery.eq('status', status)
+      campaignsQuery = campaignsQuery.eq('status', status.toUpperCase())
     }
 
     if (objective !== 'all') {
       campaignsQuery = campaignsQuery.eq('objective', objective)
     }
 
-    // Buscar campanhas
     const { data: campaigns, error: campaignsError } = await campaignsQuery
 
     if (campaignsError) {
-      console.error('Error fetching campaigns:', campaignsError)
-      return NextResponse.json({ error: 'Failed to fetch campaigns' }, { status: 500 })
+      return NextResponse.json(
+        { error: `Failed to fetch campaigns: ${campaignsError.message}` },
+        { status: 500 }
+      )
     }
 
     if (!campaigns || campaigns.length === 0) {
-      return NextResponse.json({ campaigns: [] })
+      return NextResponse.json({
+        campaigns: [],
+        total: 0,
+        filters: {
+          status,
+          objective,
+          sortBy,
+          sortOrder,
+          period: range
+        }
+      })
     }
 
-    // Buscar insights para as campanhas
-    const campaignIds = campaigns.map(c => c.id)
-    
+    const campaignIds = campaigns.map((campaign: any) => campaign.id)
     const { data: insights, error: insightsError } = await supabase
-      .from('meta_insights')
-      .select('*')
+      .from('meta_campaign_insights')
+      .select('campaign_id,impressions,clicks,spend,reach,conversions')
       .in('campaign_id', campaignIds)
-      .gte('date_start', startDate.toISOString().split('T')[0])
+      .gte('date_start', range.since)
+      .lte('date_start', range.until)
 
     if (insightsError) {
-      console.error('Error fetching insights:', insightsError)
+      return NextResponse.json(
+        { error: `Failed to fetch campaign insights: ${insightsError.message}` },
+        { status: 500 }
+      )
     }
 
-    // Agregar insights por campanha
-    const campaignsWithMetrics = campaigns.map(campaign => {
-      const campaignInsights = insights?.filter(i => i.campaign_id === campaign.id) || []
-      
-      const totals = campaignInsights.reduce((acc, insight) => ({
-        impressions: acc.impressions + (insight.impressions || 0),
-        clicks: acc.clicks + (insight.clicks || 0),
-        spend: acc.spend + (insight.spend || 0),
-        reach: acc.reach + (insight.reach || 0),
-        conversions: acc.conversions + (insight.conversions || 0)
-      }), { impressions: 0, clicks: 0, spend: 0, reach: 0, conversions: 0 })
+    const campaignsWithMetrics = campaigns.map((campaign: any) => {
+      const campaignInsights = (insights || []).filter((item: any) => item.campaign_id === campaign.id)
 
-      // Calcular métricas derivadas
-      const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions * 100) : 0
-      const cpc = totals.clicks > 0 ? (totals.spend / totals.clicks) : 0
-      const frequency = totals.reach > 0 ? (totals.impressions / totals.reach) : 0
-      const roas = totals.spend > 0 ? (totals.conversions * 50 / totals.spend) : 0 // Assumindo valor médio de conversão
+      const totals = campaignInsights.reduce((acc, insight: any) => {
+        acc.impressions += Number.parseInt(insight?.impressions || '0', 10) || 0
+        acc.clicks += Number.parseInt(insight?.clicks || '0', 10) || 0
+        acc.spend += Number.parseFloat(insight?.spend || '0') || 0
+        acc.reach += Number.parseInt(insight?.reach || '0', 10) || 0
+        acc.conversions += Number.parseFloat(insight?.conversions || '0') || 0
+        return acc
+      }, { impressions: 0, clicks: 0, spend: 0, reach: 0, conversions: 0 })
+
+      const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0
+      const cpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0
+      const frequency = totals.reach > 0 ? totals.impressions / totals.reach : 0
+      const roas = totals.spend > 0 ? (totals.conversions * 50) / totals.spend : 0
 
       return {
         ...campaign,
-        account_name: campaign.meta_accounts.name,
-        spend: totals.spend,
+        account_name: campaign?.client_meta_connections?.account_name || campaign.account_id || 'Conta sem nome',
+        spend: Math.round(totals.spend * 100) / 100,
         impressions: totals.impressions,
         clicks: totals.clicks,
-        conversions: totals.conversions,
+        conversions: Math.round(totals.conversions * 100) / 100,
         reach: totals.reach,
-        ctr,
-        cpc,
-        frequency,
-        roas
+        ctr: Math.round(ctr * 100) / 100,
+        cpc: Math.round(cpc * 100) / 100,
+        frequency: Math.round(frequency * 100) / 100,
+        roas: Math.round(roas * 100) / 100
       }
     })
 
-    // Ordenar resultados
-    const sortedCampaigns = campaignsWithMetrics.sort((a, b) => {
-      const aValue = a[sortBy as keyof typeof a] as number
-      const bValue = b[sortBy as keyof typeof b] as number
-      
-      if (sortOrder === 'desc') {
-        return bValue - aValue
-      } else {
+    const sortedCampaigns = campaignsWithMetrics.sort((a: any, b: any) => {
+      const aValue = Number(a?.[sortBy] ?? 0)
+      const bValue = Number(b?.[sortBy] ?? 0)
+      if (sortOrder === 'asc') {
         return aValue - bValue
       }
+      return bValue - aValue
     })
 
     return NextResponse.json({
@@ -148,12 +204,11 @@ export async function GET(request: NextRequest) {
       filters: {
         status,
         objective,
-        days,
         sortBy,
-        sortOrder
+        sortOrder,
+        period: range
       }
     })
-
   } catch (error) {
     console.error('Error in campaigns API:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

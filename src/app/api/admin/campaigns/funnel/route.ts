@@ -5,6 +5,60 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+type DateRange = {
+  since: string
+  until: string
+  label: string
+}
+
+function toDateOnly(date: Date): string {
+  return date.toISOString().split('T')[0]
+}
+
+function parseDateRange(daysParam: string): DateRange {
+  const now = new Date()
+
+  if (daysParam.startsWith('custom:')) {
+    const [, since, until] = daysParam.split(':')
+    if (since && until) {
+      return { since, until, label: 'custom' }
+    }
+  }
+
+  switch (daysParam) {
+    case 'this_week': {
+      const start = new Date(now)
+      const mondayOffset = (now.getDay() + 6) % 7
+      start.setDate(now.getDate() - mondayOffset)
+      return { since: toDateOnly(start), until: toDateOnly(now), label: 'this_week' }
+    }
+    case 'last_week': {
+      const end = new Date(now)
+      const mondayOffset = (now.getDay() + 6) % 7
+      end.setDate(now.getDate() - mondayOffset - 1)
+      const start = new Date(end)
+      start.setDate(end.getDate() - 6)
+      return { since: toDateOnly(start), until: toDateOnly(end), label: 'last_week' }
+    }
+    case 'this_month': {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      return { since: toDateOnly(start), until: toDateOnly(now), label: 'this_month' }
+    }
+    case 'last_month': {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const end = new Date(now.getFullYear(), now.getMonth(), 0)
+      return { since: toDateOnly(start), until: toDateOnly(end), label: 'last_month' }
+    }
+    default: {
+      const numericDays = Number.parseInt(daysParam, 10)
+      const safeDays = Number.isFinite(numericDays) && numericDays > 0 ? numericDays : 30
+      const start = new Date(now)
+      start.setDate(now.getDate() - safeDays)
+      return { since: toDateOnly(start), until: toDateOnly(now), label: `${safeDays}_days` }
+    }
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = createClient()
@@ -26,81 +80,66 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = request.nextUrl
-    const days = parseInt(searchParams.get('days') || '30')
+    const daysParam = searchParams.get('days') || 'this_month'
+    const range = parseDateRange(daysParam)
 
-    // Simular funil de conversão (em produção, calcularia com dados reais)
-    const totalImpressions = 500000
-    const totalClicks = 12500
-    const totalLandingPageViews = 10000
-    const totalAddToCarts = 3500
-    const totalInitiateCheckouts = 1800
-    const totalPurchases = 650
+    const { data: insights, error: insightsError } = await supabase
+      .from('meta_campaign_insights')
+      .select('impressions,clicks,conversions,date_start')
+      .gte('date_start', range.since)
+      .lte('date_start', range.until)
+
+    if (insightsError) {
+      return NextResponse.json(
+        { error: `Failed to fetch funnel data: ${insightsError.message}` },
+        { status: 500 }
+      )
+    }
+
+    const totals = (insights || []).reduce(
+      (acc: { impressions: number; clicks: number; conversions: number }, row: any) => {
+        acc.impressions += Number.parseInt(row?.impressions || '0', 10) || 0
+        acc.clicks += Number.parseInt(row?.clicks || '0', 10) || 0
+        acc.conversions += Number.parseFloat(row?.conversions || '0') || 0
+        return acc
+      },
+      { impressions: 0, clicks: 0, conversions: 0 }
+    )
+
+    const conversionCount = Math.round(totals.conversions * 100) / 100
+    const base = totals.impressions > 0 ? totals.impressions : 1
 
     const funnel = [
       {
         stage: 'Impressões',
-        count: totalImpressions,
-        percentage: 100,
+        count: totals.impressions,
+        percentage: totals.impressions > 0 ? 100 : 0,
         color: '#3b82f6'
       },
       {
         stage: 'Cliques',
-        count: totalClicks,
-        percentage: (totalClicks / totalImpressions) * 100,
+        count: totals.clicks,
+        percentage: (totals.clicks / base) * 100,
         color: '#10b981'
       },
       {
-        stage: 'Visualizações da Página',
-        count: totalLandingPageViews,
-        percentage: (totalLandingPageViews / totalImpressions) * 100,
-        color: '#f59e0b'
-      },
-      {
-        stage: 'Adicionar ao Carrinho',
-        count: totalAddToCarts,
-        percentage: (totalAddToCarts / totalImpressions) * 100,
-        color: '#ef4444'
-      },
-      {
-        stage: 'Iniciar Checkout',
-        count: totalInitiateCheckouts,
-        percentage: (totalInitiateCheckouts / totalImpressions) * 100,
-        color: '#8b5cf6'
-      },
-      {
-        stage: 'Compras',
-        count: totalPurchases,
-        percentage: (totalPurchases / totalImpressions) * 100,
+        stage: 'Conversões',
+        count: conversionCount,
+        percentage: (conversionCount / base) * 100,
         color: '#06b6d4'
       }
     ]
 
-    // Calcular taxas de conversão entre etapas
     const conversionRates = [
       {
         from: 'Impressões',
         to: 'Cliques',
-        rate: (totalClicks / totalImpressions) * 100
+        rate: totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0
       },
       {
         from: 'Cliques',
-        to: 'Visualizações',
-        rate: (totalLandingPageViews / totalClicks) * 100
-      },
-      {
-        from: 'Visualizações',
-        to: 'Carrinho',
-        rate: (totalAddToCarts / totalLandingPageViews) * 100
-      },
-      {
-        from: 'Carrinho',
-        to: 'Checkout',
-        rate: (totalInitiateCheckouts / totalAddToCarts) * 100
-      },
-      {
-        from: 'Checkout',
-        to: 'Compra',
-        rate: (totalPurchases / totalInitiateCheckouts) * 100
+        to: 'Conversões',
+        rate: totals.clicks > 0 ? (conversionCount / totals.clicks) * 100 : 0
       }
     ]
 
@@ -108,10 +147,14 @@ export async function GET(request: NextRequest) {
       funnel,
       conversionRates,
       summary: {
-        totalImpressions,
-        totalPurchases,
-        overallConversionRate: (totalPurchases / totalImpressions) * 100,
-        period: days
+        totalImpressions: totals.impressions,
+        totalPurchases: conversionCount,
+        overallConversionRate: totals.impressions > 0 ? (conversionCount / totals.impressions) * 100 : 0,
+        period: {
+          start_date: range.since,
+          end_date: range.until,
+          label: range.label
+        }
       }
     })
 

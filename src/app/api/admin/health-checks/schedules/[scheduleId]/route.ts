@@ -273,15 +273,47 @@ export async function POST(
     // Executar health check manualmente
     const AutomatedHealthChecker = (await import('@/lib/monitoring/automated-health-checker')).default
     const healthChecker = new AutomatedHealthChecker()
+    const checks = await healthChecker.runAllChecks()
 
-    // Simular execução do agendamento
-    // Note: Isso requer acesso aos métodos privados, então vamos fazer uma implementação simplificada
+    const endpointMap: Record<string, string[]> = {
+      full: ['database', 'supabase', 'api_endpoints', 'system_resources', 'cron_jobs'],
+      quick: ['database', 'supabase'],
+      database: ['database'],
+      checkout: ['api_endpoints'],
+      monitoring: ['system_resources', 'cron_jobs']
+    }
+
+    const requestedChecks = endpointMap[schedule.endpoint] || []
+    const relevantChecks = requestedChecks.length > 0
+      ? checks.filter((check) => requestedChecks.includes(check.id))
+      : checks
+
+    const summary = {
+      total_runs: relevantChecks.length,
+      healthy_runs: relevantChecks.filter((c) => c.status === 'healthy').length,
+      degraded_runs: relevantChecks.filter((c) => c.status === 'warning').length,
+      unhealthy_runs: relevantChecks.filter((c) => c.status === 'critical').length,
+      avg_response_time_ms: relevantChecks.length > 0
+        ? relevantChecks.reduce((sum, c) => sum + c.duration, 0) / relevantChecks.length
+        : 0,
+      success_rate_percent: relevantChecks.length > 0
+        ? ((relevantChecks.filter((c) => c.status === 'healthy' || c.status === 'warning').length) / relevantChecks.length) * 100
+        : 0,
+      last_run: new Date().toISOString(),
+      last_status: relevantChecks.some((c) => c.status === 'critical')
+        ? 'critical'
+        : relevantChecks.some((c) => c.status === 'warning')
+          ? 'warning'
+          : 'healthy'
+    }
     
     return NextResponse.json({
-      message: 'Manual health check execution initiated',
+      message: 'Manual health check executed',
       schedule_name: schedule.name,
       endpoint: schedule.endpoint,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      checks: relevantChecks,
+      stats: summary
     })
 
   } catch (error) {

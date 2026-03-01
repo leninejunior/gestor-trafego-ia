@@ -357,21 +357,15 @@ async function runIuguConnectionDiagnostic(supabase: any, intentId?: string) {
       account_id_configured: !!iuguAccountId
     };
 
-    // Teste básico de conectividade (simulado)
+    // Sem integração direta nesta rota: não inventar teste de conectividade
     if (iuguApiToken && iuguAccountId) {
-      try {
-        // Aqui seria feita uma chamada real para a API do Iugu
-        // Por enquanto, simulamos o teste
-        result.details.connectivity_test = {
-          status: 'success',
-          response_time: Math.floor(Math.random() * 500) + 100,
-          timestamp: new Date().toISOString()
-        };
-      } catch (error) {
-        result.issues.push('Falha na conectividade com Iugu');
-        result.status = 'error';
-        result.details.connectivity_error = error;
-      }
+      result.details.connectivity_test = {
+        status: 'not_executed',
+        reason: 'Diagnóstico não possui cliente Iugu real configurado para teste ativo',
+        timestamp: new Date().toISOString()
+      };
+      result.issues.push('Conectividade Iugu não verificada por ausência de integração ativa neste endpoint');
+      result.status = 'warning';
     }
 
   } catch (error) {
@@ -459,15 +453,15 @@ async function runIuguStatusDiagnostic(supabase: any, intentId?: string) {
 
     result.details.local_intent = intent;
 
-    // Simular consulta no Iugu
+    // Sem integração direta nesta rota: não inventar status remoto
     if (intent.iugu_subscription_id) {
-      // Aqui seria feita a consulta real no Iugu
       result.details.iugu_status = {
         subscription_id: intent.iugu_subscription_id,
-        status: 'active', // Simulado
-        last_payment: new Date().toISOString(),
-        next_payment: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        status: null,
+        message: 'Consulta remota não executada: integração Iugu não implementada neste diagnóstico'
       };
+      result.issues.push('Status remoto do Iugu não foi consultado');
+      result.status = 'warning';
     } else {
       result.issues.push('Intent não possui ID de assinatura no Iugu');
       result.status = 'warning';

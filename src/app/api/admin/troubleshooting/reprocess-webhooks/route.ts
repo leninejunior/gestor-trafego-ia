@@ -122,7 +122,7 @@ async function reprocessWebhook(supabase: any, webhook: any, adminUserId: string
     })
     .eq('id', webhook.id);
 
-  // Simular processamento do webhook
+  // Processar webhook conforme tipo de evento
   try {
     const result = await processWebhookPayload(supabase, webhook);
     

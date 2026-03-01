@@ -87,15 +87,33 @@ export async function GET(request: NextRequest) {
           organization = org;
         }
 
+        let adminUser = {
+          id: log.admin_user_id,
+          email: null as string | null,
+          full_name: null as string | null
+        };
+
+        if (log.admin_user_id) {
+          const { data: adminProfile } = await supabase
+            .from('user_profiles')
+            .select('user_id,email,full_name')
+            .eq('user_id', log.admin_user_id)
+            .maybeSingle();
+
+          if (adminProfile) {
+            adminUser = {
+              id: adminProfile.user_id || log.admin_user_id,
+              email: adminProfile.email || null,
+              full_name: adminProfile.full_name || null
+            };
+          }
+        }
+
         return {
           id: log.id,
           subscription_id: log.subscription_id,
           organization,
-          admin_user: {
-            id: log.admin_user_id,
-            email: 'admin@example.com', // Placeholder
-            full_name: 'Admin User' // Placeholder
-          },
+          admin_user: adminUser,
           action_type: log.action_type,
           reason: log.reason,
           notes: log.notes,

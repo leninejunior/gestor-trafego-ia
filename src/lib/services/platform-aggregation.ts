@@ -228,7 +228,7 @@ export class PlatformAggregationService {
             meta: byPlatform.find(p => p.platform === 'meta'),
             google: byPlatform.find(p => p.platform === 'google'),
             total: {
-              platform: 'meta' as Platform, // Placeholder
+              platform: 'meta' as Platform, // Campo obrigatório para manter compatibilidade de tipo
               ...total,
             },
           });
@@ -288,39 +288,39 @@ export class PlatformAggregationService {
       return null;
     }
 
-    // For now, return mock data since we don't have insights table yet
-    // This will be replaced with real Meta API calls later
-    return {
-      platform: 'meta',
-      spend: 1250.50,
-      conversions: 45,
-      impressions: 45000,
-      clicks: 890,
-      roas: 2.5,
-      ctr: 1.98,
-      cpc: 1.40,
-      cpa: 27.79,
-      conversionRate: 5.06,
-      campaigns: [
-        {
-          id: 'meta_campaign_1',
-          name: 'Campanha Meta - Vendas Q4',
-          platform: 'meta',
-          status: 'ACTIVE',
-          spend: 1250.50,
-          conversions: 45,
-          impressions: 45000,
-          clicks: 890,
-          roas: 2.5,
-          ctr: 1.98,
-          cpc: 1.40,
-          cpa: 27.79,
-          conversionRate: 5.06,
-          startDate: options.dateRange.startDate,
-          endDate: options.dateRange.endDate,
-        }
-      ],
-    };
+    // Get Meta campaigns and their insights from database
+    const { data: campaigns, error: campaignsError } = await supabase
+      .from('meta_campaigns')
+      .select(`
+        id,
+        name,
+        status,
+        meta_campaign_insights (
+          date_start,
+          spend,
+          impressions,
+          clicks,
+          conversions,
+          reach,
+          cpm,
+          cpc,
+          ctr,
+          conversion_rate
+        )
+      `)
+      .eq('client_id', options.clientId)
+      .gte('meta_campaign_insights.date_start', options.dateRange.startDate)
+      .lte('meta_campaign_insights.date_start', options.dateRange.endDate);
+
+    if (campaignsError) {
+      throw new Error(`Failed to fetch Meta campaigns: ${campaignsError.message}`);
+    }
+
+    if (!campaigns || campaigns.length === 0) {
+      return null;
+    }
+
+    return this.aggregateMetaCampaigns(campaigns);
   }
 
   /**
@@ -364,7 +364,7 @@ export class PlatformAggregationService {
       .lte('google_ads_metrics.date', options.dateRange.endDate);
 
     if (!campaigns || campaigns.length === 0) {
-      return this.getEmptyPlatformMetrics('google');
+      return null;
     }
 
     // Aggregate Google metrics

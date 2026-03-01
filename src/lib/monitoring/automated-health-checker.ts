@@ -303,22 +303,21 @@ export class AutomatedHealthChecker {
     const startTime = Date.now();
     
     try {
-      // In a real implementation, you would check the status of cron jobs
-      // For now, we'll simulate this check
+      // Sem integração de scheduler: sinaliza indisponibilidade da checagem
       const duration = Date.now() - startTime;
 
       const check: HealthCheck = {
         id: checkId,
         name: 'Cron Jobs',
         description: 'Verifica status dos jobs agendados',
-        status: 'healthy',
+        status: 'unknown',
         lastCheck: new Date(),
         duration,
-        message: 'Cron jobs running normally',
+        message: 'Cron jobs check unavailable: scheduler integration not configured',
         metadata: { 
-          note: 'Simplified check - in production this would verify actual cron job status',
-          last_billing_run: 'simulated',
-          last_cleanup_run: 'simulated'
+          note: 'No scheduler integration configured',
+          last_billing_run: null,
+          last_cleanup_run: null
         }
       };
 

@@ -315,7 +315,7 @@ The Ads Manager Team
   }
 
   /**
-   * Send email notification (placeholder implementation)
+   * Send email notification (console fallback implementation)
    */
   private async sendEmailNotification(
     to: string,

@@ -5,6 +5,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+function isMissingTableError(message?: string): boolean {
+  if (!message) {
+    return false
+  }
+  return message.includes('does not exist') || message.includes('relation "smart_utms" does not exist')
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = createClient()
@@ -14,7 +21,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verificar se é super admin
     const { data: userRole } = await supabase
       .from('user_roles')
       .select('role')
@@ -26,141 +32,95 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = request.nextUrl
-    const days = parseInt(searchParams.get('days') || '30')
+    const parsedDays = Number.parseInt(searchParams.get('days') || '30', 10)
+    const days = Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 30
     const source = searchParams.get('source') || 'all'
     const medium = searchParams.get('medium') || 'all'
 
-    // Simular dados de analytics UTM (em produção, viria do Google Analytics ou sistema de tracking)
-    let analytics = [
-      {
-        utm_source: 'facebook',
-        utm_medium: 'cpc',
-        utm_campaign: 'black_friday_2024',
-        utm_term: '',
-        utm_content: 'carousel_produtos',
-        clicks: 12500,
-        conversions: 285,
-        spend: 3200,
-        revenue: 14250,
-        ctr: 2.8,
-        conversion_rate: 2.28,
-        roas: 4.45
-      },
-      {
-        utm_source: 'google',
-        utm_medium: 'cpc',
-        utm_campaign: 'search_brand',
-        utm_term: 'marca loja online',
-        utm_content: 'ad_text_1',
-        clicks: 8900,
-        conversions: 198,
-        spend: 2100,
-        revenue: 9900,
-        ctr: 3.2,
-        conversion_rate: 2.22,
-        roas: 4.71
-      },
-      {
-        utm_source: 'instagram',
-        utm_medium: 'social',
-        utm_campaign: 'stories_verao',
-        utm_term: '',
-        utm_content: 'story_video',
-        clicks: 6700,
-        conversions: 134,
-        spend: 1800,
-        revenue: 6700,
-        ctr: 2.1,
-        conversion_rate: 2.0,
-        roas: 3.72
-      },
-      {
-        utm_source: 'newsletter',
-        utm_medium: 'email',
-        utm_campaign: 'weekly_deals',
-        utm_term: '',
-        utm_content: 'header_banner',
-        clicks: 4200,
-        conversions: 89,
-        spend: 0,
-        revenue: 4450,
-        ctr: 8.5,
-        conversion_rate: 2.12,
-        roas: 0 // Email não tem custo direto
-      },
-      {
-        utm_source: 'linkedin',
-        utm_medium: 'cpc',
-        utm_campaign: 'b2b_software',
-        utm_term: 'software empresarial',
-        utm_content: 'sponsored_post',
-        clicks: 2100,
-        conversions: 45,
-        spend: 1200,
-        revenue: 4500,
-        ctr: 1.8,
-        conversion_rate: 2.14,
-        roas: 3.75
-      },
-      {
-        utm_source: 'youtube',
-        utm_medium: 'video',
-        utm_campaign: 'tutorial_produto',
-        utm_term: '',
-        utm_content: 'video_description',
-        clicks: 3400,
-        conversions: 67,
-        spend: 800,
-        revenue: 3350,
-        ctr: 4.2,
-        conversion_rate: 1.97,
-        roas: 4.19
-      },
-      {
-        utm_source: 'tiktok',
-        utm_medium: 'social',
-        utm_campaign: 'viral_challenge',
-        utm_term: '',
-        utm_content: 'influencer_post',
-        clicks: 15600,
-        conversions: 234,
-        spend: 2800,
-        revenue: 11700,
-        ctr: 5.8,
-        conversion_rate: 1.5,
-        roas: 4.18
-      }
-    ]
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - days)
 
-    // Aplicar filtros
+    let query = supabase
+      .from('smart_utms')
+      .select('utm_source,utm_medium,utm_campaign,utm_term,utm_content,clicks,conversions,revenue,created_at')
+      .gte('created_at', startDate.toISOString())
+
     if (source !== 'all') {
-      analytics = analytics.filter(item => item.utm_source === source)
+      query = query.eq('utm_source', source)
     }
 
     if (medium !== 'all') {
-      analytics = analytics.filter(item => item.utm_medium === medium)
+      query = query.eq('utm_medium', medium)
     }
 
-    // Simular variação baseada no período
-    if (days < 30) {
-      analytics = analytics.map(item => ({
-        ...item,
-        clicks: Math.round(item.clicks * (days / 30)),
-        conversions: Math.round(item.conversions * (days / 30)),
-        spend: Math.round(item.spend * (days / 30) * 100) / 100,
-        revenue: Math.round(item.revenue * (days / 30) * 100) / 100
-      }))
+    const { data, error: analyticsError } = await query
+
+    if (analyticsError) {
+      if (isMissingTableError(analyticsError.message)) {
+        return NextResponse.json({
+          analytics: [],
+          summary: {
+            total_clicks: 0,
+            total_conversions: 0,
+            total_spend: 0,
+            total_revenue: 0,
+            avg_ctr: 0,
+            avg_conversion_rate: 0
+          },
+          filters: { days, source, medium },
+          message: 'Tabela smart_utms não encontrada; sem dados reais de UTM para exibir'
+        })
+      }
+
+      return NextResponse.json(
+        { error: `Failed to fetch UTM analytics: ${analyticsError.message}` },
+        { status: 500 }
+      )
     }
+
+    const analytics = (data || []).map((item: any) => {
+      const clicks = Number.parseInt(item.clicks || 0, 10) || 0
+      const conversions = Number.parseInt(item.conversions || 0, 10) || 0
+      const spend = 0
+      const revenue = Number.parseFloat(item.revenue || 0) || 0
+      const conversionRate = clicks > 0 ? (conversions / clicks) * 100 : 0
+      const ctr = 0
+      const roas = spend > 0 ? revenue / spend : 0
+
+      return {
+        utm_source: item.utm_source || 'unknown',
+        utm_medium: item.utm_medium || 'unknown',
+        utm_campaign: item.utm_campaign || 'unknown',
+        utm_term: item.utm_term || '',
+        utm_content: item.utm_content || '',
+        clicks,
+        conversions,
+        spend,
+        revenue: Math.round(revenue * 100) / 100,
+        ctr,
+        conversion_rate: Math.round(conversionRate * 100) / 100,
+        roas: Math.round(roas * 100) / 100
+      }
+    })
+
+    const totalClicks = analytics.reduce((sum, item) => sum + item.clicks, 0)
+    const totalConversions = analytics.reduce((sum, item) => sum + item.conversions, 0)
+    const totalSpend = analytics.reduce((sum, item) => sum + item.spend, 0)
+    const totalRevenue = analytics.reduce((sum, item) => sum + item.revenue, 0)
+    const avgCTR = analytics.length > 0 ? analytics.reduce((sum, item) => sum + item.ctr, 0) / analytics.length : 0
+    const avgConversionRate = analytics.length > 0
+      ? analytics.reduce((sum, item) => sum + item.conversion_rate, 0) / analytics.length
+      : 0
 
     return NextResponse.json({
       analytics,
       summary: {
-        total_clicks: analytics.reduce((sum, item) => sum + item.clicks, 0),
-        total_conversions: analytics.reduce((sum, item) => sum + item.conversions, 0),
-        total_spend: analytics.reduce((sum, item) => sum + item.spend, 0),
-        total_revenue: analytics.reduce((sum, item) => sum + item.revenue, 0),
-        avg_ctr: analytics.length > 0 ? analytics.reduce((sum, item) => sum + item.ctr, 0) / analytics.length : 0,
-        avg_conversion_rate: analytics.length > 0 ? analytics.reduce((sum, item) => sum + item.conversion_rate, 0) / analytics.length : 0
+        total_clicks: totalClicks,
+        total_conversions: totalConversions,
+        total_spend: Math.round(totalSpend * 100) / 100,
+        total_revenue: Math.round(totalRevenue * 100) / 100,
+        avg_ctr: Math.round(avgCTR * 100) / 100,
+        avg_conversion_rate: Math.round(avgConversionRate * 100) / 100
       },
       filters: {
         days,
@@ -168,7 +128,6 @@ export async function GET(request: NextRequest) {
         medium
       }
     })
-
   } catch (error) {
     console.error('Error fetching UTM analytics:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
