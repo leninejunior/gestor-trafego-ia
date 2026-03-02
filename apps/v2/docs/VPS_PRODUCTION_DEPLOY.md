@@ -6,9 +6,11 @@ Subir a V2 em modo `production` na VPS (sem `next dev`) para reduzir latencia e 
 ## Pre-requisitos
 - Docker e Docker Compose instalados na VPS.
 - Porta HTTP de producao definida (`PROD_HTTP_PORT`, padrao `80`).
+- Porta HTTPS de producao definida (`PROD_HTTPS_PORT`, padrao `443`).
 - Arquivo `.env.production` com valores reais.
 - DNS apontando para a VPS.
 - Dominio inicial configurado: `edith.engrene.com`.
+- `SSL_DOMAIN` e `SSL_EMAIL` configurados em `.env.production`.
 
 ## Passo a passo
 1. Atualizar codigo no servidor:
@@ -24,8 +26,10 @@ Subir a V2 em modo `production` na VPS (sem `next dev`) para reduzir latencia e 
    - `docker compose -f docker-compose.production.yml --env-file .env.production ps`
 7. Validar health:
    - `curl -fsS http://localhost:${PROD_HTTP_PORT:-80}/api/health`
-8. Validar pelo dominio:
-   - `curl -I http://edith.engrene.com/api/health`
+8. Emitir certificado SSL:
+   - `sh ./scripts/ssl-issue.sh`
+9. Validar pelo dominio:
+   - `curl -I https://edith.engrene.com/api/health`
 
 ## Operacao
 - Logs:
@@ -34,6 +38,15 @@ Subir a V2 em modo `production` na VPS (sem `next dev`) para reduzir latencia e 
   - `docker compose -f docker-compose.production.yml --env-file .env.production up --build -d app`
 - Parar stack:
   - `docker compose -f docker-compose.production.yml --env-file .env.production down`
+- Renovar SSL manual:
+  - `sh ./scripts/ssl-renew.sh`
+
+## Renovacao automatica SSL (crontab no host)
+Adicionar no servidor (executar `crontab -e`):
+
+```cron
+0 3 * * * cd /caminho/do/repositorio/apps/v2 && sh ./scripts/ssl-renew.sh >> /var/log/flying-fox-ssl-renew.log 2>&1
+```
 
 ## Rollback rapido
 1. Voltar para o commit anterior:

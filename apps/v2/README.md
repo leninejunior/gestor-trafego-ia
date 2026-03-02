@@ -214,8 +214,11 @@ Objetivo:
 
 Arquivos principais:
 - `docker-compose.production.yml`
-- `deploy/nginx/production.conf`
+- `deploy/nginx/production.http.conf`
+- `deploy/nginx/production.ssl.conf`
 - `.env.production.example`
+- `scripts/ssl-issue.sh`
+- `scripts/ssl-renew.sh`
 - `docs/POSTGRES_BACKUP_RESTORE_RUNBOOK.md`
 
 Como subir em producao:
@@ -226,6 +229,17 @@ cp .env.production.example .env.production
 
 docker compose -f docker-compose.production.yml --env-file .env.production up --build -d
 curl -fsS http://localhost:${PROD_HTTP_PORT:-80}/api/health
+```
+
+Ativar SSL (Let's Encrypt):
+```bash
+sh ./scripts/ssl-issue.sh
+curl -I https://edith.engrene.com/api/health
+```
+
+Renovar SSL:
+```bash
+sh ./scripts/ssl-renew.sh
 ```
 
 Como derrubar producao:
