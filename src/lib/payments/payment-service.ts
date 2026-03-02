@@ -73,8 +73,24 @@ export class PaymentService {
       throw new Error(`Erro ao criar transação: ${error.message}`);
     }
 
-    // Processar pagamento com o provedor
-    const paymentResult = await this.processPaymentWithProvider(provider, transaction, request);
+    let paymentResult: Partial<PaymentTransaction> & { payment_url?: string };
+    try {
+      // Processar pagamento com o provedor
+      paymentResult = await this.processPaymentWithProvider(provider, transaction, request);
+    } catch (providerError) {
+      await this.supabase
+        .from('payment_transactions')
+        .update({
+          status: 'failed',
+          metadata: {
+            ...(transaction.metadata || {}),
+            integration_error: providerError instanceof Error ? providerError.message : 'Provider integration unavailable'
+          }
+        })
+        .eq('id', transaction.id);
+
+      throw providerError;
+    }
 
     // Atualizar transação com dados do provedor
     if (paymentResult.external_id) {
@@ -120,63 +136,35 @@ export class PaymentService {
 
   // Implementações específicas dos provedores
   private async processStripePayment(
-    provider: PaymentProvider,
-    transaction: PaymentTransaction,
-    request: CreatePaymentRequest
+    _provider: PaymentProvider,
+    _transaction: PaymentTransaction,
+    _request: CreatePaymentRequest
   ): Promise<Partial<PaymentTransaction> & { payment_url?: string }> {
-    
-    // TODO: Integrar com Stripe SDK
-    // const stripe = new Stripe(provider.config.api_key);
-    // const paymentIntent = await stripe.paymentIntents.create({...});
-    
-    // Por enquanto, simular resposta
-    return {
-      external_id: `pi_${Math.random().toString(36).substr(2, 24)}`,
-      status: 'processing',
-      payment_url: `https://checkout.stripe.com/pay/${transaction.reference_id}`
-    };
+    throw new Error('Integração real com Stripe não está implementada neste serviço');
   }
 
   private async processIuguPayment(
-    provider: PaymentProvider,
-    transaction: PaymentTransaction,
-    request: CreatePaymentRequest
+    _provider: PaymentProvider,
+    _transaction: PaymentTransaction,
+    _request: CreatePaymentRequest
   ): Promise<Partial<PaymentTransaction> & { payment_url?: string }> {
-    
-    // TODO: Integrar com Iugu API
-    return {
-      external_id: `iugu_${Math.random().toString(36).substr(2, 20)}`,
-      status: 'processing',
-      payment_url: `https://faturas.iugu.com/${transaction.reference_id}`
-    };
+    throw new Error('Integração real com Iugu não está implementada neste serviço');
   }
 
   private async processPagSeguroPayment(
-    provider: PaymentProvider,
-    transaction: PaymentTransaction,
-    request: CreatePaymentRequest
+    _provider: PaymentProvider,
+    _transaction: PaymentTransaction,
+    _request: CreatePaymentRequest
   ): Promise<Partial<PaymentTransaction> & { payment_url?: string }> {
-    
-    // TODO: Integrar com PagSeguro API
-    return {
-      external_id: `ps_${Math.random().toString(36).substr(2, 20)}`,
-      status: 'processing',
-      payment_url: `https://pagseguro.uol.com.br/checkout/${transaction.reference_id}`
-    };
+    throw new Error('Integração real com PagSeguro não está implementada neste serviço');
   }
 
   private async processMercadoPagoPayment(
-    provider: PaymentProvider,
-    transaction: PaymentTransaction,
-    request: CreatePaymentRequest
+    _provider: PaymentProvider,
+    _transaction: PaymentTransaction,
+    _request: CreatePaymentRequest
   ): Promise<Partial<PaymentTransaction> & { payment_url?: string }> {
-    
-    // TODO: Integrar com Mercado Pago SDK
-    return {
-      external_id: `mp_${Math.random().toString(36).substr(2, 20)}`,
-      status: 'processing',
-      payment_url: `https://www.mercadopago.com.br/checkout/${transaction.reference_id}`
-    };
+    throw new Error('Integração real com Mercado Pago não está implementada neste serviço');
   }
 
   // Atualizar status da transação (chamado pelos webhooks)

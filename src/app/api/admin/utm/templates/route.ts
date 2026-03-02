@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: 'Tabela smart_utms não encontrada; criação de template UTM indisponível',
-            code: 'NOT_IMPLEMENTED'
+            code: 'FEATURE_UNAVAILABLE'
           },
           { status: 501 }
         )

@@ -60,7 +60,7 @@ export async function POST(_request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Provider management is not available without persistent LLM provider storage',
-        code: 'NOT_IMPLEMENTED'
+        code: 'FEATURE_UNAVAILABLE'
       },
       { status: 501 }
     )

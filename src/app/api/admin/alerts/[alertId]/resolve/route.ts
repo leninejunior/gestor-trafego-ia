@@ -33,29 +33,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
     }
 
-    // Em um sistema real, aqui atualizaríamos o alerta no banco de dados
-    // Por enquanto, apenas simulamos a resolução
-    
-    // Log da ação administrativa
-    await supabase
-      .from('admin_action_logs')
-      .insert({
-        action_type: 'resolve_alert',
-        admin_user_id: user.id,
-        reason: 'Alert manually resolved by admin',
-        result: {
-          alert_id: alertId,
-          resolved_at: new Date().toISOString()
-        },
-        created_at: new Date().toISOString()
-      });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Alerta resolvido com sucesso',
-      alert_id: alertId,
-      resolved_at: new Date().toISOString()
-    });
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Resolução persistente do alerta '${alertId}' indisponível sem fonte de alertas persistida.`,
+        code: 'FEATURE_UNAVAILABLE'
+      },
+      { status: 501 }
+    );
 
   } catch (error) {
     console.error('Error resolving alert:', error);

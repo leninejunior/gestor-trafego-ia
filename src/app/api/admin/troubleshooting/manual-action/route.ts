@@ -54,8 +54,14 @@ export async function POST(request: NextRequest) {
         break;
       
       case 'resend_notifications':
-        result = await resendNotifications(supabase, intentId, user.id, reason, notes);
-        break;
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Reenvio manual de notificações indisponível sem integração real de notificações.',
+            code: 'FEATURE_UNAVAILABLE'
+          },
+          { status: 501 }
+        );
       
       default:
         return NextResponse.json({ error: 'Tipo de ação inválido' }, { status: 400 });
@@ -309,28 +315,6 @@ async function regenerateIntentUrls(supabase: any, intentId: string, adminUserId
     intent_id: intentId,
     checkout_url: newCheckoutUrl,
     status_url: newStatusUrl,
-    timestamp: new Date().toISOString()
-  };
-}
-
-async function resendNotifications(supabase: any, intentId: string, adminUserId: string, reason: string, notes?: string) {
-  // Buscar dados do intent
-  const { data: intent } = await supabase
-    .from('subscription_intents')
-    .select('*')
-    .eq('id', intentId)
-    .single();
-
-  if (!intent) {
-    throw new Error('Intent não encontrado');
-  }
-
-  // Aqui seria implementado o reenvio de emails/notificações
-  // Por enquanto, apenas simulamos
-  
-  return {
-    intent_id: intentId,
-    notifications_sent: ['email_confirmation', 'status_update'],
     timestamp: new Date().toISOString()
   };
 }

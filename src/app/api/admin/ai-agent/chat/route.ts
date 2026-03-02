@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         tokens_used: 0,
         processing_time: 0,
         isRealData: false,
-        code: 'NOT_IMPLEMENTED'
+        code: 'FEATURE_UNAVAILABLE'
       },
       { status: 501 }
     )

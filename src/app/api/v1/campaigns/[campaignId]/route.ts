@@ -217,7 +217,7 @@ export async function PUT(
 
       return NextResponse.json({
         error: 'Campaign update is not available without a real Meta Ads integration',
-        code: 'NOT_IMPLEMENTED'
+        code: 'FEATURE_UNAVAILABLE'
       }, { status: 501 })
     } catch (error) {
       console.error('Error updating campaign:', error)
@@ -290,7 +290,7 @@ export async function DELETE(
 
       return NextResponse.json({
         error: 'Campaign deletion is not available without a real Meta Ads integration',
-        code: 'NOT_IMPLEMENTED'
+        code: 'FEATURE_UNAVAILABLE'
       }, { status: 501 })
     } catch (error) {
       console.error('Error deleting campaign:', error)

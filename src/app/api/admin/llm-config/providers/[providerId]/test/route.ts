@@ -33,7 +33,7 @@ export async function POST(
       {
         success: false,
         message: `Connection test for provider '${providerId}' is unavailable without real provider integration`,
-        code: 'NOT_IMPLEMENTED'
+        code: 'FEATURE_UNAVAILABLE'
       },
       { status: 501 }
     )

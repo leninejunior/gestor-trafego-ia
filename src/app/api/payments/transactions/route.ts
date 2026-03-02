@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { CreatePaymentRequest, CreatePaymentResponse } from '@/lib/types/payments';
+import { CreatePaymentRequest } from '@/lib/types/payments';
 
 // GET /api/payments/transactions - Listar transações
 export async function GET(request: NextRequest) {
@@ -151,68 +151,14 @@ export async function POST(request: NextRequest) {
 
     const provider = providers[0];
 
-    // Gerar ID de referência único
-    const reference_id = `PAY_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // Criar transação no banco
-    const { data: transaction, error: transactionError } = await supabase
-      .from('payment_transactions')
-      .insert({
-        organization_id: membership.organization_id,
-        client_id,
-        provider_id: provider.id,
-        reference_id,
-        amount,
-        currency,
-        description,
-        status: 'pending',
-        customer_data,
-        metadata: {
-          ...metadata,
-          created_by: user.id,
-          user_agent: request.headers.get('user-agent'),
-          ip: request.headers.get('x-forwarded-for')
-        }
-      })
-      .select(`
-        *,
-        provider:payment_providers(id, name, display_name),
-        client:clients(id, name)
-      `)
-      .single();
-
-    if (transactionError) {
-      console.error('Erro ao criar transação:', transactionError);
-      return NextResponse.json({ error: 'Erro ao criar transação' }, { status: 500 });
-    }
-
-    // Log de auditoria
-    await supabase
-      .from('payment_audit_logs')
-      .insert({
-        organization_id: membership.organization_id,
-        user_id: user.id,
-        action: 'create_payment',
-        entity_type: 'transaction',
-        entity_id: transaction.id,
-        new_data: transaction,
-        metadata: { 
-          provider: provider.name,
-          amount,
-          currency
-        }
-      });
-
-    // TODO: Aqui seria integrado com o provedor real (Stripe, Iugu, etc)
-    // Por enquanto, retornamos a transação criada
-    const response: CreatePaymentResponse = {
-      transaction,
-      payment_url: `${process.env.NEXT_PUBLIC_APP_URL}/payments/${transaction.id}`,
-      // qr_code: 'base64_qr_code_here', // Para PIX
-      // barcode: 'barcode_here' // Para boleto
-    };
-
-    return NextResponse.json(response);
+    return NextResponse.json(
+      {
+        error: `Integração real de pagamento indisponível para o provedor '${provider.name}'.`,
+        code: 'FEATURE_UNAVAILABLE',
+        provider: provider.name
+      },
+      { status: 501 }
+    );
 
   } catch (error) {
     console.error('Erro na API de transações:', error);

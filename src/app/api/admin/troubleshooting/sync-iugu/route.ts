@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         message: 'Sincronização manual com Iugu indisponível: integração real não implementada nesta rota',
-        code: 'NOT_IMPLEMENTED',
+        code: 'FEATURE_UNAVAILABLE',
         intent: {
           id: intent.id,
           status: intent.status,

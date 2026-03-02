@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         error: 'Campaign creation is not available without a real Meta Ads integration',
-        code: 'NOT_IMPLEMENTED'
+        code: 'FEATURE_UNAVAILABLE'
       }, { status: 501 })
     } catch (error) {
       console.error('Error creating campaign:', error)
