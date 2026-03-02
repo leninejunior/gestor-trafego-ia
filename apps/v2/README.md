@@ -222,6 +222,7 @@ Como subir em producao:
 ```bash
 cp .env.production.example .env.production
 # editar .env.production com valores reais (nao commitar)
+# dominio inicial: edith.engrene.com
 
 docker compose -f docker-compose.production.yml --env-file .env.production up --build -d
 curl -fsS http://localhost:${PROD_HTTP_PORT:-80}/api/health

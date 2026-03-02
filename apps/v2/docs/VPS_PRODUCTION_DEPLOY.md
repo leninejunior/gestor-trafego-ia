@@ -7,7 +7,8 @@ Subir a V2 em modo `production` na VPS (sem `next dev`) para reduzir latencia e 
 - Docker e Docker Compose instalados na VPS.
 - Porta HTTP de producao definida (`PROD_HTTP_PORT`, padrao `80`).
 - Arquivo `.env.production` com valores reais.
-- DNS apontando para a VPS (quando aplicavel).
+- DNS apontando para a VPS.
+- Dominio inicial configurado: `edith.engrene.com`.
 
 ## Passo a passo
 1. Atualizar codigo no servidor:
@@ -23,6 +24,8 @@ Subir a V2 em modo `production` na VPS (sem `next dev`) para reduzir latencia e 
    - `docker compose -f docker-compose.production.yml --env-file .env.production ps`
 7. Validar health:
    - `curl -fsS http://localhost:${PROD_HTTP_PORT:-80}/api/health`
+8. Validar pelo dominio:
+   - `curl -I http://edith.engrene.com/api/health`
 
 ## Operacao
 - Logs:
