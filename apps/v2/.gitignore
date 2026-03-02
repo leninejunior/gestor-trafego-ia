@@ -1,0 +1,8 @@
+node_modules
+.next
+.env
+.env.staging
+.env.production
+.env.local
+dist
+backups
