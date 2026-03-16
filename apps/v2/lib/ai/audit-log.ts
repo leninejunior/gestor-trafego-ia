@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { getPrismaClient } from "@/lib/prisma";
 
@@ -25,6 +25,13 @@ function asOptionalString(value: string | null | undefined): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function asJsonInput(
+  value: Record<string, unknown> | undefined,
+): Prisma.InputJsonValue | undefined {
+  if (!value) return undefined;
+  return value as Prisma.InputJsonValue;
+}
+
 export async function logAiApiAuditEvent(
   event: AiApiAuditEvent,
   prisma?: AuditPrismaClient,
@@ -40,7 +47,7 @@ export async function logAiApiAuditEvent(
         method: event.method,
         statusCode: event.statusCode,
         scope: event.scope,
-        filters: event.filters ?? null,
+        filters: asJsonInput(event.filters),
         rateLimited: Boolean(event.rateLimited),
         ipAddress: asOptionalString(event.ipAddress),
         userAgent: asOptionalString(event.userAgent),

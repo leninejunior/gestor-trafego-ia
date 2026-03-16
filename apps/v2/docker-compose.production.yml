@@ -11,6 +11,8 @@ services:
       PORT: 3000
     expose:
       - "3000"
+    ports:
+      - "127.0.0.1:${APP_HOST_PORT:-3100}:3000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/api/health || exit 1"]
@@ -22,6 +24,7 @@ services:
   proxy:
     image: nginx:1.27-alpine
     container_name: flying-fox-v2-proxy-prod
+    profiles: ["container-proxy"]
     depends_on:
       app:
         condition: service_healthy

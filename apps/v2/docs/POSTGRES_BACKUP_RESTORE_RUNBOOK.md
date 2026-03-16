@@ -36,12 +36,12 @@ Garantir backup diario automatizado do Postgres da V2 e procedimento seguro de r
    - `cp .env.production.example .env.production`
 2. Configure `.env.production` com valores reais.
 3. Suba os servicos:
-   - `docker compose -f docker-compose.production.yml --env-file .env.production up --build -d`
+   - `docker compose -f docker-compose.production.yml --env-file .env.production up --build -d app backup`
 4. O servico `backup` executa:
    - backup imediato na inicializacao
    - backups recorrentes a cada `BACKUP_INTERVAL_SECONDS`
 5. Validar health:
-   - `curl -fsS http://localhost:${PROD_HTTP_PORT:-80}/api/health`
+   - `curl -fsS http://127.0.0.1:${APP_HOST_PORT:-3100}/api/health`
 
 ## Backup sob demanda
 - `npm run backup:postgres`

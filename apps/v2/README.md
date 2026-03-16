@@ -227,18 +227,21 @@ cp .env.production.example .env.production
 # editar .env.production com valores reais (nao commitar)
 # dominio inicial: edith.engrene.com
 
-docker compose -f docker-compose.production.yml --env-file .env.production up --build -d
-curl -fsS http://localhost:${PROD_HTTP_PORT:-80}/api/health
+docker compose -f docker-compose.production.yml --env-file .env.production up --build -d app backup
+curl -fsS http://127.0.0.1:${APP_HOST_PORT:-3100}/api/health
 ```
 
-Ativar SSL (Let's Encrypt):
+Configurar Nginx no host:
 ```bash
-sh ./scripts/ssl-issue.sh
+# ajustar vhost para proxy_pass -> 127.0.0.1:${APP_HOST_PORT:-3100}
+nginx -t && systemctl reload nginx
 curl -I https://edith.engrene.com/api/health
 ```
 
-Renovar SSL:
+Ativar SSL com proxy container (opcional, quando 80/443 estiverem livres):
 ```bash
+docker compose --profile container-proxy -f docker-compose.production.yml --env-file .env.production up --build -d
+sh ./scripts/ssl-issue.sh
 sh ./scripts/ssl-renew.sh
 ```
 
@@ -249,7 +252,7 @@ docker compose -f docker-compose.production.yml --env-file .env.production down
 
 Como acompanhar logs:
 ```bash
-docker compose -f docker-compose.production.yml --env-file .env.production logs -f app proxy backup
+docker compose -f docker-compose.production.yml --env-file .env.production logs -f app backup
 ```
 
 ## GT-20 - Backups e restore do Postgres (VPS)

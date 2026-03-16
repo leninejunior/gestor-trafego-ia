@@ -1,0 +1,84 @@
+.page {
+  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  margin: 0 auto;
+  max-width: 1220px;
+  padding: 32px 18px 44px;
+}
+
+.header {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.kicker {
+  color: #007a70;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0 0 4px 0;
+  text-transform: uppercase;
+}
+
+.title {
+  color: #111827;
+  font-family: "Trebuchet MS", "Franklin Gothic Medium", "Arial Narrow", sans-serif;
+  font-size: clamp(26px, 4vw, 40px);
+  line-height: 1.07;
+  margin: 0;
+}
+
+.subtitle {
+  color: #4b5563;
+  font-size: 14px;
+  margin: 8px 0 0;
+  max-width: 660px;
+}
+
+.headerActions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.backLink,
+.logoutButton {
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.backLink {
+  background: #ebf2ff;
+  border: 1px solid #c9d8f6;
+  color: #244578;
+  padding: 10px 12px;
+}
+
+.logoutButton {
+  background: #121722;
+  border: 1px solid #121722;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 10px 12px;
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 20px 14px 30px;
+  }
+
+  .headerActions {
+    width: 100%;
+  }
+
+  .backLink,
+  .logoutButton {
+    text-align: center;
+    width: 100%;
+  }
+}

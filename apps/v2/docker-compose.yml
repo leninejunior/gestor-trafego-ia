@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: flying-fox-v2-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: v2
+      POSTGRES_PASSWORD: v2
+      POSTGRES_DB: flying_fox_v2
+    ports:
+      - "5434:5432"
+    volumes:
+      - v2-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U v2 -d flying_fox_v2"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  v2-postgres-data:

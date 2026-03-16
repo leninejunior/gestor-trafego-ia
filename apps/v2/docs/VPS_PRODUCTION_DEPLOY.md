@@ -5,6 +5,8 @@ Subir a V2 em modo `production` na VPS (sem `next dev`) para reduzir latencia e 
 
 ## Pre-requisitos
 - Docker e Docker Compose instalados na VPS.
+- Nginx no host (recomendado) para TLS e roteamento de dominio.
+- Porta local para app definida (`APP_HOST_PORT`, padrao `3100`).
 - Porta HTTP de producao definida (`PROD_HTTP_PORT`, padrao `80`).
 - Porta HTTPS de producao definida (`PROD_HTTPS_PORT`, padrao `443`).
 - Arquivo `.env.production` com valores reais.
@@ -21,19 +23,24 @@ Subir a V2 em modo `production` na VPS (sem `next dev`) para reduzir latencia e 
    - `cp .env.production.example .env.production`
 4. Editar `.env.production` com valores reais (nao commitar).
 5. Subir stack de producao:
-   - `docker compose -f docker-compose.production.yml --env-file .env.production up --build -d`
+   - `docker compose -f docker-compose.production.yml --env-file .env.production up --build -d app backup`
 6. Validar servicos:
    - `docker compose -f docker-compose.production.yml --env-file .env.production ps`
 7. Validar health:
-   - `curl -fsS http://localhost:${PROD_HTTP_PORT:-80}/api/health`
-8. Emitir certificado SSL:
-   - `sh ./scripts/ssl-issue.sh`
+   - `curl -fsS http://127.0.0.1:${APP_HOST_PORT:-3100}/api/health`
+8. Ajustar Nginx do host para apontar dominio para `127.0.0.1:${APP_HOST_PORT:-3100}`.
 9. Validar pelo dominio:
    - `curl -I https://edith.engrene.com/api/health`
 
+## Opcional: proxy container na borda
+Use somente quando `80/443` estiverem livres no host:
+- `docker compose --profile container-proxy -f docker-compose.production.yml --env-file .env.production up --build -d`
+- Emitir certificado SSL:
+   - `sh ./scripts/ssl-issue.sh`
+
 ## Operacao
 - Logs:
-  - `docker compose -f docker-compose.production.yml --env-file .env.production logs -f app proxy backup`
+  - `docker compose -f docker-compose.production.yml --env-file .env.production logs -f app backup`
 - Reiniciar app:
   - `docker compose -f docker-compose.production.yml --env-file .env.production up --build -d app`
 - Parar stack:
@@ -58,5 +65,5 @@ Adicionar no servidor (executar `crontab -e`):
 ## Checklist de validacao
 - [ ] `NODE_ENV=production` no container `app`
 - [ ] `/api/health` respondendo `200`
-- [ ] logs sem erro critico em `app` e `proxy`
+- [ ] logs sem erro critico em `app` (e `proxy`, se perfil de proxy estiver ativo)
 - [ ] backup gerando `.dump` e `.sha256` em `backups/postgres`
