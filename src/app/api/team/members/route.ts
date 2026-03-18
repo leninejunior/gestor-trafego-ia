@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     // Buscar organização do usuário
     const { data: membership } = await supabase
       .from("memberships")
-      .select("org_id, role")
+      .select("organization_id, role")
       .eq("user_id", user.id)
       .single();
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
           email
         )
       `)
-      .eq("org_id", membership.org_id)
+      .eq("organization_id", membership.organization_id)
       .order("created_at", { ascending: false });
 
     if (error) {

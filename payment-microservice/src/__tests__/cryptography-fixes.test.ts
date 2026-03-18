@@ -135,7 +135,7 @@ describe('Cryptography System Fixes', () => {
 
     it('should encrypt and decrypt provider credentials', async () => {
       const credentials = {
-        apiKey: 'sk_test_12345',
+        apiKey: 'sk_mock_12345',
         secretKey: 'secret_67890',
         webhookSecret: 'whsec_test'
       };
@@ -368,7 +368,7 @@ describe('Cryptography System Fixes', () => {
 
     it('should encrypt and decrypt provider credentials securely', async () => {
       const credentials = {
-        apiKey: 'sk_test_secure_key',
+        apiKey: 'sk_mock_secure_key',
         secretKey: 'secret_secure_key',
         webhookSecret: 'whsec_secure'
       };

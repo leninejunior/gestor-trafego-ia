@@ -1,18 +1,26 @@
 /**
  * Google Ads Disconnect API Route
- * 
+ *
  * Revokes Google Ads connection and cleans up data
- * Requirements: 1.1, 1.5
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getGoogleTokenManager } from '@/lib/google/token-manager';
+import {
+  deleteGoogleConnectionById,
+  deleteGoogleConnectionRelatedData,
+  getClientOrganizationId,
+  getGoogleConnectionByClientAndCustomer,
+  getGoogleConnectionById,
+  getGoogleConnectionDataCounts,
+  hasOrgAdminAccess,
+  hasOrgMembershipAccess,
+  isUserSuperAdmin,
+  listGoogleConnectionsByClient,
+  markGoogleConnectionRevoked,
+} from '@/lib/postgres/google-sync-repository';
 import { z } from 'zod';
-
-// ============================================================================
-// Request Validation Schema
-// ============================================================================
 
 const DisconnectRequestSchema = z.object({
   connectionId: z.string().uuid('Connection ID deve ser um UUID válido').optional(),
@@ -23,22 +31,16 @@ const DisconnectRequestSchema = z.object({
 }).refine(
   (data) => data.connectionId || (data.clientId && data.customerId),
   {
-    message: "Deve fornecer connectionId ou (clientId + customerId)",
+    message: 'Deve fornecer connectionId ou (clientId + customerId)',
   }
 );
 
-// ============================================================================
-// POST /api/google/disconnect
-// ============================================================================
-
 export async function POST(request: NextRequest) {
   try {
-    // Parse and validate request body
     const body = await request.json();
-    const { connectionId, clientId, customerId, revokeTokens, deleteData } = 
+    const { connectionId, clientId, customerId, revokeTokens, deleteData } =
       DisconnectRequestSchema.parse(body);
 
-    // Get authenticated user
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -49,73 +51,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find the connection to disconnect
-    let connection;
-    
-    if (connectionId) {
-      // Find by connection ID
-      const { data, error } = await supabase
-        .from('google_ads_connections')
-        .select('id, client_id, customer_id, status')
-        .eq('id', connectionId)
-        .single();
+    const connection = connectionId
+      ? await getGoogleConnectionById(connectionId)
+      : await getGoogleConnectionByClientAndCustomer(clientId!, customerId!);
 
-      if (error || !data) {
-        return NextResponse.json(
-          { error: 'Conexão não encontrada' },
-          { status: 404 }
-        );
-      }
-
-      connection = data;
-    } else {
-      // Find by client ID and customer ID
-      const { data, error } = await supabase
-        .from('google_ads_connections')
-        .select('id, client_id, customer_id, status')
-        .eq('client_id', clientId!)
-        .eq('customer_id', customerId!)
-        .single();
-
-      if (error || !data) {
-        return NextResponse.json(
-          { error: 'Conexão não encontrada' },
-          { status: 404 }
-        );
-      }
-
-      connection = data;
-    }
-
-    // Verify user has access to this connection's client
-    const { data: clientData, error: clientError } = await supabase
-      .from('clients')
-      .select('org_id')
-      .eq('id', connection.client_id)
-      .single();
-
-    if (clientError || !clientData) {
+    if (!connection || !connection.client_id) {
       return NextResponse.json(
-        { error: 'Cliente não encontrado' },
+        { error: 'Conexão não encontrada' },
         { status: 404 }
       );
     }
 
-    const { data: membership, error: membershipError } = await supabase
-      .from('memberships')
-      .select('org_id')
-      .eq('user_id', user.id)
-      .eq('org_id', clientData.org_id)
-      .single();
+    const clientOrgId = await getClientOrganizationId(connection.client_id);
 
-    if (membershipError || !membership) {
+    if (!clientOrgId) {
+      return NextResponse.json(
+        { error: 'Cliente não encontrado ou sem organização vinculada' },
+        { status: 404 }
+      );
+    }
+
+    const superAdmin = await isUserSuperAdmin(user.id);
+    const hasWriteAccess = superAdmin || await hasOrgAdminAccess(user.id, clientOrgId);
+
+    if (!hasWriteAccess) {
       return NextResponse.json(
         { error: 'Acesso negado à conexão especificada' },
         { status: 403 }
       );
     }
 
-    // Revoke tokens if requested
     if (revokeTokens && connection.status !== 'revoked') {
       try {
         const tokenManager = getGoogleTokenManager();
@@ -123,65 +88,14 @@ export async function POST(request: NextRequest) {
         console.log('[Google Disconnect] Tokens revoked for connection:', connection.id);
       } catch (revokeError) {
         console.error('[Google Disconnect] Error revoking tokens:', revokeError);
-        // Continue with disconnection even if token revocation fails
       }
     }
 
-    // Delete associated data if requested
     if (deleteData) {
-      // First get campaign IDs
-      const { data: campaigns } = await supabase
-        .from('google_ads_campaigns')
-        .select('id')
-        .eq('connection_id', connection.id);
+      await deleteGoogleConnectionRelatedData(connection.id);
 
-      const campaignIds = campaigns?.map(c => c.id) || [];
-
-      // Delete metrics first (foreign key constraint)
-      if (campaignIds.length > 0) {
-        const { error: metricsError } = await supabase
-          .from('google_ads_metrics')
-          .delete()
-          .in('campaign_id', campaignIds);
-
-        if (metricsError) {
-          console.error('[Google Disconnect] Error deleting metrics:', metricsError);
-        }
-      }
-
-      // Delete campaigns
-      const { error: campaignsError } = await supabase
-        .from('google_ads_campaigns')
-        .delete()
-        .eq('connection_id', connection.id);
-
-      if (campaignsError) {
-        console.error('[Google Disconnect] Error deleting campaigns:', campaignsError);
-      }
-
-      // Delete sync logs
-      const { error: syncLogsError } = await supabase
-        .from('google_ads_sync_logs')
-        .delete()
-        .eq('connection_id', connection.id);
-
-      if (syncLogsError) {
-        console.error('[Google Disconnect] Error deleting sync logs:', syncLogsError);
-      }
-
-      console.log('[Google Disconnect] Associated data deleted for connection:', connection.id);
-    }
-
-    // Update connection status or delete connection
-    if (deleteData) {
-      // Delete the connection entirely
-      const { error: deleteError } = await supabase
-        .from('google_ads_connections')
-        .delete()
-        .eq('id', connection.id);
-
-      if (deleteError) {
-        console.error('[Google Disconnect] Error deleting connection:', deleteError);
+      const deleted = await deleteGoogleConnectionById(connection.id);
+      if (!deleted) {
         return NextResponse.json(
           { error: 'Erro ao deletar conexão' },
           { status: 500 }
@@ -190,17 +104,9 @@ export async function POST(request: NextRequest) {
 
       console.log('[Google Disconnect] Connection deleted:', connection.id);
     } else {
-      // Just mark as revoked
-      const { error: updateError } = await supabase
-        .from('google_ads_connections')
-        .update({
-          status: 'revoked',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', connection.id);
+      const revoked = await markGoogleConnectionRevoked(connection.id);
 
-      if (updateError) {
-        console.error('[Google Disconnect] Error updating connection status:', updateError);
+      if (!revoked) {
         return NextResponse.json(
           { error: 'Erro ao atualizar status da conexão' },
           { status: 500 }
@@ -218,19 +124,18 @@ export async function POST(request: NextRequest) {
       action: deleteData ? 'deleted' : 'revoked',
       tokensRevoked: revokeTokens,
       dataDeleted: deleteData,
-      message: deleteData 
+      message: deleteData
         ? 'Conexão e dados deletados com sucesso'
         : 'Conexão desconectada com sucesso',
     });
-
   } catch (error) {
     console.error('[Google Disconnect] Error:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { 
+        {
           error: 'Dados inválidos',
-          details: error.errors.map(e => e.message),
+          details: error.issues.map((e) => e.message),
         },
         { status: 400 }
       );
@@ -242,10 +147,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-// ============================================================================
-// GET /api/google/disconnect (get disconnection options)
-// ============================================================================
 
 export async function GET(request: NextRequest) {
   try {
@@ -260,7 +161,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get authenticated user
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -271,106 +171,55 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get connection details
-    let query = supabase
-      .from('google_ads_connections')
-      .select(`
-        id,
-        client_id,
-        customer_id,
-        status,
-        last_sync_at,
-        created_at,
-        google_ads_campaigns!inner(count),
-        google_ads_sync_logs!inner(count)
-      `);
+    const connections = connectionId
+      ? [await getGoogleConnectionById(connectionId)].filter(Boolean)
+      : await listGoogleConnectionsByClient(clientId!);
 
-    if (connectionId) {
-      query = query.eq('id', connectionId);
-    } else {
-      query = query.eq('client_id', clientId);
-    }
-
-    const { data: connections, error: connectionsError } = await query;
-
-    if (connectionsError || !connections || connections.length === 0) {
+    if (!connections || connections.length === 0) {
       return NextResponse.json(
         { error: 'Conexão não encontrada' },
         { status: 404 }
       );
     }
 
-    // Verify user has access to these connections
-    const clientIds = connections.map(conn => conn.client_id);
-    
-    // Get org_ids for these clients
-    const { data: clients, error: clientsError } = await supabase
-      .from('clients')
-      .select('id, org_id')
-      .in('id', clientIds);
+    const superAdmin = await isUserSuperAdmin(user.id);
 
-    if (clientsError || !clients || clients.length === 0) {
-      return NextResponse.json(
-        { error: 'Clientes não encontrados' },
-        { status: 404 }
-      );
-    }
+    const accessibleConnections = (
+      await Promise.all(
+        connections.map(async (connection) => {
+          if (!connection?.client_id) {
+            return null;
+          }
 
-    const orgIds = clients.map(c => c.org_id);
-    
-    const { data: memberships, error: membershipError } = await supabase
-      .from('memberships')
-      .select('org_id')
-      .eq('user_id', user.id)
-      .in('org_id', orgIds);
+          const orgId = await getClientOrganizationId(connection.client_id);
+          if (!orgId) {
+            return null;
+          }
 
-    if (membershipError || !memberships || memberships.length === 0) {
+          const hasAccess = superAdmin || await hasOrgMembershipAccess(user.id, orgId);
+          if (!hasAccess) {
+            return null;
+          }
+
+          const counts = await getGoogleConnectionDataCounts(connection.id);
+
+          return {
+            ...connection,
+            ...counts,
+          };
+        })
+      )
+    ).filter(Boolean);
+
+    if (accessibleConnections.length === 0) {
       return NextResponse.json(
         { error: 'Acesso negado às conexões especificadas' },
         { status: 403 }
       );
     }
 
-    const accessibleOrgIds = memberships.map(m => m.organization_id);
-    const accessibleClientIds = clients
-      .filter(c => accessibleOrgIds.includes(c.org_id))
-      .map(c => c.id);
-    
-    const accessibleConnections = connections.filter(conn => 
-      accessibleClientIds.includes(conn.client_id)
-    );
-
-    // Get campaign and metrics counts for each connection
-    const connectionsWithCounts = await Promise.all(
-      accessibleConnections.map(async (conn) => {
-        const { data: campaigns } = await supabase
-          .from('google_ads_campaigns')
-          .select('id')
-          .eq('connection_id', conn.id);
-
-        const campaignIds = campaigns?.map(c => c.id) || [];
-        const campaignCount = campaigns?.length || 0;
-
-        let metricsCount = 0;
-        if (campaignIds.length > 0) {
-          const { data: metrics } = await supabase
-            .from('google_ads_metrics')
-            .select('id')
-            .in('campaign_id', campaignIds);
-          
-          metricsCount = metrics?.length || 0;
-        }
-
-        return {
-          ...conn,
-          campaignCount,
-          metricsCount,
-        };
-      })
-    );
-
     return NextResponse.json({
-      connections: connectionsWithCounts,
+      connections: accessibleConnections,
       disconnectionOptions: {
         revokeTokens: {
           description: 'Revogar tokens de acesso no Google',
@@ -385,9 +234,9 @@ export async function GET(request: NextRequest) {
         },
       },
     });
-
   } catch (error) {
     console.error('[Google Disconnect GET] Error:', error);
+
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

@@ -21,9 +21,51 @@
 
 ---
 
-## 📝 Última Atualização: 2025-12-05
+## 📝 Última Atualização: 2025-12-12
 
-### Correção: Coluna subscription_intent_transitions
+### ✅ CRÍTICO: RLS de meta_campaigns Aplicado
+
+**Problema:** Tabela `meta_campaigns` tinha RLS habilitado mas SEM políticas, bloqueando todo acesso.
+
+**Solução:** Migração `database/migrations/add-meta-campaigns-rls.sql`
+
+**Políticas Criadas:**
+- `meta_campaigns`: 5 políticas (SELECT, INSERT, UPDATE, DELETE, service_role)
+- `meta_campaign_insights`: 3 políticas (SELECT, INSERT, service_role)
+
+**Status:** ✅ Aplicado via Supabase MCP Power
+
+**Impacto:** Usuários autenticados agora conseguem acessar suas campanhas via API.
+
+**Guia:** `CORRECAO_RLS_META_CAMPAIGNS.md`
+
+---
+
+### ✅ Migração Aplicada: Tabelas de Hierarquia Meta Ads
+
+**Problema:** Tabelas `meta_adsets` e `meta_ads` não existiam no banco
+
+**Solução:** Migração `database/migrations/add-meta-hierarchy-tables.sql`
+
+**Tabelas Criadas:**
+- `meta_adsets` - Conjuntos de anúncios (2 registros sincronizados)
+- `meta_ads` - Anúncios individuais (13 registros sincronizados)
+- `meta_adset_insights` - Métricas de adsets
+- `meta_ad_insights` - Métricas de ads
+
+**Status:** ✅ Aplicado com sucesso via Supabase MCP Power
+
+**Dados Sincronizados:**
+- 16 campanhas
+- 2 conjuntos de anúncios
+- 13 anúncios
+- Cliente: BM Coan (act_3656912201189816)
+
+**Guia:** `APLICAR_META_HIERARCHY_MIGRATION.md`
+
+---
+
+### 2025-12-05 - Correção: Coluna subscription_intent_transitions
 
 **Erro:** `column "intent_id" does not exist` ao buscar status de pagamento
 
@@ -76,8 +118,17 @@
   - Campos: `id`, `client_id`, `ad_account_id`, `account_name` (NÃO `ad_account_name`!), `access_token`, `is_active`
   - ⚠️ IMPORTANTE: Use `account_name` e não `ad_account_name`
 - `meta_campaigns` - Campanhas do Meta
-- `meta_adsets` - Conjuntos de anúncios
+  - Campos: `id`, `connection_id`, `external_id`, `name`, `status`, `objective`, `daily_budget`, `lifetime_budget`
+  - Relacionamento: `connection_id` → `client_meta_connections(id)`
+- `meta_adsets` - Conjuntos de anúncios (Ad Sets)
+  - Campos: `id`, `connection_id`, `campaign_id`, `external_id`, `name`, `status`, `daily_budget`, `lifetime_budget`, `optimization_goal`, `billing_event`, `targeting`
+  - Relacionamento: `connection_id` → `client_meta_connections(id)`, `campaign_id` → `meta_campaigns(id)`
 - `meta_ads` - Anúncios individuais
+  - Campos: `id`, `connection_id`, `adset_id`, `external_id`, `name`, `status`, `creative_id`
+  - Relacionamento: `connection_id` → `client_meta_connections(id)`, `adset_id` → `meta_adsets(id)`
+- `meta_campaign_insights` - Métricas de campanhas por período
+- `meta_adset_insights` - Métricas de adsets por período
+- `meta_ad_insights` - Métricas de ads por período
 
 ### Google Ads
 - `google_ads_connections` - Conexões Google Ads
@@ -300,3 +351,141 @@ Log de auditoria de todas as operações do Google Ads.
 - `docs/GOOGLE_ADS_TROUBLESHOOTING.md` - Guia de troubleshooting
 - `database/migrations/README.md` - Guia de migrações
 - `APLICAR_MIGRACAO_URGENTE.md` - Guia rápido de aplicação
+
+---
+
+## Meta Ads Schema
+
+### Tabelas Principais
+
+#### client_meta_connections
+Conexões OAuth do Meta Ads por cliente.
+
+**Colunas importantes:**
+- `id` (UUID, PK) - ID único da conexão
+- `client_id` (UUID) - FK para clients
+- `ad_account_id` (TEXT) - ID da conta Meta Ads (formato: act_XXXXX)
+- `account_name` (TEXT) - Nome da conta (NÃO `ad_account_name`!)
+- `access_token` (TEXT) - Token de acesso OAuth
+- `is_active` (BOOLEAN) - Status da conexão
+
+**RLS:** Isolamento por client_id via memberships
+
+#### meta_campaigns
+Campanhas sincronizadas do Meta Ads.
+
+**Colunas importantes:**
+- `id` (UUID, PK) - ID interno
+- `connection_id` (UUID) - FK para client_meta_connections
+- `external_id` (TEXT) - ID da campanha no Meta
+- `name` (TEXT) - Nome da campanha
+- `status` (TEXT) - Status (ACTIVE, PAUSED, DELETED, ARCHIVED)
+- `objective` (TEXT) - Objetivo da campanha
+- `daily_budget` (DECIMAL) - Orçamento diário
+- `lifetime_budget` (DECIMAL) - Orçamento total
+
+**RLS:** Isolamento por connection_id via memberships
+
+#### meta_adsets
+Conjuntos de anúncios (Ad Sets).
+
+**Colunas importantes:**
+- `id` (UUID, PK) - ID interno
+- `connection_id` (UUID) - FK para client_meta_connections
+- `campaign_id` (UUID) - FK para meta_campaigns
+- `external_id` (TEXT) - ID do adset no Meta
+- `name` (TEXT) - Nome do conjunto
+- `status` (TEXT) - Status (ACTIVE, PAUSED, DELETED, ARCHIVED)
+- `daily_budget` (DECIMAL) - Orçamento diário
+- `lifetime_budget` (DECIMAL) - Orçamento total
+- `optimization_goal` (TEXT) - Objetivo de otimização
+- `billing_event` (TEXT) - Evento de cobrança
+- `targeting` (JSONB) - Configuração de segmentação
+
+**RLS:** Isolamento por connection_id via memberships
+
+#### meta_ads
+Anúncios individuais.
+
+**Colunas importantes:**
+- `id` (UUID, PK) - ID interno
+- `connection_id` (UUID) - FK para client_meta_connections
+- `adset_id` (UUID) - FK para meta_adsets
+- `external_id` (TEXT) - ID do anúncio no Meta
+- `name` (TEXT) - Nome do anúncio
+- `status` (TEXT) - Status (ACTIVE, PAUSED, DELETED, ARCHIVED)
+- `creative_id` (TEXT) - ID do criativo
+
+**RLS:** Isolamento por connection_id via memberships
+
+#### meta_campaign_insights, meta_adset_insights, meta_ad_insights
+Métricas por período para cada nível da hierarquia.
+
+**Colunas comuns:**
+- `date_start` (DATE) - Início do período
+- `date_stop` (DATE) - Fim do período
+- `impressions` (BIGINT) - Impressões
+- `clicks` (BIGINT) - Cliques
+- `spend` (DECIMAL) - Gasto
+- `reach` (BIGINT) - Alcance
+- `frequency` (DECIMAL) - Frequência
+- `cpm` (DECIMAL) - Custo por mil impressões
+- `cpc` (DECIMAL) - Custo por clique
+- `ctr` (DECIMAL) - Taxa de cliques
+- `conversions` (BIGINT) - Conversões
+- `cost_per_conversion` (DECIMAL) - Custo por conversão
+
+### Aplicando Schema do Meta Ads
+
+**Ordem de execução:**
+
+1. **Schema base:**
+   ```sql
+   -- Execute primeiro: database/meta-ads-schema.sql
+   -- Cria tabelas de conexões e campanhas
+   ```
+
+2. **Migração de hierarquia:**
+   ```sql
+   -- Execute: database/migrations/add-meta-hierarchy-tables.sql
+   -- Cria tabelas de adsets, ads e insights
+   ```
+
+3. **Sincronização de dados:**
+   ```bash
+   node sync-meta-campaigns.js
+   ```
+
+4. **Verificação:**
+   ```bash
+   node test-meta-real.js
+   node check-meta-data.js
+   ```
+
+### Troubleshooting Comum
+
+**Erro: "relation meta_adsets does not exist"**
+- Causa: Migração de hierarquia não foi aplicada
+- Solução: Execute `database/migrations/add-meta-hierarchy-tables.sql`
+
+**Erro: "column billing_event does not exist"**
+- Causa: Schema desatualizado
+- Solução: Execute `database/migrations/add-meta-hierarchy-tables.sql`
+
+**Erro: "No campaigns found"**
+- Causa: Dados não sincronizados
+- Solução: Execute `node sync-meta-campaigns.js`
+
+**Hierarquia não mostra adsets/ads:**
+- Causa: Tabelas não existem ou dados não sincronizados
+- Solução: 
+  1. Aplicar migração `add-meta-hierarchy-tables.sql`
+  2. Executar `node sync-meta-campaigns.js`
+  3. Verificar com `node test-meta-real.js`
+
+### Documentação Relacionada
+
+- `APLICAR_META_HIERARCHY_MIGRATION.md` - Guia de aplicação da migração
+- `META_HIERARCHY_PROBLEMA_RESOLVIDO.md` - Diagnóstico completo
+- `docs/META_INTEGRATION.md` - Guia de integração Meta Ads
+- `database/migrations/README.md` - Guia de migrações

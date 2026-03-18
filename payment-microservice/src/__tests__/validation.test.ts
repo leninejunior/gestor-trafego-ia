@@ -561,7 +561,7 @@ describe('Validation Schemas', () => {
         isActive: true,
         priority: 1,
         credentials: {
-          secretKey: 'sk_test_123',
+          secretKey: 'sk_mock_123',
           webhookSecret: 'whsec_123'
         },
         settings: {

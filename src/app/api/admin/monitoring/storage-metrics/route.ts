@@ -25,7 +25,7 @@ export async function GET() {
 
     if (error) {
       console.error('Erro ao buscar stats:', error);
-      // Se a função não existir, retornar dados mock
+      // Se a função não existir, retornar estrutura vazia
       return NextResponse.json({
         metrics: {
           total_records: 0,

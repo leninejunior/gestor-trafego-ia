@@ -169,94 +169,11 @@ export async function GET(request: NextRequest) {
 
       if (metaData.error) {
         console.error('❌ [DEMOGRAPHICS] Erro da Meta API:', metaData.error)
-        // Fallback para dados simulados
-        const mockDemographics = [
-      {
-        age_range: '18-24',
-        gender: 'masculino',
-        impressions: 45000,
-        clicks: 900,
-        spend: 2500,
-        conversions: 25
-      },
-      {
-        age_range: '18-24',
-        gender: 'feminino',
-        impressions: 52000,
-        clicks: 1100,
-        spend: 2800,
-        conversions: 32
-      },
-      {
-        age_range: '25-34',
-        gender: 'masculino',
-        impressions: 85000,
-        clicks: 1800,
-        spend: 4200,
-        conversions: 68
-      },
-      {
-        age_range: '25-34',
-        gender: 'feminino',
-        impressions: 95000,
-        clicks: 2100,
-        spend: 4800,
-        conversions: 78
-      },
-      {
-        age_range: '35-44',
-        gender: 'masculino',
-        impressions: 65000,
-        clicks: 1200,
-        spend: 3200,
-        conversions: 45
-      },
-      {
-        age_range: '35-44',
-        gender: 'feminino',
-        impressions: 72000,
-        clicks: 1400,
-        spend: 3600,
-        conversions: 52
-      },
-      {
-        age_range: '45-54',
-        gender: 'masculino',
-        impressions: 35000,
-        clicks: 600,
-        spend: 1800,
-        conversions: 22
-      },
-      {
-        age_range: '45-54',
-        gender: 'feminino',
-        impressions: 42000,
-        clicks: 750,
-        spend: 2100,
-        conversions: 28
-      },
-      {
-        age_range: '55+',
-        gender: 'masculino',
-        impressions: 18000,
-        clicks: 280,
-        spend: 900,
-        conversions: 8
-      },
-      {
-        age_range: '55+',
-        gender: 'feminino',
-        impressions: 22000,
-        clicks: 350,
-        spend: 1100,
-        conversions: 12
-      }
-        ]
-        
         return NextResponse.json({
-          demographics: mockDemographics,
-          total: mockDemographics.length,
-          message: `Usando dados simulados - Erro da Meta API: ${metaData.error.message}`,
+          demographics: [],
+          total: 0,
+          message: `Erro da Meta API: ${metaData.error.message}`,
+          error: metaData.error,
           filters: { client_id: clientId, status: statusFilter, objective: objectiveFilter, days: daysParam }
         })
       }
@@ -264,38 +181,10 @@ export async function GET(request: NextRequest) {
       const demographicsData = metaData.data || []
       
       if (demographicsData.length === 0) {
-        // Fallback para dados simulados se não houver dados reais
-        const mockDemographics = [
-          {
-            age_range: '18-24',
-            gender: 'masculino',
-            impressions: 15000,
-            clicks: 300,
-            spend: 800,
-            conversions: 8
-          },
-          {
-            age_range: '25-34',
-            gender: 'feminino',
-            impressions: 25000,
-            clicks: 550,
-            spend: 1200,
-            conversions: 18
-          },
-          {
-            age_range: '35-44',
-            gender: 'masculino',
-            impressions: 18000,
-            clicks: 320,
-            spend: 950,
-            conversions: 12
-          }
-        ]
-        
         return NextResponse.json({
-          demographics: mockDemographics,
-          total: mockDemographics.length,
-          message: 'Nenhum dado demográfico encontrado no período - usando dados simulados',
+          demographics: [],
+          total: 0,
+          message: 'Nenhum dado demográfico encontrado no período selecionado',
           filters: { client_id: clientId, status: statusFilter, objective: objectiveFilter, days: daysParam }
         })
       }
@@ -328,23 +217,12 @@ export async function GET(request: NextRequest) {
 
     } catch (metaError) {
       console.error('💥 [DEMOGRAPHICS] Erro ao chamar Meta API:', metaError)
-      
-      // Fallback para dados simulados em caso de erro
-      const mockDemographics = [
-        {
-          age_range: '25-34',
-          gender: 'feminino',
-          impressions: 20000,
-          clicks: 400,
-          spend: 1000,
-          conversions: 15
-        }
-      ]
-      
+
       return NextResponse.json({
-        demographics: mockDemographics,
-        total: mockDemographics.length,
-        message: 'Erro ao buscar dados do Meta Ads - usando dados simulados',
+        demographics: [],
+        total: 0,
+        message: 'Erro ao buscar dados do Meta Ads',
+        error: metaError instanceof Error ? metaError.message : 'Erro desconhecido',
         filters: { client_id: clientId, status: statusFilter, objective: objectiveFilter, days: daysParam }
       })
     }

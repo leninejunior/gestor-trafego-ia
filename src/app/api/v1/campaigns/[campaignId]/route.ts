@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { apiAuthService } from '../../auth/route'
+import { apiAuthService } from '@/lib/api/auth-service'
 import { createAccessControl } from '@/lib/middleware/user-access-middleware'
 
 /**

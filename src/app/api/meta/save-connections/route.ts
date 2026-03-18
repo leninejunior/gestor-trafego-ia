@@ -1,143 +1,131 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
+import { createAccessControl } from '@/lib/middleware/user-access-middleware';
+
+// Requirements: 6.2, 6.4 - Bloquear criação por usuários comuns, 4.1, 4.2, 4.3 - Validar limites
+const saveConnections = createAccessControl.createConnection('Usuários comuns não podem criar conexões')
 
 export async function POST(request: NextRequest) {
-  console.log('🔄 [SAVE CONNECTIONS] Iniciando salvamento...');
-  
-  try {
-    const body = await request.json();
-    const { client_id, access_token, selected_accounts, selected_pages, ad_accounts, pages } = body;
+  return saveConnections(async (request: NextRequest, context: any) => {
+    console.log('🔄 [SAVE CONNECTIONS] Iniciando salvamento...');
+    
+    try {
+      const serviceSupabase = createServiceClient();
+      const body = await request.json();
+      const { client_id, access_token, selected_accounts, selected_pages, ad_accounts } = body;
+      const selectedAccounts = Array.isArray(selected_accounts) ? selected_accounts.map(String) : [];
+      const adAccounts = Array.isArray(ad_accounts) ? ad_accounts : [];
 
-    console.log('📦 [SAVE CONNECTIONS] Dados recebidos:', {
-      client_id,
-      selected_accounts: selected_accounts?.length || 0,
-      selected_pages: selected_pages?.length || 0,
-      ad_accounts: ad_accounts?.length || 0
-    });
-
-    if (!client_id || !access_token || !selected_accounts || selected_accounts.length === 0) {
-      return NextResponse.json(
-        { error: 'Dados inválidos' },
-        { status: 400 }
-      );
-    }
-
-    const supabase = await createClient();
-
-    // Verificar autenticação
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      );
-    }
-
-    // 1. PRIMEIRO: Buscar conexões existentes para análise
-    const { data: existingConnections } = await supabase
-      .from('client_meta_connections')
-      .select('*')
-      .eq('client_id', client_id);
-
-    console.log(`🔍 [SAVE] Conexões existentes: ${existingConnections?.length || 0}`);
-
-    // 2. SEGUNDO: Desativar todas as conexões antigas
-    const { error: deactivateError } = await supabase
-      .from('client_meta_connections')
-      .update({ 
-        is_active: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq('client_id', client_id);
-
-    if (deactivateError) {
-      console.error('❌ Erro ao desativar conexões antigas:', deactivateError);
-    }
-
-    // 3. TERCEIRO: Remover duplicatas antigas (manter apenas 1 por ad_account_id)
-    if (existingConnections && existingConnections.length > 0) {
-      const accountGroups = existingConnections.reduce((acc, conn) => {
-        if (!acc[conn.ad_account_id]) {
-          acc[conn.ad_account_id] = [];
-        }
-        acc[conn.ad_account_id].push(conn);
-        return acc;
-      }, {} as Record<string, any[]>);
-
-      const idsToDelete: string[] = [];
-      
-      Object.values(accountGroups).forEach(group => {
-        if (group.length > 1) {
-          group.sort((a, b) => 
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          );
-          idsToDelete.push(...group.slice(1).map(c => c.id));
-        }
+      console.log('📦 [SAVE CONNECTIONS] Dados recebidos:', {
+        client_id,
+        selected_accounts: selectedAccounts.length,
+        selected_pages: selected_pages?.length || 0,
+        ad_accounts: adAccounts.length
       });
 
-      if (idsToDelete.length > 0) {
-        const { error: deleteDupsError } = await supabase
-          .from('client_meta_connections')
-          .delete()
-          .in('id', idsToDelete);
-
-        if (deleteDupsError) {
-          console.error('❌ Erro ao deletar duplicatas:', deleteDupsError);
-        } else {
-          console.log(`🗑️ [SAVE] Removidas ${idsToDelete.length} duplicatas`);
-        }
+      if (!client_id || !access_token || selectedAccounts.length === 0) {
+        return NextResponse.json(
+          { error: 'Dados inválidos' },
+          { status: 400 }
+        );
       }
-    }
 
-    // 4. QUARTO: Deletar todas as conexões inativas antigas (mais de 7 dias)
-    const { error: deleteOldError } = await supabase
-      .from('client_meta_connections')
-      .delete()
-      .eq('client_id', client_id)
-      .eq('is_active', false)
-      .lt('updated_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+      if (typeof context?.hasClientAccess !== 'function') {
+        return NextResponse.json(
+          { error: 'Contexto de acesso inválido' },
+          { status: 500 }
+        );
+      }
 
-    if (deleteOldError) {
-      console.error('❌ Erro ao deletar conexões antigas:', deleteOldError);
-    }
+      // Verificar se o usuário tem acesso ao cliente
+      const hasAccess = await context.hasClientAccess(context.user.id, client_id);
+      
+      if (!hasAccess) {
+        return NextResponse.json(
+          { 
+            error: 'Acesso negado: você não tem permissão para criar conexões para este cliente',
+            code: 'CLIENT_ACCESS_DENIED'
+          },
+          { status: 403 }
+        );
+      }
 
-    // 5. QUINTO: Salvar novas conexões
-    const connections = selected_accounts.map((accountId: string) => {
-      const account = ad_accounts.find((acc: any) => acc.id === accountId);
-      return {
-        client_id,
-        ad_account_id: accountId,
-        account_name: account?.name || 'Unknown',
-        access_token,
-        is_active: true
-      };
-    });
+      // Verificar se cliente existe
+      const { data: clientData, error: clientError } = await serviceSupabase
+        .from('clients')
+        .select('id')
+        .eq('id', client_id)
+        .single();
 
-    const { data, error } = await supabase
-      .from('client_meta_connections')
-      .insert(connections)
-      .select();
+      if (clientError || !clientData) {
+        console.error('❌ [SAVE CONNECTIONS] Cliente não encontrado:', clientError);
+        return NextResponse.json(
+          { error: 'Cliente não encontrado' },
+          { status: 404 }
+        );
+      }
 
-    if (error) {
-      console.error('❌ Erro ao salvar conexões:', error);
+      const uniqueSelectedAccounts = Array.from(new Set(selectedAccounts));
+      const nowIso = new Date().toISOString();
+
+      // Limpa conexões anteriores do cliente para manter o estado idêntico ao selecionado no fluxo atual.
+      const { error: deleteError } = await serviceSupabase
+        .from('client_meta_connections')
+        .delete()
+        .eq('client_id', client_id);
+
+      if (deleteError) {
+        console.error('❌ [SAVE CONNECTIONS] Erro ao limpar conexões antigas:', deleteError);
+        return NextResponse.json(
+          { error: 'Erro ao limpar conexões antigas' },
+          { status: 500 }
+        );
+      }
+
+      const connections = uniqueSelectedAccounts.map((accountId: string) => {
+        const account = adAccounts.find((acc: { id: string; name?: string; currency?: string }) => acc.id === accountId);
+        return {
+          client_id,
+          ad_account_id: accountId,
+          account_name: account?.name || 'Unknown',
+          access_token,
+          currency: account?.currency || 'USD',
+          is_active: true,
+          updated_at: nowIso
+        };
+      });
+
+      const { data, error: upsertError } = await serviceSupabase
+        .from('client_meta_connections')
+        .upsert(connections, {
+          onConflict: 'client_id,ad_account_id',
+          ignoreDuplicates: false,
+        })
+        .select('*');
+
+      if (upsertError) {
+        console.error('❌ [SAVE CONNECTIONS] Erro ao salvar conexões:', upsertError);
+        return NextResponse.json(
+          { error: 'Erro ao salvar conexões' },
+          { status: 500 }
+        );
+      }
+
+      const savedConnections = data || [];
+      console.log('✅ Conexões salvas com sucesso:', savedConnections.length);
+
+      return NextResponse.json({
+        success: true,
+        message: `${savedConnections.length} conta(s) conectada(s) com sucesso`,
+        connections: savedConnections
+      });
+
+    } catch (error: unknown) {
+      console.error('💥 Erro no salvamento:', error);
       return NextResponse.json(
-        { error: error.message },
+        { error: error instanceof Error ? error.message : 'Erro interno' },
         { status: 500 }
       );
     }
-
-    console.log('✅ Conexões salvas com sucesso:', data?.length || 0);
-
-    return NextResponse.json({
-      success: true,
-      connections: data
-    });
-
-  } catch (error: any) {
-    console.error('💥 Erro no salvamento:', error);
-    return NextResponse.json(
-      { error: error.message || 'Erro interno' },
-      { status: 500 }
-    );
-  }
+  })(request)
 }

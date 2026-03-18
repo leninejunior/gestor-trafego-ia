@@ -9,8 +9,12 @@ export async function GET(request: NextRequest) {
     return new Response('Client ID is required', { status: 400 });
   }
 
-  const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID;
+  const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID || process.env.META_APP_ID;
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/meta/oauth/callback`;
+
+  if (!metaAppId) {
+    return new Response('Meta App ID is not configured', { status: 500 });
+  }
   
   // Required permissions for reading ad data
   const scope = 'ads_read,read_insights,business_management';
@@ -31,7 +35,7 @@ export async function GET(request: NextRequest) {
   });
 
   const authUrl = new URL('https://www.facebook.com/v19.0/dialog/oauth');
-  authUrl.searchParams.set('client_id', metaAppId!);
+  authUrl.searchParams.set('client_id', metaAppId);
   authUrl.searchParams.set('redirect_uri', redirectUri);
   authUrl.searchParams.set('state', state);
   authUrl.searchParams.set('scope', scope);

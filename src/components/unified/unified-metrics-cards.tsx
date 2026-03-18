@@ -154,7 +154,7 @@ export function UnifiedMetricsCards({
           _t: Date.now().toString(), // Cache buster
         });
 
-        const url = `/api/unified-metrics-test?${params}`;
+        const url = `/api/unified/metrics?${params}`;
         console.log('🔍 UnifiedMetricsCards: Making request to:', url);
 
         const response = await fetch(url);

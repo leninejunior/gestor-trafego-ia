@@ -1,101 +1,169 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { hasOrganizationAccess } from '@/lib/postgres/meta-connections-repository';
+import {
+  getCampaignContextByIdentifier,
+  listAdsetInsightsByAdsetId,
+  listAdsetsByCampaignId,
+} from '@/lib/postgres/meta-hierarchy-repository';
+
+type InsightRow = Record<string, unknown>;
+type AdsetRow = Record<string, unknown>;
+
+function aggregateInsights(insights: InsightRow[]): Record<string, string> {
+  const totals = insights.reduce(
+    (acc, insight) => {
+      const impressions = Number(insight.impressions ?? 0);
+      const clicks = Number(insight.clicks ?? 0);
+      const spend = Number(insight.spend ?? 0);
+      const reach = Number(insight.reach ?? 0);
+      const frequency = Number(insight.frequency ?? 0);
+
+      return {
+        impressions: acc.impressions + impressions,
+        clicks: acc.clicks + clicks,
+        spend: acc.spend + spend,
+        reach: acc.reach + reach,
+        frequencySum: acc.frequencySum + frequency,
+      };
+    },
+    {
+      impressions: 0,
+      clicks: 0,
+      spend: 0,
+      reach: 0,
+      frequencySum: 0,
+    }
+  );
+
+  const frequencyAvg = insights.length > 0 ? totals.frequencySum / insights.length : 0;
+  const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
+  const cpm = totals.impressions > 0 ? (totals.spend / totals.impressions) * 1000 : 0;
+  const cpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0;
+
+  return {
+    impressions: String(totals.impressions),
+    clicks: String(totals.clicks),
+    spend: String(totals.spend),
+    reach: String(totals.reach),
+    frequency: String(frequencyAvg.toFixed(2)),
+    ctr: String(ctr.toFixed(2)),
+    cpc: String(cpc.toFixed(2)),
+    cpm: String(cpm.toFixed(2)),
+  };
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const searchParams = request.nextUrl.searchParams
-    const campaignId = searchParams.get('campaignId')
-    const clientId = searchParams.get('clientId')
-    const adAccountId = searchParams.get('adAccountId')
+    const searchParams = request.nextUrl.searchParams;
+    const campaignId = searchParams.get('campaignId');
+    const clientId = searchParams.get('clientId');
+    const adAccountId = searchParams.get('adAccountId');
+    const since = searchParams.get('since');
+    const until = searchParams.get('until');
+
+    console.log('🔍 [API ADSETS] Parâmetros recebidos:', {
+      campaignId,
+      clientId,
+      adAccountId,
+      since,
+      until
+    });
 
     if (!campaignId) {
-      return NextResponse.json({
-        error: 'campaignId é obrigatório'
-      }, { status: 400 })
+      return NextResponse.json(
+        { error: 'campaignId é obrigatório' },
+        { status: 400 }
+      );
     }
 
-    // Se clientId e adAccountId forem fornecidos, buscar conexão diretamente
-    let connection: any = null;
-    
-    if (clientId && adAccountId) {
-      const { data: conn, error: connError } = await supabase
-        .from('client_meta_connections')
-        .select('*')
-        .eq('client_id', clientId)
-        .eq('ad_account_id', adAccountId)
-        .eq('is_active', true)
-        .single()
+    const supabase = await createClient();
 
-      if (!connError && conn) {
-        connection = conn
-      }
+    // Verificar autenticação
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      console.error('❌ [API ADSETS] Erro de autenticação:', authError);
+      return NextResponse.json(
+        { error: 'Não autenticado' },
+        { status: 401 }
+      );
     }
 
-    // Se não encontrou conexão pelos parâmetros, tentar buscar pela campanha no banco
-    if (!connection) {
-      const { data: campaign, error: campaignError } = await supabase
-        .from('meta_campaigns')
-        .select(`
-          id,
-          external_id,
-          connection_id,
-          client_meta_connections!inner (
-            id,
-            client_id,
-            access_token,
-            is_active
-          )
-        `)
-        .eq('external_id', campaignId)
-        .single()
+    console.log('✅ [API ADSETS] Usuário autenticado:', user.id);
 
-      if (campaignError || !campaign) {
-        return NextResponse.json({
-          error: 'Campanha não encontrada e conexão não especificada'
-        }, { status: 404 })
-      }
-
-      connection = campaign.client_meta_connections
+    const campaign = await getCampaignContextByIdentifier(campaignId);
+    if (!campaign) {
+      console.error('❌ [API ADSETS] Campanha não encontrada:', campaignId);
+      return NextResponse.json(
+        { error: 'Campanha não encontrada ou sem permissão' },
+        { status: 404 }
+      );
     }
 
-    if (!connection || !connection.is_active) {
-      return NextResponse.json({
-        error: 'Conexão Meta Ads não está ativa'
-      }, { status: 400 })
+    const hasAccess = await hasOrganizationAccess(user.id, campaign.org_id);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Campanha não encontrada ou sem permissão' },
+        { status: 404 }
+      );
     }
 
-    // Buscar adsets da Meta API
-    const metaApiUrl = `https://graph.facebook.com/v18.0/${campaignId}/adsets`
-    const params = new URLSearchParams({
-      access_token: connection.access_token,
-      fields: 'id,name,status,daily_budget,lifetime_budget,optimization_goal,billing_event,created_time,updated_time'
-    })
-
-    const response = await fetch(`${metaApiUrl}?${params}`)
-    const data = await response.json()
-
-    if (!response.ok || data.error) {
-      console.error('Erro da Meta API:', data.error)
-      return NextResponse.json({
-        error: data.error?.message || 'Erro ao buscar conjuntos de anúncios na Meta API',
-        details: data.error
-      }, { status: 400 })
+    if (clientId && campaign.client_id !== clientId) {
+      return NextResponse.json(
+        { error: 'Campanha não encontrada ou sem permissão' },
+        { status: 404 }
+      );
     }
 
-    // Sincronizar com banco de dados local (comentado por enquanto - requer campanha salva)
-    // TODO: Implementar sincronização quando tivermos sistema de sync completo
+    if (adAccountId && campaign.ad_account_id && campaign.ad_account_id !== adAccountId) {
+      return NextResponse.json(
+        { error: 'Campanha não encontrada ou sem permissão' },
+        { status: 404 }
+      );
+    }
 
-    return NextResponse.json({
-      success: true,
-      adsets: data.data || [],
-      count: data.data?.length || 0
-    })
+    console.log('✅ [API ADSETS] Campanha encontrada:', campaign.id);
+
+    // Buscar adsets da campanha - usar campaign.id (UUID interno)
+    const adsets = await listAdsetsByCampaignId(campaign.id);
+    console.log(`✅ [API ADSETS] ${adsets?.length || 0} adsets encontrados`);
+
+    // Se não houver adsets no banco, retornar array vazio
+    if (!adsets || adsets.length === 0) {
+      console.log('⚠️ [API ADSETS] Nenhum adset encontrado no banco');
+      return NextResponse.json({ adsets: [] });
+    }
+
+    // Buscar insights para cada adset
+    const adsetsWithInsights = await Promise.all(
+      adsets.map(async (adset: AdsetRow) => {
+        const adsetId = String(adset.id || '');
+        const insights = await listAdsetInsightsByAdsetId(adsetId, since, until);
+
+        if (insights && insights.length > 0) {
+          return {
+            ...adset,
+            insights: aggregateInsights(insights),
+          };
+        }
+
+        return {
+          ...adset,
+          insights: null
+        };
+      })
+    );
+
+    console.log('✅ [API ADSETS] Adsets com insights processados:', adsetsWithInsights.length);
+
+    return NextResponse.json({ adsets: adsetsWithInsights });
 
   } catch (error) {
-    console.error('Erro ao buscar adsets:', error)
-    return NextResponse.json({
-      error: 'Erro interno do servidor'
-    }, { status: 500 })
+    console.error('💥 [API ADSETS] Erro inesperado:', error);
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    );
   }
 }

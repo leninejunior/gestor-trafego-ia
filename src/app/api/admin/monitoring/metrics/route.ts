@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import CheckoutMetricsService from '@/lib/monitoring/checkout-metrics'
+import os from 'os'
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,10 +59,14 @@ export async function GET(request: NextRequest) {
       low_alerts: alertsData?.filter(a => a.severity === 'low').length || 0
     }
 
-    // Métricas de sistema (simuladas para exemplo)
+    // Métricas de sistema baseadas no host atual
+    const cpuCount = os.cpus().length || 1
+    const loadAverage = os.loadavg()[0] || 0
+    const cpuUsagePercent = Math.min(100, Number(((loadAverage / cpuCount) * 100).toFixed(2)))
+
     const systemMetrics = {
       memory_usage_mb: process.memoryUsage().heapUsed / 1024 / 1024,
-      cpu_usage_percent: Math.random() * 20 + 10, // Simulado
+      cpu_usage_percent: cpuUsagePercent,
       uptime_seconds: process.uptime()
     }
 

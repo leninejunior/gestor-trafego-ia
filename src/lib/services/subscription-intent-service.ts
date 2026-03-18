@@ -173,13 +173,13 @@ export class SubscriptionIntentService {
         const { data: plan } = await this.supabase
           .from('subscription_plans')
           .select('id, name, description, monthly_price, annual_price, features')
-          .eq('id', cached.data.plan_id)
+          .eq('id', cached.plan_id)
           .single();
 
         return {
-          ...cached.data,
+          ...cached,
           plan: plan || {
-            id: cached.data.plan_id,
+            id: cached.plan_id,
             name: 'Unknown Plan',
             monthly_price: 0,
             annual_price: 0,

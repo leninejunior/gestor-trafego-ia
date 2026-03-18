@@ -2,7 +2,7 @@
   "mcpServers": {
     "stripe": {
       "url": "https://mcp.stripe.com",
-      "disabled": false
+      "disabled": true
     },
     "fetch": {
       "command": "uvx",
@@ -24,7 +24,7 @@
         "-y",
         "chrome-devtools-mcp@latest"
       ],
-      "disabled": true,
+      "disabled": false,
       "autoApprove": [
         "navigate_page",
         "list_pages",
@@ -34,7 +34,14 @@
         "list_network_requests",
         "get_network_request",
         "new_page",
-        "handle_dialog"
+        "handle_dialog",
+        "take_screenshot",
+        "wait_for",
+        "fill",
+        "get_console_message",
+        "press_key",
+        "evaluate_script",
+        "evaluate_script"
       ]
     },
     "supabase": {
@@ -46,7 +53,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "C:/Users/Amitie Chocolates/dyad-apps/flying-fox-bob"
+        "C:/vibecoding/projetos/flying-fox-bob"
       ],
       "disabled": false,
       "autoApprove": [
@@ -60,7 +67,7 @@
       "args": [
         "mcp-server-git",
         "--repository",
-        "C:/Users/Amitie Chocolates/dyad-apps/flying-fox-bob"
+        "C:/vibecoding/projetos/flying-fox-bob"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"

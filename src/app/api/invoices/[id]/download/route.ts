@@ -9,10 +9,11 @@ import PDFDocument from 'pdfkit';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
+    const { id: invoiceId } = await params;
     
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -33,7 +34,7 @@ export async function GET(
           plan:subscription_plans(name, description)
         )
       `)
-      .eq('id', params.id)
+      .eq('id', invoiceId)
       .single();
 
     if (invoiceError || !invoiceData) {

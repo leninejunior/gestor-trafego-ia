@@ -24,12 +24,13 @@ import { GoogleMetricsCards } from "@/components/google/google-metrics-cards";
 import { GoogleFiltersHeader } from "@/components/google/google-filters-header";
 import { GoogleDashboardComplete } from "@/components/google/google-dashboard-complete";
 import { useToast } from "@/hooks/use-toast";
+import { DateRange, getDefaultDateRange } from "@/components/shared/date-range-filter";
 
 interface GoogleConnection {
   id: string;
   customer_id: string;
   status: 'active' | 'expired' | 'revoked';
-  last_sync_at: string;
+  last_sync_at?: string | null;
 }
 
 interface Client {
@@ -49,34 +50,37 @@ interface KPIData {
   connectedClients: number;
 }
 
-interface DateFilter {
-  value: string;
-  label: string;
-  days: number;
+const CONNECTION_STATUS_PRIORITY: Record<GoogleConnection['status'], number> = {
+  active: 0,
+  expired: 1,
+  revoked: 2,
+};
+
+function getPreferredConnection(connections?: GoogleConnection[]): GoogleConnection | undefined {
+  if (!connections || connections.length === 0) return undefined;
+
+  return [...connections].sort((a, b) => {
+    const byStatus =
+      CONNECTION_STATUS_PRIORITY[a.status] - CONNECTION_STATUS_PRIORITY[b.status];
+
+    if (byStatus !== 0) return byStatus;
+
+    const aSyncTime = a.last_sync_at ? new Date(a.last_sync_at).getTime() : 0;
+    const bSyncTime = b.last_sync_at ? new Date(b.last_sync_at).getTime() : 0;
+
+    return bSyncTime - aSyncTime;
+  })[0];
 }
 
-const DATE_FILTERS: DateFilter[] = [
-  { value: 'today', label: 'Hoje', days: 1 },
-  { value: 'yesterday', label: 'Ontem', days: 1 },
-  { value: 'last_7_days', label: 'Últimos 7 dias', days: 7 },
-  { value: 'last_14_days', label: 'Últimos 14 dias', days: 14 },
-  { value: 'last_30_days', label: 'Últimos 30 dias', days: 30 },
-  { value: 'last_90_days', label: 'Últimos 90 dias', days: 90 },
-  { value: 'custom', label: 'Personalizado', days: 0 },
-];
+
 
 
 export default function GooglePageContent() {
   const searchParams = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<string>('last_30_days');
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [showCustomDateInputs, setShowCustomDateInputs] = useState<boolean>(false);
-  const [currentDateRange, setCurrentDateRange] = useState<{ startDate: string; endDate: string }>({
-    startDate: '',
-    endDate: ''
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    return getDefaultDateRange();
   });
   const [kpiData, setKpiData] = useState<KPIData>({
     totalSpend: 0,
@@ -93,58 +97,8 @@ export default function GooglePageContent() {
   const [isGoogleAdsConfigured, setIsGoogleAdsConfigured] = useState<boolean | null>(null);
   const { toast } = useToast();
 
-  const getDateRange = (filter: string) => {
-    const today = new Date();
-    const filterConfig = DATE_FILTERS.find(f => f.value === filter);
-    
-    if (!filterConfig) {
-      const from = new Date(today);
-      from.setDate(today.getDate() - 30);
-      return {
-        from: from.toISOString().split('T')[0],
-        to: today.toISOString().split('T')[0],
-      };
-    }
-    
-    if (filter === 'custom') {
-      return {
-        from: customStartDate || getDefaultDateRange().startDate,
-        to: customEndDate || getDefaultDateRange().endDate,
-      };
-    }
-    
-    if (filter === 'today') {
-      return {
-        from: today.toISOString().split('T')[0],
-        to: today.toISOString().split('T')[0],
-      };
-    }
-    
-    if (filter === 'yesterday') {
-      const yesterday = new Date(today);
-      yesterday.setDate(today.getDate() - 1);
-      return {
-        from: yesterday.toISOString().split('T')[0],
-        to: yesterday.toISOString().split('T')[0],
-      };
-    }
-    
-    const from = new Date(today);
-    from.setDate(today.getDate() - filterConfig.days);
-    return {
-      from: from.toISOString().split('T')[0],
-      to: today.toISOString().split('T')[0],
-    };
-  };
-
-  const getDefaultDateRange = () => {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
-    return {
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
-    };
+  const handleDateRangeChange = (newRange: DateRange) => {
+    setDateRange(newRange);
   };
 
   const fetchClients = async () => {
@@ -166,8 +120,8 @@ export default function GooglePageContent() {
   const fetchKPIData = async () => {
     try {
       setRefreshing(true);
-      const dateFrom = currentDateRange.startDate || getDateRange(dateFilter).from;
-      const dateTo = currentDateRange.endDate || getDateRange(dateFilter).to;
+      const dateFrom = dateRange.since;
+      const dateTo = dateRange.until;
       const clientParam = selectedClient !== 'all' ? `&clientId=${selectedClient}` : '';
       const apiUrl = `/api/google/metrics-simple?dateFrom=${dateFrom}&dateTo=${dateTo}&groupBy=campaign${clientParam}`;
       
@@ -199,22 +153,7 @@ export default function GooglePageContent() {
     }
   };
 
-  const handleDateFilterChange = (value: string) => {
-    setDateFilter(value);
-    if (value === 'custom') {
-      setShowCustomDateInputs(true);
-    } else {
-      setShowCustomDateInputs(false);
-      const range = getDateRange(value);
-      setCurrentDateRange({ startDate: range.from, endDate: range.to });
-    }
-  };
 
-  const handleCustomDateApply = () => {
-    if (customStartDate && customEndDate) {
-      setCurrentDateRange({ startDate: customStartDate, endDate: customEndDate });
-    }
-  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount);
@@ -233,10 +172,7 @@ export default function GooglePageContent() {
     loadData();
   }, []);
 
-  useEffect(() => {
-    const range = getDateRange(dateFilter);
-    setCurrentDateRange({ startDate: range.from, endDate: range.to });
-  }, []);
+
 
   useEffect(() => {
     const success = searchParams.get('success');
@@ -259,7 +195,7 @@ export default function GooglePageContent() {
     if (clients.length > 0) {
       fetchKPIData();
     }
-  }, [clients, selectedClient, currentDateRange]);
+  }, [clients, dateRange, selectedClient]);
 
   useEffect(() => {
     const checkConfiguration = async () => {
@@ -348,12 +284,11 @@ export default function GooglePageContent() {
       </div>
 
       {/* Google-specific Metrics */}
-      {hasConnections && currentDateRange.startDate && currentDateRange.endDate && (
+      {hasConnections && dateRange.since && dateRange.until && (
         <GoogleMetricsCards
           clientId={selectedClient !== 'all' ? selectedClient : firstConnectedClient ?? undefined}
-          dateFilter={dateFilter}
-          startDate={currentDateRange.startDate}
-          endDate={currentDateRange.endDate}
+          startDate={dateRange.since}
+          endDate={dateRange.until}
         />
       )}
 
@@ -384,16 +319,10 @@ export default function GooglePageContent() {
         <GoogleFiltersHeader
           selectedClient={selectedClient}
           onClientChange={setSelectedClient}
-          dateFilter={dateFilter}
-          onDateFilterChange={handleDateFilterChange}
+          dateRange={dateRange}
+          onDateRangeChange={handleDateRangeChange}
           clients={clients}
           connectedClients={connectedClients}
-          showCustomDateInputs={showCustomDateInputs}
-          customStartDate={customStartDate}
-          customEndDate={customEndDate}
-          onCustomStartDateChange={setCustomStartDate}
-          onCustomEndDateChange={setCustomEndDate}
-          onCustomDateApply={handleCustomDateApply}
         />
       )}
 
@@ -408,7 +337,7 @@ export default function GooglePageContent() {
             <CardContent>
               <div className="text-2xl font-bold">{formatCurrency(kpiData.totalSpend)}</div>
               <p className="text-xs text-muted-foreground">
-                {DATE_FILTERS.find(f => f.value === dateFilter)?.label.toLowerCase()}
+                período selecionado
               </p>
             </CardContent>
           </Card>
@@ -459,41 +388,45 @@ export default function GooglePageContent() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {connectedClients.map((client) => (
-                  <div key={client.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                        <Chrome className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">{client.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {client.googleConnections && client.googleConnections.length > 0 ? (
-                            <>
-                              {client.googleConnections.length} conta{client.googleConnections.length > 1 ? 's' : ''} conectada{client.googleConnections.length > 1 ? 's' : ''}
-                              {client.googleConnections.length === 1 && (
-                                <> (ID: {client.googleConnections[0].customer_id})</>
-                              )}
-                            </>
-                          ) : 'Nenhuma conta conectada'}
+                {connectedClients.map((client) => {
+                  const primaryConnection = getPreferredConnection(client.googleConnections);
+
+                  return (
+                    <div key={client.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                          <Chrome className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div>
+                          <div className="font-medium">{client.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {client.googleConnections && client.googleConnections.length > 0 ? (
+                              <>
+                                {client.googleConnections.length} conta{client.googleConnections.length > 1 ? 's' : ''} conectada{client.googleConnections.length > 1 ? 's' : ''}
+                                {client.googleConnections.length === 1 && primaryConnection && (
+                                  <> (ID: {primaryConnection.customer_id})</>
+                                )}
+                              </>
+                            ) : 'Nenhuma conta conectada'}
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={primaryConnection?.status === 'active' ? 'default' : 'destructive'}
+                          className={primaryConnection?.status === 'active' ? 'bg-green-100 text-green-800' : ''}
+                        >
+                          {primaryConnection?.status === 'active' ? 'Conectado' : 'Desconectado'}
+                        </Badge>
+                        <ConnectGoogleButton
+                          clientId={client.id}
+                          connection={primaryConnection}
+                          onConnectionUpdate={fetchClients}
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge 
-                        variant={client.googleConnections?.[0]?.status === 'active' ? 'default' : 'destructive'}
-                        className={client.googleConnections?.[0]?.status === 'active' ? 'bg-green-100 text-green-800' : ''}
-                      >
-                        {client.googleConnections?.[0]?.status === 'active' ? 'Conectado' : 'Desconectado'}
-                      </Badge>
-                      <ConnectGoogleButton
-                        clientId={client.id}
-                        connection={client.googleConnections?.[0]}
-                        onConnectionUpdate={fetchClients}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -520,11 +453,11 @@ export default function GooglePageContent() {
 
       {/* Dashboard Completo */}
       {hasConnections && isGoogleAdsConfigured ? (
-        selectedClient !== 'all' && currentDateRange.startDate && currentDateRange.endDate ? (
+        selectedClient !== 'all' && dateRange.since && dateRange.until ? (
           <GoogleDashboardComplete
             clientId={selectedClient}
-            startDate={currentDateRange.startDate}
-            endDate={currentDateRange.endDate}
+            startDate={dateRange.since}
+            endDate={dateRange.until}
             onRefresh={handleRefresh}
           />
         ) : (

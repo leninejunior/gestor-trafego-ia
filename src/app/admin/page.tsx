@@ -297,7 +297,24 @@ export default async function AdminDashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Super Admin Dashboard</CardTitle>
+              <CardDescription>
+                Controle total cross-organizacional
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full" variant="destructive">
+                <Link href="/admin/super-admin">
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Super Admin
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Gerenciar Organizações</CardTitle>

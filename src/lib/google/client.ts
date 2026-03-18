@@ -122,6 +122,7 @@ export class GoogleAdsClient {
   private tokenManager = getGoogleTokenManager();
   private readonly API_VERSION = 'v22';
   private readonly BASE_URL = 'https://googleads.googleapis.com';
+  private readonly MAX_LOGIN_CUSTOMER_CANDIDATES = 20;
 
   constructor(config: GoogleAdsClientConfig) {
     // Validate and format customer ID
@@ -311,19 +312,13 @@ export class GoogleAdsClient {
 
     try {
       const requestStartTime = Date.now();
-      
-      const response = await fetch(url, {
+      let response = await this.executeApiRequest(
+        url,
         method,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'developer-token': this.config.developerToken,
-          'Content-Type': 'application/json',
-          ...(this.config.loginCustomerId && {
-            'login-customer-id': this.config.loginCustomerId,
-          }),
-        },
-        ...(body && { body: JSON.stringify(body) }),
-      });
+        body,
+        token,
+        this.config.loginCustomerId
+      );
 
       const requestDuration = Date.now() - requestStartTime;
 
@@ -337,8 +332,45 @@ export class GoogleAdsClient {
         timestamp: new Date().toISOString(),
       });
 
+      // Retry once with auto-discovered login-customer-id for MCC/child account scenarios
+      if (!response.ok && !this.config.loginCustomerId) {
+        const initialError = await this.parseResponseBody(response);
+
+        if (this.isPermissionDeniedError(response.status, initialError)) {
+          const discovered = await this.discoverWorkingLoginCustomerId(
+            token,
+            url,
+            method,
+            body,
+            requestId
+          );
+
+          if (discovered) {
+            this.config.loginCustomerId = discovered.loginCustomerId;
+            response = discovered.response;
+
+            console.log(`[GoogleAdsClient] Retried request with discovered login-customer-id [${requestId}]:`, {
+              loginCustomerId: discovered.loginCustomerId,
+              status: response.status,
+              ok: response.ok,
+              endpoint,
+              customerId: this.config.customerId,
+              timestamp: new Date().toISOString(),
+            });
+          } else {
+            // Keep the original parsed error for better diagnostics
+            console.warn(`[GoogleAdsClient] Could not discover a valid login-customer-id [${requestId}]`, {
+              endpoint,
+              customerId: this.config.customerId,
+              timestamp: new Date().toISOString(),
+            });
+            throw initialError;
+          }
+        }
+      }
+
       if (!response.ok) {
-        const error = await response.json();
+        const error = await this.parseResponseBody(response);
         
         // Log error details
         console.error(`[GoogleAdsClient] API Error [${requestId}]:`, {
@@ -408,6 +440,159 @@ export class GoogleAdsClient {
       
       throw this.errorHandler.handleError(error);
     }
+  }
+
+  /**
+   * Execute an API request with optional login-customer-id header.
+   */
+  private async executeApiRequest(
+    url: string,
+    method: 'GET' | 'POST',
+    body: any,
+    token: string,
+    loginCustomerId?: string
+  ): Promise<Response> {
+    return fetch(url, {
+      method,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'developer-token': this.config.developerToken,
+        'Content-Type': 'application/json',
+        ...(loginCustomerId && {
+          'login-customer-id': loginCustomerId,
+        }),
+      },
+      ...(body && { body: JSON.stringify(body) }),
+    });
+  }
+
+  /**
+   * Parse response body safely for both JSON and text responses.
+   */
+  private async parseResponseBody(response: Response): Promise<any> {
+    const contentType = response.headers.get('content-type') || '';
+
+    try {
+      if (contentType.includes('application/json')) {
+        return await response.json();
+      }
+
+      const text = await response.text();
+      return { message: text || `${response.status} ${response.statusText}` };
+    } catch {
+      return { message: `${response.status} ${response.statusText}` };
+    }
+  }
+
+  /**
+   * Detect permission errors that are usually solved by login-customer-id header.
+   */
+  private isPermissionDeniedError(status: number, error: any): boolean {
+    if (status === 403) {
+      return true;
+    }
+
+    const serialized = JSON.stringify(error || {}).toLowerCase();
+    return serialized.includes('permission_denied') ||
+      serialized.includes('does not have permission') ||
+      serialized.includes('authorization error');
+  }
+
+  /**
+   * Fetch IDs of customers accessible with the current OAuth token.
+   */
+  private async getAccessibleCustomerIds(token: string): Promise<string[]> {
+    try {
+      const response = await fetch(
+        `${this.BASE_URL}/${this.API_VERSION}/customers:listAccessibleCustomers`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'developer-token': this.config.developerToken,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const error = await this.parseResponseBody(response);
+        console.warn('[GoogleAdsClient] Failed to fetch accessible customers for login-customer-id fallback:', {
+          status: response.status,
+          error,
+          customerId: this.config.customerId,
+          timestamp: new Date().toISOString(),
+        });
+        return [];
+      }
+
+      const data = await response.json();
+      const customerIds = (data?.resourceNames || [])
+        .map((resourceName: string) => resourceName.replace('customers/', ''))
+        .filter((id: string) => !!id);
+
+      return [...new Set(customerIds)];
+    } catch (error) {
+      console.warn('[GoogleAdsClient] Error fetching accessible customer IDs:', {
+        error: error instanceof Error ? error.message : String(error),
+        customerId: this.config.customerId,
+        timestamp: new Date().toISOString(),
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Try candidate login-customer-id values until one works for the current request.
+   */
+  private async discoverWorkingLoginCustomerId(
+    token: string,
+    url: string,
+    method: 'GET' | 'POST',
+    body: any,
+    requestId: string
+  ): Promise<{ loginCustomerId: string; response: Response } | null> {
+    const accessibleCustomerIds = await this.getAccessibleCustomerIds(token);
+    const candidates = accessibleCustomerIds
+      .filter(id => id !== this.config.customerId)
+      .slice(0, this.MAX_LOGIN_CUSTOMER_CANDIDATES);
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    console.log(`[GoogleAdsClient] Trying login-customer-id fallback candidates [${requestId}]:`, {
+      targetCustomerId: this.config.customerId,
+      candidatesCount: candidates.length,
+      candidates,
+      timestamp: new Date().toISOString(),
+    });
+
+    for (const candidate of candidates) {
+      const candidateResponse = await this.executeApiRequest(
+        url,
+        method,
+        body,
+        token,
+        candidate
+      );
+
+      if (candidateResponse.ok) {
+        return {
+          loginCustomerId: candidate,
+          response: candidateResponse,
+        };
+      }
+
+      const candidateError = await this.parseResponseBody(candidateResponse);
+      console.warn(`[GoogleAdsClient] login-customer-id candidate failed [${requestId}]:`, {
+        candidate,
+        status: candidateResponse.status,
+        error: candidateError,
+      });
+    }
+
+    return null;
   }
 
   // ==========================================================================

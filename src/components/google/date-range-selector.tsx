@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,7 @@ import {
   Clock,
   X
 } from "lucide-react";
-import { format, subDays, subWeeks, subMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { addDays, format, parseISO, subDays, subWeeks, subMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface DateRange {
@@ -50,6 +50,9 @@ interface DatePreset {
   description?: string;
 }
 
+const toDateInputValue = (date: Date) => format(date, 'yyyy-MM-dd');
+const parseDateInput = (value: string) => parseISO(value);
+
 const DATE_PRESETS: DatePreset[] = [
   {
     label: 'Hoje',
@@ -57,8 +60,8 @@ const DATE_PRESETS: DatePreset[] = [
     getRange: () => {
       const today = new Date();
       return {
-        from: today.toISOString().split('T')[0],
-        to: today.toISOString().split('T')[0],
+        from: toDateInputValue(today),
+        to: toDateInputValue(today),
       };
     },
     description: 'Dados de hoje',
@@ -69,8 +72,8 @@ const DATE_PRESETS: DatePreset[] = [
     getRange: () => {
       const yesterday = subDays(new Date(), 1);
       return {
-        from: yesterday.toISOString().split('T')[0],
-        to: yesterday.toISOString().split('T')[0],
+        from: toDateInputValue(yesterday),
+        to: toDateInputValue(yesterday),
       };
     },
     description: 'Dados de ontem',
@@ -82,8 +85,8 @@ const DATE_PRESETS: DatePreset[] = [
       const today = new Date();
       const from = subDays(today, 6);
       return {
-        from: from.toISOString().split('T')[0],
-        to: today.toISOString().split('T')[0],
+        from: toDateInputValue(from),
+        to: toDateInputValue(today),
       };
     },
     description: 'Últimos 7 dias incluindo hoje',
@@ -95,8 +98,8 @@ const DATE_PRESETS: DatePreset[] = [
       const today = new Date();
       const from = subDays(today, 13);
       return {
-        from: from.toISOString().split('T')[0],
-        to: today.toISOString().split('T')[0],
+        from: toDateInputValue(from),
+        to: toDateInputValue(today),
       };
     },
     description: 'Últimos 14 dias incluindo hoje',
@@ -108,8 +111,8 @@ const DATE_PRESETS: DatePreset[] = [
       const today = new Date();
       const from = subDays(today, 29);
       return {
-        from: from.toISOString().split('T')[0],
-        to: today.toISOString().split('T')[0],
+        from: toDateInputValue(from),
+        to: toDateInputValue(today),
       };
     },
     description: 'Últimos 30 dias incluindo hoje',
@@ -121,8 +124,8 @@ const DATE_PRESETS: DatePreset[] = [
       const today = new Date();
       const from = startOfWeek(today, { weekStartsOn: 1 });
       return {
-        from: from.toISOString().split('T')[0],
-        to: today.toISOString().split('T')[0],
+        from: toDateInputValue(from),
+        to: toDateInputValue(today),
       };
     },
     description: 'Segunda-feira até hoje',
@@ -135,8 +138,8 @@ const DATE_PRESETS: DatePreset[] = [
       const from = startOfWeek(lastWeek, { weekStartsOn: 1 });
       const to = endOfWeek(lastWeek, { weekStartsOn: 1 });
       return {
-        from: from.toISOString().split('T')[0],
-        to: to.toISOString().split('T')[0],
+        from: toDateInputValue(from),
+        to: toDateInputValue(to),
       };
     },
     description: 'Segunda a domingo da semana passada',
@@ -148,8 +151,8 @@ const DATE_PRESETS: DatePreset[] = [
       const today = new Date();
       const from = startOfMonth(today);
       return {
-        from: from.toISOString().split('T')[0],
-        to: today.toISOString().split('T')[0],
+        from: toDateInputValue(from),
+        to: toDateInputValue(today),
       };
     },
     description: 'Primeiro dia do mês até hoje',
@@ -162,8 +165,8 @@ const DATE_PRESETS: DatePreset[] = [
       const from = startOfMonth(lastMonth);
       const to = endOfMonth(lastMonth);
       return {
-        from: from.toISOString().split('T')[0],
-        to: to.toISOString().split('T')[0],
+        from: toDateInputValue(from),
+        to: toDateInputValue(to),
       };
     },
     description: 'Mês passado completo',
@@ -175,8 +178,8 @@ const DATE_PRESETS: DatePreset[] = [
       const today = new Date();
       const from = subDays(today, 89);
       return {
-        from: from.toISOString().split('T')[0],
-        to: today.toISOString().split('T')[0],
+        from: toDateInputValue(from),
+        to: toDateInputValue(today),
       };
     },
     description: 'Últimos 90 dias incluindo hoje',
@@ -196,10 +199,23 @@ export function GoogleDateRangeSelector({
   const [selectedPreset, setSelectedPreset] = useState<string>('');
   const [customFrom, setCustomFrom] = useState(value.from);
   const [customTo, setCustomTo] = useState(value.to);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+        Carregando período...
+      </div>
+    );
+  }
 
   const formatDateRange = (range: DateRange) => {
-    const fromDate = new Date(range.from);
-    const toDate = new Date(range.to);
+    const fromDate = parseDateInput(range.from);
+    const toDate = parseDateInput(range.to);
     
     if (range.from === range.to) {
       return format(fromDate, 'dd/MM/yyyy', { locale: ptBR });
@@ -209,14 +225,14 @@ export function GoogleDateRangeSelector({
   };
 
   const getDaysDifference = (range: DateRange) => {
-    const fromDate = new Date(range.from);
-    const toDate = new Date(range.to);
+    const fromDate = parseDateInput(range.from);
+    const toDate = parseDateInput(range.to);
     return Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   };
 
   const isValidRange = (range: DateRange) => {
-    const fromDate = new Date(range.from);
-    const toDate = new Date(range.to);
+    const fromDate = parseDateInput(range.from);
+    const toDate = parseDateInput(range.to);
     
     if (fromDate > toDate) return false;
     if (minDate && fromDate < minDate) return false;
@@ -251,7 +267,7 @@ export function GoogleDateRangeSelector({
 
   const handleQuickNavigation = (direction: 'prev' | 'next') => {
     const currentDays = getDaysDifference(value);
-    const fromDate = new Date(value.from);
+    const fromDate = parseDateInput(value.from);
     
     let newFrom: Date;
     let newTo: Date;
@@ -260,15 +276,13 @@ export function GoogleDateRangeSelector({
       newTo = subDays(fromDate, 1);
       newFrom = subDays(newTo, currentDays - 1);
     } else {
-      newFrom = new Date(value.to);
-      newFrom.setDate(newFrom.getDate() + 1);
-      newTo = new Date(newFrom);
-      newTo.setDate(newTo.getDate() + currentDays - 1);
+      newFrom = addDays(parseDateInput(value.to), 1);
+      newTo = addDays(newFrom, currentDays - 1);
     }
     
     const newRange = {
-      from: newFrom.toISOString().split('T')[0],
-      to: newTo.toISOString().split('T')[0],
+      from: toDateInputValue(newFrom),
+      to: toDateInputValue(newTo),
     };
     
     if (isValidRange(newRange)) {
@@ -297,8 +311,8 @@ export function GoogleDateRangeSelector({
           size="sm"
           onClick={() => handleQuickNavigation('prev')}
           disabled={!isValidRange({
-            from: subDays(new Date(value.from), daysDiff).toISOString().split('T')[0],
-            to: subDays(new Date(value.to), daysDiff).toISOString().split('T')[0],
+            from: toDateInputValue(subDays(parseDateInput(value.from), daysDiff)),
+            to: toDateInputValue(subDays(parseDateInput(value.to), daysDiff)),
           })}
         >
           <ChevronLeft className="w-4 h-4" />
@@ -341,8 +355,8 @@ export function GoogleDateRangeSelector({
                       type="date"
                       value={customFrom}
                       onChange={(e) => setCustomFrom(e.target.value)}
-                      max={maxDate?.toISOString().split('T')[0]}
-                      min={minDate?.toISOString().split('T')[0]}
+                      max={maxDate ? toDateInputValue(maxDate) : undefined}
+                      min={minDate ? toDateInputValue(minDate) : undefined}
                     />
                   </div>
                   <div>
@@ -351,7 +365,7 @@ export function GoogleDateRangeSelector({
                       type="date"
                       value={customTo}
                       onChange={(e) => setCustomTo(e.target.value)}
-                      max={maxDate?.toISOString().split('T')[0]}
+                      max={maxDate ? toDateInputValue(maxDate) : undefined}
                       min={customFrom}
                     />
                   </div>
@@ -374,8 +388,8 @@ export function GoogleDateRangeSelector({
           size="sm"
           onClick={() => handleQuickNavigation('next')}
           disabled={!isValidRange({
-            from: new Date(new Date(value.to).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            to: new Date(new Date(value.to).getTime() + daysDiff * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            from: toDateInputValue(addDays(parseDateInput(value.to), 1)),
+            to: toDateInputValue(addDays(parseDateInput(value.to), daysDiff)),
           })}
         >
           <ChevronRight className="w-4 h-4" />
@@ -411,8 +425,8 @@ export function GoogleDateRangeSelector({
           size="sm"
           onClick={() => handleQuickNavigation('prev')}
           disabled={!isValidRange({
-            from: subDays(new Date(value.from), daysDiff).toISOString().split('T')[0],
-            to: subDays(new Date(value.to), daysDiff).toISOString().split('T')[0],
+            from: toDateInputValue(subDays(parseDateInput(value.from), daysDiff)),
+            to: toDateInputValue(subDays(parseDateInput(value.to), daysDiff)),
           })}
         >
           <ChevronLeft className="w-4 h-4 mr-1" />
@@ -424,8 +438,8 @@ export function GoogleDateRangeSelector({
           size="sm"
           onClick={() => handleQuickNavigation('next')}
           disabled={!isValidRange({
-            from: new Date(new Date(value.to).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            to: new Date(new Date(value.to).getTime() + daysDiff * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            from: toDateInputValue(addDays(parseDateInput(value.to), 1)),
+            to: toDateInputValue(addDays(parseDateInput(value.to), daysDiff)),
           })}
         >
           Próximo
@@ -470,8 +484,8 @@ export function GoogleDateRangeSelector({
                       type="date"
                       value={customFrom}
                       onChange={(e) => setCustomFrom(e.target.value)}
-                      max={maxDate?.toISOString().split('T')[0]}
-                      min={minDate?.toISOString().split('T')[0]}
+                      max={maxDate ? toDateInputValue(maxDate) : undefined}
+                      min={minDate ? toDateInputValue(minDate) : undefined}
                     />
                   </div>
                   <div>
@@ -480,7 +494,7 @@ export function GoogleDateRangeSelector({
                       type="date"
                       value={customTo}
                       onChange={(e) => setCustomTo(e.target.value)}
-                      max={maxDate?.toISOString().split('T')[0]}
+                      max={maxDate ? toDateInputValue(maxDate) : undefined}
                       min={customFrom}
                     />
                   </div>

@@ -4,31 +4,29 @@ import { useParams } from 'next/navigation';
 import { GoogleCampaignsList } from '@/components/google/google-campaigns-list';
 import { GoogleMetricsCards } from '@/components/google/google-metrics-cards';
 import { GoogleSyncStatus } from '@/components/google/sync-status';
+import { GoogleDateRangeSelector } from '@/components/google/date-range-selector';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Calendar, RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 
-interface DateFilter {
-  value: string;
-  label: string;
-  days: number;
-}
+const getDefaultGoogleDateRange = () => {
+  const today = new Date();
+  const endDate = today.toISOString().slice(0, 10);
 
-const DATE_FILTERS: DateFilter[] = [
-  { value: 'today', label: 'Hoje', days: 1 },
-  { value: 'yesterday', label: 'Ontem', days: 1 },
-  { value: 'last_7_days', label: 'Últimos 7 dias', days: 7 },
-  { value: 'last_14_days', label: 'Últimos 14 dias', days: 14 },
-  { value: 'last_30_days', label: 'Últimos 30 dias', days: 30 },
-  { value: 'last_90_days', label: 'Últimos 90 dias', days: 90 },
-];
+  const startDate = new Date(today);
+  startDate.setUTCDate(startDate.getUTCDate() - 29);
+
+  return {
+    from: startDate.toISOString().slice(0, 10),
+    to: endDate,
+  };
+};
 
 export default function GoogleAdsPage() {
   const params = useParams();
   const clientId = params.clientId as string;
-  const [dateFilter, setDateFilter] = useState<string>('last_30_days');
+  const [dateRange, setDateRange] = useState(getDefaultGoogleDateRange);
   const [clientName, setClientName] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -80,22 +78,6 @@ export default function GoogleAdsPage() {
         </div>
         
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-500" />
-            <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Selecionar período" />
-              </SelectTrigger>
-              <SelectContent>
-                {DATE_FILTERS.map((filter) => (
-                  <SelectItem key={filter.value} value={filter.value}>
-                    {filter.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
           <Button onClick={handleRefresh} variant="outline" disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Atualizar
@@ -103,10 +85,20 @@ export default function GoogleAdsPage() {
         </div>
       </div>
 
+      {/* Filtro Avançado de Data */}
+      <div className="rounded-lg border bg-white p-4">
+        <GoogleDateRangeSelector
+          value={dateRange}
+          onChange={setDateRange}
+          maxRange={3650}
+        />
+      </div>
+
       {/* Google Metrics Cards */}
       <GoogleMetricsCards
         clientId={clientId}
-        dateFilter={dateFilter}
+        startDate={dateRange.from}
+        endDate={dateRange.to}
       />
 
       {/* Sync Status and Campaigns */}
@@ -121,7 +113,11 @@ export default function GoogleAdsPage() {
         
         {/* Campaigns List - Takes 2/3 of space */}
         <div className="lg:col-span-2">
-          <GoogleCampaignsList clientId={clientId} />
+          <GoogleCampaignsList
+            clientId={clientId}
+            startDate={dateRange.from}
+            endDate={dateRange.to}
+          />
         </div>
       </div>
     </div>

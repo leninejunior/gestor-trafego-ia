@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Facebook, Instagram, DollarSign, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Facebook, DollarSign, Users, Search } from "lucide-react";
 import { toast } from "sonner";
 
 interface AdAccount {
@@ -34,6 +35,8 @@ function SelectAccountsContent() {
   const [pages, setPages] = useState<Page[]>([]);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
+  const [accountsSearch, setAccountsSearch] = useState("");
+  const [pagesSearch, setPagesSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -120,6 +123,28 @@ function SelectAccountsContent() {
         : [...prev, pageId]
     );
   };
+
+  const filteredAdAccounts = useMemo(() => {
+    const query = accountsSearch.trim().toLowerCase();
+    if (!query) return adAccounts;
+
+    return adAccounts.filter(account =>
+      account.name.toLowerCase().includes(query) ||
+      account.id.toLowerCase().includes(query) ||
+      account.currency.toLowerCase().includes(query)
+    );
+  }, [adAccounts, accountsSearch]);
+
+  const filteredPages = useMemo(() => {
+    const query = pagesSearch.trim().toLowerCase();
+    if (!query) return pages;
+
+    return pages.filter(page =>
+      page.name.toLowerCase().includes(query) ||
+      page.id.toLowerCase().includes(query) ||
+      page.category.toLowerCase().includes(query)
+    );
+  }, [pages, pagesSearch]);
 
   const handleSave = async () => {
     if (selectedAccounts.length === 0) {
@@ -238,19 +263,32 @@ function SelectAccountsContent() {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <DollarSign className="w-5 h-5 mr-2 text-green-600" />
-                Contas de Anúncios ({adAccounts.length})
+                Contas de Anúncios ({filteredAdAccounts.length}
+                {accountsSearch.trim() ? ` de ${adAccounts.length}` : ''})
               </CardTitle>
               <CardDescription>
                 Selecione as contas de anúncios que deseja gerenciar
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {adAccounts.length === 0 ? (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  value={accountsSearch}
+                  onChange={(e) => setAccountsSearch(e.target.value)}
+                  placeholder="Filtrar contas por nome, ID ou moeda..."
+                  className="pl-9"
+                />
+              </div>
+
+              {filteredAdAccounts.length === 0 ? (
                 <p className="text-gray-500 text-center py-4">
-                  Nenhuma conta de anúncios encontrada
+                  {adAccounts.length === 0
+                    ? "Nenhuma conta de anúncios encontrada"
+                    : "Nenhuma conta corresponde ao filtro informado"}
                 </p>
               ) : (
-                adAccounts.map((account) => (
+                filteredAdAccounts.map((account) => (
                   <div key={account.id} className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
                     <Checkbox
                       id={`account-${account.id}`}
@@ -282,19 +320,32 @@ function SelectAccountsContent() {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Facebook className="w-5 h-5 mr-2 text-blue-600" />
-                Páginas do Facebook ({pages.length})
+                Páginas do Facebook ({filteredPages.length}
+                {pagesSearch.trim() ? ` de ${pages.length}` : ''})
               </CardTitle>
               <CardDescription>
                 Selecione as páginas que deseja conectar (opcional)
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {pages.length === 0 ? (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  value={pagesSearch}
+                  onChange={(e) => setPagesSearch(e.target.value)}
+                  placeholder="Filtrar páginas por nome, ID ou categoria..."
+                  className="pl-9"
+                />
+              </div>
+
+              {filteredPages.length === 0 ? (
                 <p className="text-gray-500 text-center py-4">
-                  Nenhuma página encontrada
+                  {pages.length === 0
+                    ? "Nenhuma página encontrada"
+                    : "Nenhuma página corresponde ao filtro informado"}
                 </p>
               ) : (
-                pages.map((page) => (
+                filteredPages.map((page) => (
                   <div key={page.id} className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
                     <Checkbox
                       id={`page-${page.id}`}

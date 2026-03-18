@@ -77,6 +77,7 @@ function CampaignsSection({
 }) {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [objectiveFilter, setObjectiveFilter] = useState<string>('all');
+  const [showOnlyWithResults, setShowOnlyWithResults] = useState<boolean>(false);
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -114,7 +115,17 @@ function CampaignsSection({
   const filteredCampaigns = campaigns.filter(campaign => {
     const matchesStatus = statusFilter === 'all' || campaign.status === statusFilter;
     const matchesObjective = objectiveFilter === 'all' || campaign.objective === objectiveFilter;
-    return matchesStatus && matchesObjective;
+    
+    // Filtro de campanhas com resultados
+    const hasResults = showOnlyWithResults 
+      ? campaign.insights && (
+          parseFloat(campaign.insights.spend || '0') > 0 ||
+          parseFloat(campaign.insights.impressions || '0') > 0 ||
+          parseFloat(campaign.insights.clicks || '0') > 0
+        )
+      : true;
+    
+    return matchesStatus && matchesObjective && hasResults;
   });
 
   return (
@@ -189,8 +200,26 @@ function CampaignsSection({
               </div>
             </div>
 
+            {/* Botão de filtro de campanhas com resultados */}
+            <div className="mt-4 flex items-center gap-2">
+              <Button
+                variant={showOnlyWithResults ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowOnlyWithResults(!showOnlyWithResults)}
+                className="flex items-center gap-2"
+              >
+                <Filter className="h-4 w-4" />
+                {showOnlyWithResults ? 'Mostrando com resultados' : 'Mostrar só com resultados'}
+              </Button>
+              {showOnlyWithResults && (
+                <span className="text-xs text-muted-foreground">
+                  (campanhas com gasto, impressões ou cliques)
+                </span>
+              )}
+            </div>
+
             {/* Resumo dos filtros */}
-            {(statusFilter !== 'all' || objectiveFilter !== 'all') && (
+            {(statusFilter !== 'all' || objectiveFilter !== 'all' || showOnlyWithResults) && (
               <div className="mt-3 flex items-center justify-between text-sm">
                 <span className="text-gray-600">
                   Mostrando {filteredCampaigns.length} de {campaigns.length} campanhas
@@ -201,6 +230,7 @@ function CampaignsSection({
                   onClick={() => {
                     setStatusFilter('all');
                     setObjectiveFilter('all');
+                    setShowOnlyWithResults(false);
                   }}
                 >
                   Limpar filtros

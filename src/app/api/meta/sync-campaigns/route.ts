@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { MetaAdsClient } from '@/lib/meta/client';
+import {
+  getClientAccess,
+  listActiveConnectionsByClientId,
+} from '@/lib/postgres/meta-connections-repository';
+import { upsertMetaCampaign } from '@/lib/postgres/meta-sync-repository';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,16 +25,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Client ID é obrigatório' }, { status: 400 });
     }
 
+    const access = await getClientAccess(clientId, user.id);
+    if (!access.clientExists) {
+      return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
+    }
+
+    if (!access.hasAccess) {
+      return NextResponse.json({ error: 'Sem permissão para este cliente' }, { status: 403 });
+    }
+
     // Buscar conexões Meta ativas para este cliente
-    const { data: connections, error: connectionsError } = await supabase
-      .from('client_meta_connections')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('is_active', true);
+    const connections = await listActiveConnectionsByClientId(clientId);
 
-    console.log('🔗 [SYNC CAMPAIGNS] Conexões encontradas:', connections?.length || 0);
+    console.log('🔗 [SYNC CAMPAIGNS] Conexões encontradas:', connections.length);
 
-    if (connectionsError || !connections || connections.length === 0) {
+    if (connections.length === 0) {
       return NextResponse.json({ 
         error: 'Nenhuma conexão Meta ativa encontrada para este cliente',
         needsConnection: true 
@@ -42,54 +52,60 @@ export async function POST(request: NextRequest) {
     // Para cada conexão, sincronizar campanhas
     for (const connection of connections) {
       try {
-        console.log(`📡 [SYNC CAMPAIGNS] Sincronizando conta: ${connection.account_name}`);
+        const accountName = typeof connection.account_name === 'string'
+          ? connection.account_name
+          : 'Conta sem nome';
+        const accessToken = typeof connection.access_token === 'string' ? connection.access_token : null;
+        const adAccountId = typeof connection.ad_account_id === 'string' ? connection.ad_account_id : null;
+        const connectionId = typeof connection.id === 'string' ? connection.id : null;
+
+        if (!accessToken || !adAccountId || !connectionId) {
+          syncResults.push({
+            accountName,
+            accountId: adAccountId ?? 'unknown',
+            campaignsFound: 0,
+            success: false,
+            error: 'Conexão inválida ou incompleta',
+          });
+          continue;
+        }
+
+        console.log(`📡 [SYNC CAMPAIGNS] Sincronizando conta: ${accountName}`);
         
-        const metaClient = new MetaAdsClient(connection.access_token);
-        const campaigns = await metaClient.getCampaigns(connection.ad_account_id);
+        const metaClient = new MetaAdsClient(accessToken);
+        const campaigns = await metaClient.getCampaigns(adAccountId);
         
-        console.log(`📊 [SYNC CAMPAIGNS] ${campaigns.length} campanhas encontradas na conta ${connection.account_name}`);
+        console.log(`📊 [SYNC CAMPAIGNS] ${campaigns.length} campanhas encontradas na conta ${accountName}`);
 
         // Salvar cada campanha no banco
         for (const campaign of campaigns) {
-          const { data: savedCampaign, error: saveError } = await supabase
-            .from('meta_campaigns')
-            .upsert({
-              connection_id: connection.id,
-              external_id: campaign.id,
-              name: campaign.name,
-              status: campaign.status,
-              objective: campaign.objective,
-              daily_budget: campaign.daily_budget,
-              lifetime_budget: campaign.lifetime_budget,
-              created_time: campaign.created_time,
-              updated_time: campaign.updated_time,
-              start_time: campaign.start_time,
-              stop_time: campaign.stop_time,
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'connection_id,external_id'
-            });
-
-          if (saveError) {
-            console.error(`❌ [SYNC CAMPAIGNS] Erro ao salvar campanha ${campaign.name}:`, saveError);
-          } else {
-            console.log(`✅ [SYNC CAMPAIGNS] Campanha salva: ${campaign.name}`);
+          try {
+            await upsertMetaCampaign(connectionId, campaign);
             totalCampaignsSynced++;
+            console.log(`✅ [SYNC CAMPAIGNS] Campanha salva: ${campaign.name}`);
+          } catch (saveError) {
+            console.error(`❌ [SYNC CAMPAIGNS] Erro ao salvar campanha ${campaign.name}:`, saveError);
           }
         }
 
         syncResults.push({
-          accountName: connection.account_name,
-          accountId: connection.ad_account_id,
+          accountName,
+          accountId: adAccountId,
           campaignsFound: campaigns.length,
           success: true
         });
 
       } catch (connectionError) {
-        console.error(`❌ [SYNC CAMPAIGNS] Erro na conta ${connection.account_name}:`, connectionError);
+        const accountName = typeof connection.account_name === 'string'
+          ? connection.account_name
+          : 'Conta sem nome';
+        const adAccountId = typeof connection.ad_account_id === 'string'
+          ? connection.ad_account_id
+          : 'unknown';
+        console.error(`❌ [SYNC CAMPAIGNS] Erro na conta ${accountName}:`, connectionError);
         syncResults.push({
-          accountName: connection.account_name,
-          accountId: connection.ad_account_id,
+          accountName,
+          accountId: adAccountId,
           campaignsFound: 0,
           success: false,
           error: connectionError instanceof Error ? connectionError.message : 'Erro desconhecido'

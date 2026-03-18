@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { MetaAdsClient } from '@/lib/meta/client';
+import {
+  getActiveConnectionByClientAndAdAccount,
+  getClientAccess,
+} from '@/lib/postgres/meta-connections-repository';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const clientId = searchParams.get('clientId');
   const adAccountId = searchParams.get('adAccountId');
+  const withInsights = searchParams.get('withInsights') !== 'false'; // Default true
+  const since = searchParams.get('since');
+  const until = searchParams.get('until');
   
   console.log('🔍 [CAMPAIGNS API] Iniciando busca de campanhas...');
-  console.log('📋 [CAMPAIGNS API] Parâmetros recebidos:', { clientId, adAccountId });
+  console.log('📋 [CAMPAIGNS API] Parâmetros recebidos:', { clientId, adAccountId, withInsights, since, until });
   
   if (!clientId || !adAccountId) {
     console.log('❌ [CAMPAIGNS API] Parâmetros obrigatórios ausentes');
@@ -32,21 +39,25 @@ export async function GET(request: NextRequest) {
     
     console.log('✅ [CAMPAIGNS API] Usuário autenticado:', user.email);
 
-    // Buscar conexão do Meta para este cliente
-    console.log('🔍 [CAMPAIGNS API] Buscando conexão Meta...');
-    const { data: connection, error: connectionError } = await supabase
-      .from('client_meta_connections')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('ad_account_id', adAccountId)
-      .eq('is_active', true)
-      .single();
-
-    console.log('📊 [CAMPAIGNS API] Resultado da busca de conexão:', { connection, connectionError });
-
-    if (connectionError || !connection) {
+    const access = await getClientAccess(clientId, user.id);
+    if (!access.clientExists || !access.hasAccess) {
       console.log('⚠️ [CAMPAIGNS API] Conexão não encontrada');
       return NextResponse.json({ 
+        campaigns: [],
+        isTestData: false,
+        message: 'Conexão com Meta não encontrada. Conecte sua conta do Meta Ads.'
+      });
+    }
+
+    // Buscar conexão do Meta para este cliente
+    console.log('🔍 [CAMPAIGNS API] Buscando conexão Meta...');
+    const connection = await getActiveConnectionByClientAndAdAccount(clientId, adAccountId);
+    console.log('📊 [CAMPAIGNS API] Resultado da busca de conexão:', { found: Boolean(connection) });
+
+    const accessToken = typeof connection?.access_token === 'string' ? connection.access_token : null;
+    if (!accessToken) {
+      console.log('⚠️ [CAMPAIGNS API] Conexão não encontrada');
+      return NextResponse.json({
         campaigns: [],
         isTestData: false,
         message: 'Conexão com Meta não encontrada. Conecte sua conta do Meta Ads.'
@@ -57,11 +68,11 @@ export async function GET(request: NextRequest) {
 
     // Buscar campanhas usando o Meta Ads Client
     try {
-      const metaClient = new MetaAdsClient(connection.access_token);
+      const metaClient = new MetaAdsClient(accessToken);
       console.log('🔗 [CAMPAIGNS API] Cliente Meta criado, fazendo requisição...');
       
       const campaigns = await metaClient.getCampaigns(adAccountId);
-      console.log('✅ [CAMPAIGNS API] Campanhas reais obtidas:', campaigns);
+      console.log('✅ [CAMPAIGNS API] Campanhas reais obtidas:', campaigns?.length || 0);
       
       // Verificar se há campanhas
       if (!campaigns || campaigns.length === 0) {
@@ -73,7 +84,47 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ campaigns, isTestData: false });
+      // Buscar insights para cada campanha se solicitado
+      let campaignsWithInsights = campaigns;
+      if (withInsights) {
+        console.log('📊 [CAMPAIGNS API] Buscando insights das campanhas...');
+        
+        // Usar datas do filtro ou padrão de 30 dias
+        const dateRange = since && until ? { since, until } : undefined;
+        
+        campaignsWithInsights = await Promise.all(
+          campaigns.map(async (campaign: any) => {
+            try {
+              const insights = await metaClient.getCampaignInsights(campaign.id, dateRange);
+              const insightData = insights?.[0] || {};
+              return {
+                ...campaign,
+                insights: {
+                  impressions: insightData.impressions || '0',
+                  clicks: insightData.clicks || '0',
+                  spend: insightData.spend || '0',
+                  reach: insightData.reach || '0',
+                  ctr: insightData.ctr || '0',
+                  cpc: insightData.cpc || '0',
+                  cpm: insightData.cpm || '0',
+                  frequency: insightData.frequency || '0',
+                  actions: insightData.actions || [],
+                  cost_per_action_type: insightData.cost_per_action_type || []
+                }
+              };
+            } catch (insightError) {
+              console.log(`⚠️ [CAMPAIGNS API] Erro ao buscar insights da campanha ${campaign.id}:`, insightError);
+              return {
+                ...campaign,
+                insights: null
+              };
+            }
+          })
+        );
+        console.log('✅ [CAMPAIGNS API] Insights carregados');
+      }
+
+      return NextResponse.json({ campaigns: campaignsWithInsights, isTestData: false });
     } catch (metaError: any) {
       console.log('❌ [CAMPAIGNS API] Erro ao buscar campanhas reais:', metaError);
       

@@ -11,6 +11,11 @@ import { AccountBalancesWidget } from "@/components/dashboard/account-balances-w
 import { GeneralMetricsCards } from "@/components/dashboard";
 import { ExportButton } from "@/components/exports/export-button";
 import SetupChecklist from "@/components/onboarding/setup-checklist";
+import { UserTypeCard } from "@/components/dashboard/user-type-indicator";
+import { ClientLimitMessage, ConnectionLimitMessage } from "@/components/dashboard/plan-limit-message";
+import { ClientSearch } from "@/components/clients/client-search";
+import { useUserAccessNew } from "@/hooks/use-user-access-new";
+import { UserType } from "@/lib/services/user-access-control";
 import Link from "next/link";
 import { 
   Users, 
@@ -24,7 +29,11 @@ import {
   DollarSign,
   Chrome,
   Facebook,
-  Zap as ActivityIcon
+  Zap as ActivityIcon,
+  Crown,
+  Shield,
+  User,
+  Lock
 } from "lucide-react";
 
 interface DateFilter {
@@ -47,6 +56,7 @@ interface Client {
   id: string;
   name: string;
   created_at: string;
+  organization_name?: string; // Add this optional field
 }
 
 interface DashboardPageClientProps {
@@ -87,6 +97,14 @@ export default function DashboardPageClient({
     startDate: '',
     endDate: ''
   });
+
+  const { 
+    userType, 
+    canCreateClients, 
+    canCreateConnections,
+    hasActiveSubscription,
+    loading: accessLoading 
+  } = useUserAccessNew();
 
   const getDateRange = (filter: string) => {
     const today = new Date();
@@ -183,17 +201,61 @@ export default function DashboardPageClient({
   // Get the actual client ID to use
   const effectiveClientId = selectedClient === 'all' ? firstClient : selectedClient;
 
+  // Get user type display info
+  const getUserTypeInfo = () => {
+    switch (userType) {
+      case UserType.SUPER_ADMIN:
+        return { label: 'Super Admin', icon: <Crown className="h-4 w-4 text-yellow-600" /> }
+      case UserType.ORG_ADMIN:
+        return { label: 'Admin da Organização', icon: <Shield className="h-4 w-4 text-blue-600" /> }
+      case UserType.COMMON_USER:
+        return { label: 'Usuário Comum', icon: <User className="h-4 w-4 text-gray-600" /> }
+      default:
+        return { label: 'Usuário', icon: <User className="h-4 w-4 text-gray-600" /> }
+    }
+  };
+
+  const userTypeInfo = getUserTypeInfo();
+
   return (
     <div className="space-y-8">
-      {/* Welcome Section */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">
-          Bem-vindo ao Ads Manager! 👋
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Olá, {user.email}. Aqui está um resumo das suas campanhas e clientes.
-        </p>
+      {/* Welcome Section with User Type */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold text-foreground">
+              Bem-vindo ao Ads Manager! 👋
+            </h1>
+            {userTypeInfo.icon}
+          </div>
+          <p className="text-muted-foreground">
+            Olá, {user.email}. Aqui está um resumo das suas campanhas e clientes.
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Você está logado como: <span className="font-medium">{userTypeInfo.label}</span>
+          </p>
+        </div>
+        
+        {/* User Type Card */}
+        <div className="w-full sm:w-80">
+          <UserTypeCard />
+        </div>
       </div>
+
+      {/* Access Control Messages */}
+      {!hasActiveSubscription && userType !== UserType.SUPER_ADMIN && (
+        <div className="space-y-4">
+          <ClientLimitMessage />
+        </div>
+      )}
+
+      {!canCreateClients && hasActiveSubscription && (
+        <ClientLimitMessage />
+      )}
+
+      {!canCreateConnections && hasActiveSubscription && (
+        <ConnectionLimitMessage />
+      )}
 
       {/* Onboarding Checklist */}
       {needsOnboarding && (
@@ -273,13 +335,18 @@ export default function DashboardPageClient({
 
       {/* Unified Filters - Only show if there are connections */}
       {totalConnections > 0 && totalClients > 0 && firstClient && (
-        <div className="space-y-4">
-          <div className="flex gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
+        <div className="rounded-2xl border border-border/70 bg-card/60 p-4 sm:p-5">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,260px)_minmax(0,320px)] lg:items-end">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Período
+              </p>
               <Select value={selectedDateFilter} onValueChange={handleDateFilterChange}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Selecionar período" />
+                <SelectTrigger className="h-11 w-full rounded-xl bg-background/90 shadow-sm focus:ring-1 focus:ring-primary/40 focus:ring-offset-0">
+                  <div className="flex items-center gap-2 truncate">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue placeholder="Selecionar período" />
+                  </div>
                 </SelectTrigger>
                 <SelectContent>
                   {DATE_FILTERS.map((filter) => (
@@ -290,50 +357,50 @@ export default function DashboardPageClient({
                 </SelectContent>
               </Select>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              <Select value={selectedClient} onValueChange={handleClientChange}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Todos os clientes" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os clientes</SelectItem>
-                  {clients?.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Cliente
+              </p>
+              <ClientSearch
+                clients={clients.map(c => ({ ...c, organization_name: c.organization_name || '' }))}
+                selectedClient={selectedClient}
+                onClientSelect={handleClientChange}
+                placeholder="Todos os clientes"
+                className="w-full"
+                filterByAccess={true}
+                showUserContext={false}
+                showSelectedClientDetails={false}
+                triggerClassName="h-11 w-full rounded-xl border-border/70 bg-background/90 px-3 text-sm shadow-sm hover:bg-accent/30 focus-visible:ring-1 focus-visible:ring-primary/40"
+              />
             </div>
           </div>
-          
+
           {/* Custom Date Inputs */}
           {showCustomDateInputs && (
-            <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
-              <div className="flex items-center gap-2">
+            <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border/70 bg-background/80 p-4 sm:flex-row sm:items-end sm:gap-4">
+              <div className="space-y-1">
                 <label className="text-sm font-medium text-foreground">Data Inicial:</label>
                 <Input
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="w-40"
+                  className="h-10 w-full sm:w-44"
                 />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="space-y-1">
                 <label className="text-sm font-medium text-foreground">Data Final:</label>
                 <Input
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="w-40"
+                  className="h-10 w-full sm:w-44"
                 />
               </div>
               <Button 
                 onClick={handleCustomDateApply}
                 size="sm"
-                className="mt-0"
+                className="h-10 sm:mt-0"
               >
                 Aplicar
               </Button>
@@ -474,12 +541,24 @@ export default function DashboardPageClient({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Button asChild className="justify-start">
-                <Link href="/dashboard/clients">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Adicionar Cliente
-                </Link>
-              </Button>
+              {/* Add Client Button - Only show for admins */}
+              {(userType === UserType.SUPER_ADMIN || userType === UserType.ORG_ADMIN) && (
+                <Button 
+                  asChild 
+                  className="justify-start"
+                  variant={canCreateClients ? "default" : "secondary"}
+                  disabled={!canCreateClients && userType !== UserType.SUPER_ADMIN}
+                >
+                  <Link href="/dashboard/clients">
+                    {canCreateClients ? (
+                      <Plus className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Lock className="mr-2 h-4 w-4" />
+                    )}
+                    {canCreateClients ? 'Adicionar Cliente' : 'Limite Atingido'}
+                  </Link>
+                </Button>
+              )}
               
               <Button asChild variant="outline" className="justify-start">
                 <Link href="/dashboard/reports">

@@ -1,5 +1,6 @@
 /**
  * API Route: Gerenciar Conexões Google Ads
+ * Requirements: 6.2, 6.4 - Bloquear criação por usuários comuns, 5.1, 5.2 - Filtrar por acesso
  * 
  * GET - Listar todas as conexões de um cliente
  * DELETE - Excluir uma conexão específica
@@ -7,8 +8,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import {
+  deleteGoogleConnectionById,
+  getClientOrganizationId,
+  getGoogleConnectionById,
+  hasOrgAdminAccess,
+  hasOrgMembershipAccess,
+  isUserSuperAdmin,
+  listGoogleConnectionsByClient,
+} from '@/lib/postgres/google-sync-repository';
 
-// GET /api/google/connections?clientId=xxx
 export async function GET(request: NextRequest) {
   try {
     const clientId = request.nextUrl.searchParams.get('clientId');
@@ -21,9 +30,8 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await createClient();
-
-    // Verificar autenticação
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'Não autorizado' },
@@ -31,26 +39,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar todas as conexões do cliente
-    const { data: connections, error } = await supabase
-      .from('google_ads_connections')
-      .select('*')
-      .eq('client_id', clientId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('[Google Connections API] Erro ao buscar conexões:', error);
+    const clientOrgId = await getClientOrganizationId(clientId);
+    if (!clientOrgId) {
       return NextResponse.json(
-        { error: 'Erro ao buscar conexões' },
-        { status: 500 }
+        { error: 'Cliente não encontrado' },
+        { status: 404 }
       );
     }
 
-    return NextResponse.json({
-      connections: connections || [],
-      total: connections?.length || 0,
-    });
+    const superAdmin = await isUserSuperAdmin(user.id);
+    const hasAccess = superAdmin || await hasOrgMembershipAccess(user.id, clientOrgId);
 
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Acesso negado para visualizar conexões deste cliente' },
+        { status: 403 }
+      );
+    }
+
+    const connections = await listGoogleConnectionsByClient(clientId);
+
+    return NextResponse.json({
+      connections,
+      total: connections.length,
+    });
   } catch (error) {
     console.error('[Google Connections API] Erro:', error);
     return NextResponse.json(
@@ -60,7 +72,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// DELETE /api/google/connections?connectionId=xxx
 export async function DELETE(request: NextRequest) {
   try {
     const connectionId = request.nextUrl.searchParams.get('connectionId');
@@ -73,9 +84,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     const supabase = await createClient();
-
-    // Verificar autenticação
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'Não autorizado' },
@@ -83,17 +93,40 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Excluir a conexão
-    const { error } = await supabase
-      .from('google_ads_connections')
-      .delete()
-      .eq('id', connectionId);
-
-    if (error) {
-      console.error('[Google Connections API] Erro ao excluir conexão:', error);
+    const connection = await getGoogleConnectionById(connectionId);
+    if (!connection || !connection.client_id) {
       return NextResponse.json(
-        { error: 'Erro ao excluir conexão' },
-        { status: 500 }
+        { error: 'Conexão não encontrada' },
+        { status: 404 }
+      );
+    }
+
+    const clientOrgId = await getClientOrganizationId(connection.client_id);
+    if (!clientOrgId) {
+      return NextResponse.json(
+        { error: 'Cliente não encontrado' },
+        { status: 404 }
+      );
+    }
+
+    const superAdmin = await isUserSuperAdmin(user.id);
+    const hasDeleteAccess = superAdmin || await hasOrgAdminAccess(user.id, clientOrgId);
+
+    if (!hasDeleteAccess) {
+      return NextResponse.json(
+        {
+          error: 'Acesso negado: você não tem permissão para excluir conexões deste cliente',
+          code: 'CLIENT_ACCESS_DENIED'
+        },
+        { status: 403 }
+      );
+    }
+
+    const deleted = await deleteGoogleConnectionById(connectionId);
+    if (!deleted) {
+      return NextResponse.json(
+        { error: 'Conexão não encontrada' },
+        { status: 404 }
       );
     }
 
@@ -101,7 +134,6 @@ export async function DELETE(request: NextRequest) {
       success: true,
       message: 'Conexão excluída com sucesso',
     });
-
   } catch (error) {
     console.error('[Google Connections API] Erro:', error);
     return NextResponse.json(

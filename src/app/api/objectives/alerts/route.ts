@@ -128,7 +128,7 @@ export async function PUT(request: NextRequest) {
 }
 
 // Função para criar alertas automáticos (chamada internamente)
-export async function createAlert(
+async function createAlert(
   userId: string,
   organizationId: string | null,
   metricObjectiveId: string,
@@ -181,7 +181,7 @@ export async function createAlert(
 }
 
 // Função para verificar métricas e criar alertas
-export async function checkMetricsAndCreateAlerts(
+async function checkMetricsAndCreateAlerts(
   userId: string,
   campaignData: Record<string, any>
 ) {

@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-export default function AcceptInvitePage({ params }: { params: { token: string } }) {
+export default function AcceptInvitePage({ params }: { params: Promise<{ token: string }> }) {
   const [loading, setLoading] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState('');
+  const { token } = use(params);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -22,7 +23,7 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
       const response = await fetch('/api/organization/invites/accept', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: params.token })
+        body: JSON.stringify({ token })
       });
 
       if (!response.ok) {

@@ -104,7 +104,7 @@ Update provider configuration.
   "isActive": true,
   "priority": 1,
   "credentials": {
-    "apiKey": "sk_test_...",
+    "apiKey": "sk_mock_...",
     "secretKey": "..."
   },
   "settings": {
@@ -240,7 +240,7 @@ Admin endpoints are rate-limited to prevent abuse:
 
 ```bash
 # Get JWT token (implementation depends on your auth system)
-TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+TOKEN="<jwt_token_here>"
 
 # Get dashboard data
 curl -H "Authorization: Bearer $TOKEN" \

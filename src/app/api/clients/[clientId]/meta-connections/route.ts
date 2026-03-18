@@ -3,12 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { clientId: string } }
+  { params }: { params: Promise<{ clientId: string }> }
 ) {
   console.log('=== INÍCIO meta-connections POST ===');
   
   try {
-    const clientId = params.clientId;
+    const { clientId } = await params;
     console.log('1. Client ID:', clientId);
     
     const body = await request.json();

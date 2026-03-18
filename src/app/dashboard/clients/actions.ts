@@ -33,7 +33,7 @@ export async function addClient(formData: FormData) {
   // Tenta obter a organização do usuário
   let { data: membership, error: membershipError } = await supabase
     .from("memberships")
-    .select("org_id")
+    .select("organization_id")
     .eq("user_id", user.id)
     .single();
 
@@ -48,7 +48,7 @@ export async function addClient(formData: FormData) {
     return { error: `Erro ao buscar associação do usuário: ${membershipError.message}` };
   }
 
-  let orgId: string | null = membership?.org_id || null;
+  let orgId: string | null = membership?.organization_id || null;
   console.log("addClient: orgId inicial:", orgId);
 
   // Se nenhuma associação for encontrada, criar uma organização padrão
@@ -87,7 +87,7 @@ export async function addClient(formData: FormData) {
       .from("memberships")
       .insert({
         user_id: user.id,
-        org_id: orgId,
+        organization_id: orgId,
         role: "admin"
       });
 

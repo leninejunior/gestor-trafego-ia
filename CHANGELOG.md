@@ -2,10 +2,586 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 
+## [2025-01-15] - Sistema de Leads Meta Ads
+
+### Adicionado
+- ✅ Sistema completo de captura de leads do Facebook Lead Ads
+- ✅ API de sincronização de leads (`POST /api/meta/leads/sync`)
+- ✅ API de listagem de leads com filtros (`GET /api/meta/leads`)
+- ✅ API de detalhes do lead (`GET /api/meta/leads/[leadId]`)
+- ✅ API de atualização de lead (`PATCH /api/meta/leads/[leadId]`)
+- ✅ API de exclusão de lead (`DELETE /api/meta/leads/[leadId]`)
+- ✅ API de estatísticas de leads (`GET /api/meta/leads/stats`)
+- ✅ API de listagem de formulários (`GET /api/meta/leads/forms`)
+- ✅ Métodos no MetaAdsClient para buscar formulários e leads
+- ✅ Schema completo com RLS policies (`database/meta-leads-schema.sql`)
+- ✅ Documentação completa (`docs/META_LEADS_INTEGRATION.md`)
+
+### Funcionalidades
+- Sincronização automática de formulários de lead ads
+- Sincronização de leads com dados completos (campanha, anúncio, formulário)
+- Gerenciamento de status de leads (new, contacted, qualified, converted, lost)
+- Atribuição de leads a usuários
+- Notas e acompanhamento de leads
+- Estatísticas por status e campanha
+- Histórico de sincronizações
+- Isolamento de dados por cliente via RLS
+
+### Estrutura
+- 3 tabelas principais: `meta_lead_forms`, `meta_leads`, `meta_lead_sync_logs`
+- 2 views: `meta_lead_stats_by_campaign`, `meta_leads_recent`
+- 8 endpoints de API
+- Suporte a paginação e filtros
+- Logs de sincronização com sucesso/erro
+
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
+
+### 2026-01-02 - 🐛 FIX: Erro em getUserAccessibleClients Corrigido
+
+#### Fixed
+- **Erro no ClientSearch:** Corrigido erro `Erro ao obter clientes acessíveis: {}`
+- **Inicialização Supabase:** Problema com inicialização assíncrona no cliente resolvido
+- **API Route:** Criada rota `/api/user/accessible-clients` para buscar clientes server-side
+
+#### Added
+- **Nova API:** `GET /api/user/accessible-clients`
+  - Retorna clientes acessíveis baseado no tipo de usuário
+  - Validação de autenticação
+  - Tratamento de erro robusto
+- **Documentação:** `CORRECAO_ERRO_GET_ACCESSIBLE_CLIENTS.md`
+
+#### Changed
+- **Hook use-user-access:** Atualizado para usar API route ao invés de chamada direta
+- **Tratamento de Erro:** Melhor logging em `UserAccessControlService.getUserAccessibleClients`
+
+#### Technical Details
+- **Problema:** Método `getUserAccessibleClients` falhava no lado do cliente
+- **Causa:** Inicialização assíncrona do Supabase não funcionava corretamente no browser
+- **Solução:** Mover lógica para API route server-side
+- **Resultado:** Componente `ClientSearch` funciona corretamente
+
+### 2026-01-02 - 📋 RESUMO: Sistema de Controle de Acesso - Status Final
+
+#### Status: ✅ IMPLEMENTADO E FUNCIONANDO
+
+**Sistema completo de controle de acesso baseado em 3 tipos de usuário:**
+
+1. **Usuário Master (Super Admin)**
+   - ✅ Acesso ilimitado a todas as funcionalidades
+   - ✅ NÃO vinculado a planos de assinatura
+   - ✅ Pode gerenciar todos os recursos do sistema
+   - ✅ Tabela: `master_users`
+
+2. **Usuário Regular (Common User)**
+   - ✅ Acesso baseado no plano de assinatura ativo
+   - ✅ OBRIGATÓRIO ter assinatura ativa
+   - ✅ Limites definidos pelo plano contratado
+   - ✅ Tabela: `memberships` (coluna `user_type = 'regular'`)
+
+3. **Usuário Cliente (Client User)**
+   - ✅ Acesso restrito aos dados da própria agência
+   - ✅ NÃO vinculado a planos (acesso independente)
+   - ✅ Apenas leitura (read-only)
+   - ✅ Tabela: `client_users`
+
+**Implementação Completa:**
+- ✅ Migração SQL aplicada via MCP: `08-user-access-control-system.sql`
+- ✅ Serviço backend: `UserAccessControlService`
+- ✅ Middleware de API: `withUserAccessControl`
+- ✅ Hooks React: `useUserAccessControl`
+- ✅ Componentes UI: `UserTypeBadge`, `UserTypeManager`
+- ✅ Políticas RLS ativas para isolamento de dados
+- ✅ Cache de permissões implementado
+- ✅ Testes realizados com sucesso
+
+**Documentação:**
+- 📄 `SISTEMA_CONTROLE_ACESSO_RESUMO_EXECUTIVO.md` - Resumo executivo completo
+- 📄 `APLICAR_SISTEMA_CONTROLE_ACESSO.md` - Guia de aplicação
+- 📄 `TESTE_MCP_SISTEMA_CONTROLE_ACESSO_RESULTADO.md` - Resultados de testes
+
+**Performance:**
+- Cache TTL: 2-10 minutos dependendo do tipo de consulta
+- Índices criados para consultas rápidas
+- RLS otimizado para isolamento eficiente
+
+### 2025-12-24 - 🚀 FIX: Erros de Chunks Webpack Resolvidos
+
+#### Fixed
+- **Chunks Error:** Corrigido erro `Cannot find module './chunks/vendor-chunks/@supabase.js'`
+- **Vendor Chunks:** Eliminado erro `Cannot find module './chunks/vendor-chunks/next.js'`
+- **Webpack Config:** Configuração otimizada para splitChunks e vendor modules
+- **Compilação:** Processo de build estabilizado e acelerado
+
+#### Added
+- **Configuração Webpack:** splitChunks otimizado para vendor modules
+- **Package Optimization:** `optimizePackageImports` para Supabase
+- **Documentação:** `CORRECAO_CHUNKS_ERROR_RESOLVIDO.md` com guia completo
+
+#### Changed
+- **next.config.ts:** Configuração webpack aprimorada
+  - splitChunks com cacheGroups para vendors
+  - optimizePackageImports para @supabase/supabase-js
+  - Fallbacks adequados para módulos Node.js
+- **Processo de Build:** Limpeza completa de cache e reinstalação
+
+#### Technical Details
+- **Problema:** Webpack chunks corrompidos após mudanças de configuração
+- **Causa:** Cache desatualizado + configuração inadequada de splitChunks
+- **Solução:** Limpeza completa + configuração otimizada de webpack
+- **Resultado:** Compilação estável em 13.9s, APIs funcionando perfeitamente
+
+#### Performance Results
+- ✅ **Servidor:** Ready in 13.9s
+- ✅ **API Simple:** Compilado em 9.9s (465 modules)
+- ✅ **API Enhanced:** Compilado em 1.8s (470 modules)
+- ✅ **API Organizations:** Compilado em 1.2s (472 modules)
+- ✅ **Sistema:** 4 usuários operacionais (2 Master, 1 Client, 1 Regular)
+
+### 2025-12-24 - 🚀 FIX: Runtime Error Next.js 15.4.0 Resolvido
+
+#### Fixed
+- **Runtime Error:** Corrigido erro `Invariant: Expected clientReferenceManifest to be defined`
+- **Build Error:** Eliminado erro de duplicação de função `UserDetailsWorking`
+- **Configuração Next.js:** Simplificada configuração para evitar bugs do Next.js 15.x
+- **Cache Limpo:** Removido cache corrompido que causava problemas de inicialização
+
+#### Added
+- **Teste Final:** `test-user-system-final.js`
+  - Verificação completa do sistema de usuários
+  - Teste de todas as APIs principais
+  - Validação de estabilidade do servidor
+- **Documentação:** `CORRECAO_RUNTIME_ERROR_RESOLVIDO.md`
+  - Guia completo da correção aplicada
+  - Passos para reproduzir a solução
+  - URLs de teste e validação
+
+#### Changed
+- **next.config.ts:** Configuração simplificada e estável
+  - Removidas configurações experimentais problemáticas
+  - Mantida apenas configuração essencial
+  - Webpack config mínimo para fallbacks
+- **user-details-working.tsx:** Componente recriado completamente
+  - Eliminada possível corrupção de arquivo
+  - Código limpo sem duplicações
+  - Funcionalidade 100% preservada
+
+#### Technical Details
+- **Problema:** Bug do Next.js 15.x com `clientReferenceManifest` em desenvolvimento
+- **Causa:** Configurações experimentais conflitantes + cache corrompido
+- **Solução:** Configuração mínima + limpeza de cache + recriação de componente
+- **Resultado:** Servidor estável em 16.7s, todas as APIs funcionando
+
+#### Test Results
+- ✅ **Servidor:** http://localhost:3000 (Ready in 16.7s)
+- ✅ **API Simples:** 4 usuários encontrados
+- ✅ **API Completa:** Dados estruturados corretos
+- ✅ **Organizações:** APIs respondendo
+- ✅ **Admin Panel:** Página acessível
+
+### 2025-12-24 - 🔧 FIX: Sistema de Ativar/Desativar Usuário Refatorado
+
+#### Fixed
+- **Duplicidade Eliminada:** Removido código duplicado de suspensão/ativação de usuários
+- **Interface Simplificada:** Status agora mostra apenas "Ativo" ou "Suspenso" na lista
+- **Lógica Unificada:** Criado componente único `UserStatusControl` para controle de status
+- **Filtros Simplificados:** Reduzido para 3 opções: "Todos", "Ativos", "Suspensos"
+- **Estatísticas Corretas:** Cards agora mostram dados reais de usuários suspensos
+
+#### Added
+- **Novo Componente:** `src/components/admin/user-status-control.tsx`
+  - Controle unificado de status de usuário
+  - Botões condicionais baseados no status atual
+  - Prompt para motivo de suspensão obrigatório
+  - Estados de loading durante operações
+  - Exibição do motivo da suspensão
+- **Teste Automatizado:** `test-user-status-control.js`
+  - Verificação completa do sistema de controle de status
+  - Validação de dados e consistência
+  - Teste de filtros e estatísticas
+
+#### Changed
+- **API Melhorada:** `src/app/api/admin/users/simple-test/route.ts`
+  - Incluir dados completos de suspensão (`suspended_at`, `suspended_by`, `suspension_reason`)
+  - Estatísticas corretas (suspensos contados adequadamente)
+- **Interface Limpa:** `src/components/admin/user-management-client.tsx`
+  - Lógica de status simplificada (apenas Ativo/Suspenso)
+  - Filtros reduzidos e mais claros
+  - Remoção de complexidade desnecessária
+- **Modal Atualizado:** `src/components/admin/user-details-working.tsx`
+  - Integração do novo componente de controle de status
+  - Remoção de código duplicado
+  - Melhor separação de responsabilidades
+
+#### Technical Details
+- **Problema:** Sistema tinha duplicidade de código e interface confusa para ativar/desativar usuários
+- **Solução:** Refatoração completa com componente unificado e lógica simplificada
+- **Resultado:** Interface limpa, código maintível, funcionalidade 100% operacional
+
+#### Test Results
+- ✅ **4 usuários** no sistema (2 Master, 1 Client, 1 Regular)
+- ✅ **Todos ativos** (0 suspensos atualmente)
+- ✅ **Filtros funcionando** corretamente
+- ✅ **Estatísticas consistentes** com dados reais
+- ✅ **APIs respondendo** adequadamente
+
+#### Status: FUNCIONANDO PERFEITAMENTE 🚀
+
+### 2025-12-24 - ✅ INTEGRATION: Sistema de Controle de Acesso Completamente Integrado
+
+#### Completed
+- **Interface de Usuários Totalmente Integrada:** Sistema de controle de acesso ativo na interface
+  - ✅ Hooks `useUserType()` e `useUserAccess()` ativados
+  - ✅ Componente `UserTypeBadge` funcionando
+  - ✅ Badges dinâmicos com cores e ícones por tipo de usuário
+  - ✅ API `/api/admin/users/simple-test` funcionando perfeitamente
+
+#### Tested & Verified
+- **Sistema de Banco de Dados:** ✅ FUNCIONANDO
+  - 2 usuários Master, 1 usuário Cliente, 1 usuário Regular
+  - Tabelas `master_users` e `client_users` operacionais
+  - Enum `user_type_enum` funcionando
+  - Coluna `user_type` na tabela `memberships` ativa
+
+- **Interface Visual:** ✅ FUNCIONANDO
+  - Badge vermelho com Crown para Master Users
+  - Badge azul com Shield para Regular Users  
+  - Badge cinza com UserCheck para Client Users
+  - Estatísticas atualizadas (4 usuários, 2 super admins)
+
+- **APIs e Backend:** ✅ FUNCIONANDO
+  - API retorna dados corretos para 4 usuários
+  - Tipos de usuário mapeados corretamente
+  - Memberships estruturados adequadamente
+  - Debug info presente e detalhada
+
+#### Files Updated
+- ✅ `src/components/admin/user-management-client.tsx` - Hooks ativados
+- ✅ `src/hooks/use-user-access.ts` - Funcionando perfeitamente
+- ✅ `src/components/ui/user-access-indicator.tsx` - Badges dinâmicos
+- ✅ `src/app/api/admin/users/simple-test/route.ts` - API testada
+
+#### Test Results
+- ✅ `test-user-access-system-complete.js` - PASSOU
+- ✅ `test-user-interface-integration.js` - PASSOU  
+- ✅ Servidor de desenvolvimento funcionando
+- ✅ Interface acessível em http://localhost:3000/admin/users
+
+#### Status: PRONTO PARA PRODUÇÃO 🚀
+
+### 2025-12-23 - 🐛 FIX: Correção de Tratamento de Erros de API
+
+#### Fixed
+- **Erro de Console:** Corrigido erro `Cannot read properties of undefined` ao acessar `errorData`
+- **Verificação de Segurança:** Adicionado optional chaining (`?.`) em todos os acessos a `errorData`
+- **Arquivos Corrigidos:**
+  - `src/components/admin/user-details-working.tsx`
+  - `src/components/admin/user-create-dialog.tsx`
+  - `src/components/admin/user-details-dialog-enhanced.tsx`
+  - `src/components/admin/user-management-client.tsx`
+  - `src/components/admin/client-access-manager.tsx`
+
+#### Added
+- **Utilitário de Tratamento de Erros:** `src/lib/utils/api-error-handler.ts`
+  - `extractErrorData()` - Extração segura de dados de erro
+  - `getErrorMessage()` - Geração de mensagens amigáveis
+  - `handleApiError()` - Tratamento padronizado completo
+  - `safeErrorAccess()` - Acesso seguro a propriedades
+
+#### Technical Details
+- **Problema:** Código tentava acessar `errorData.error` sem verificar se `errorData` existia
+- **Solução:** Substituído `errorData.error` por `errorData?.error` em todos os arquivos
+- **Prevenção:** Criado utilitário para padronizar tratamento de erros futuros
+
+### 2025-12-16 - 🎯 FEATURE: Sistema de Controle de Acesso por Tipos de Usuário
+
+#### Added
+- **Sistema Completo de Controle de Acesso:** Implementação de 3 tipos de usuário
+  - **Master Users:** Acesso ilimitado, não vinculados a planos
+  - **Regular Users:** Limitados por planos de assinatura
+  - **Client Users:** Acesso restrito aos dados da própria agência
+- **Database Schema:** Migração `08-user-access-control-system.sql`
+  - Tabelas: `master_users`, `client_users`
+  - Enum: `user_type_enum` (master, regular, client)
+  - Funções SQL: `get_user_type()`, `check_user_permissions()`, `get_user_limits()`
+  - Políticas RLS para isolamento de dados
+- **Backend Services:** `UserAccessControl` service com verificação de permissões
+- **API Middleware:** `user-access-middleware.ts` para proteção automática de rotas
+- **React Hooks:** `use-user-access.ts` para integração frontend
+- **UI Components:** 
+  - `UserTypeManager` - Interface de gerenciamento admin
+  - `UserAccessIndicator` - Indicadores visuais de tipo e limites
+- **Exemplo de Uso:** API `/api/campaigns` com controle de acesso implementado
+
+#### Features
+- ✅ **Usuário Master:** Bypass completo de limitações e RLS
+- ✅ **Usuário Regular:** Verificação de plano ativo e limites
+- ✅ **Usuário Cliente:** Isolamento total por cliente, somente leitura
+- ✅ **Middleware Automático:** Proteção de APIs com decorators
+- ✅ **Limites Dinâmicos:** Baseados no tipo de usuário e plano
+- ✅ **Interface Admin:** Gerenciamento visual de tipos de usuário
+- ✅ **Indicadores Visuais:** Badges e progress bars para limites
+- ✅ **Hooks React:** Integração fácil no frontend
+
+#### Security
+- **Row Level Security:** Políticas RLS para todas as novas tabelas
+- **Data Isolation:** Client users não veem dados de outros clientes
+- **Permission Matrix:** Sistema granular de permissões por recurso
+- **Audit Trail:** Logs de criação e modificação de tipos de usuário
+
+#### Documentation
+- `APLICAR_SISTEMA_CONTROLE_ACESSO.md` - Guia completo de aplicação
+- Comentários SQL detalhados nas funções e tabelas
+- TypeScript interfaces para todos os tipos
+- Exemplos de uso em APIs e componentes
+
+### 2025-12-12 - 🔴 CRÍTICO: RLS Faltando em meta_campaigns
+
+#### Fixed
+- **Erro "Campanha não encontrada":** Tabela meta_campaigns tinha RLS habilitado mas SEM políticas
+  - Causa: Migração anterior esqueceu de criar políticas para meta_campaigns e meta_campaign_insights
+  - Solução: Criadas 8 políticas RLS completas (SELECT, INSERT, UPDATE, DELETE + service_role)
+  - Migração aplicada: `database/migrations/add-meta-campaigns-rls.sql`
+  - Isolamento por cliente via join: meta_campaigns → client_meta_connections → clients → memberships
+
+#### Impact
+- ✅ Usuários autenticados agora acessam suas campanhas
+- ✅ API de adsets funciona corretamente
+- ✅ Hierarquia completa funcional (campanhas → adsets → ads)
+- ✅ Isolamento por cliente garantido via RLS
+
+#### Testing
+- Script criado: `scripts/diagnose-adsets-error.js`
+- Verificação: 8 políticas criadas e ativas
+
+#### Documentation
+- `CORRECAO_RLS_META_CAMPAIGNS.md` - Documentação completa da correção crítica
+
+---
+
+### 2025-12-12 - ✅ Correção Bug UUID vs External ID na Hierarquia
+
+#### Fixed
+- **Erro "Campanha não encontrada ou sem permissão":** APIs usavam external_id ao invés de UUID interno
+  - Causa: Após buscar campanha/adset, APIs usavam parâmetro original (external_id) nas queries filhas
+  - Solução: Usar sempre o UUID interno retornado pela busca inicial
+  - `src/app/api/meta/adsets/route.ts` - Linha 67: `.eq('campaign_id', campaign.id)` ao invés de `campaignId`
+  - `src/app/api/meta/ads/route.ts` - Linha 73: `.eq('adset_id', adset.id)` ao invés de `adsetId`
+
+#### Impact
+- ✅ Adsets carregam corretamente (2 adsets encontrados)
+- ✅ Ads carregam corretamente (13 ads encontrados)
+- ✅ Hierarquia completa funcional
+- ✅ Foreign keys funcionam corretamente (UUID é FK válido, external_id não)
+
+#### Testing
+- Script criado: `scripts/test-hierarchy-fix.js`
+- Validação: UUIDs internos funcionam, external_ids causam erro de sintaxe
+
+#### Documentation
+- `CORRECAO_BUG_HIERARQUIA_UUID.md` - Documentação completa da correção
+
+---
+
+### 2025-12-12 - ✅ Correção APIs de Hierarquia Meta Ads
+
+#### Fixed
+- **APIs retornavam "Campanha/AdSet não encontrada":** Erro ao expandir campanhas e adsets
+  - Causa: Joins complexos com `memberships` falhavam desnecessariamente
+  - Solução: Simplificadas queries para confiar no RLS (Row Level Security)
+  - Removidos joins com `client_meta_connections`, `clients`, `memberships`
+  - RLS já garante isolamento, tornando joins redundantes
+
+#### Changed
+- `src/app/api/meta/adsets/route.ts` - Query de campanha simplificada
+- `src/app/api/meta/ads/route.ts` - Query de adset simplificada
+
+#### Impact
+- ✅ Adsets carregam corretamente ao expandir campanha
+- ✅ Ads carregam corretamente ao expandir adset
+- ✅ Melhor performance (menos joins)
+- ✅ Código mais simples e legível
+
+#### Documentation
+- `CORRECAO_APIS_HIERARQUIA.md` - Documentação completa da correção
+
+---
+
+### 2025-12-12 - ✅ Correção Filtro de Data dos Insights Meta Ads
+
+#### Fixed
+- **Métricas não apareciam nos adsets e ads:** "Sem dados" mesmo com dados no banco
+  - Causa: Filtro de data muito restritivo excluía insights que começavam 1 dia antes do período
+  - Solução: Corrigida lógica para buscar insights que se sobrepõem ao período
+  - Antes: `.gte('date_start', since).lte('date_stop', until)` (dentro do período)
+  - Depois: `.lte('date_start', until).gte('date_stop', since)` (sobrepõe ao período)
+
+#### Changed
+- `src/app/api/meta/adsets/route.ts` - Corrigido filtro de data dos insights
+- `src/app/api/meta/ads/route.ts` - Corrigido filtro de data dos insights
+- Adicionados logs detalhados para debug em ambas as APIs
+
+#### Impact
+- ✅ Métricas dos adsets aparecem corretamente (gasto, impressões, cliques, CTR, CPC)
+- ✅ Métricas dos ads aparecem corretamente
+- ✅ Todos os períodos funcionam (7, 14, 30, 90 dias)
+- ✅ Logs detalhados facilitam debug futuro
+
+#### Documentation
+- `CORRECAO_FILTRO_DATA_INSIGHTS.md` - Detalhes técnicos completos
+- `RESUMO_CORRECAO_METRICAS.md` - Resumo executivo
+- `TESTE_AGORA_METRICAS_ADSETS.md` - Guia de teste específico
+
+---
+
+### 2025-12-11 - ✅ Correção Middleware Next.js 15 - Edge Runtime
+
+#### Fixed
+- **Erro crítico no middleware:** `exports is not defined` no Edge Runtime
+  - Causa: Supabase tentando usar CommonJS no Edge Runtime do Next.js 15/16
+  - Solução: Simplificado middleware para usar apenas verificação de cookie
+  - Removida dependência do `@supabase/ssr` no middleware
+  - Autenticação completa continua nas rotas API e páginas server-side
+
+#### Changed
+- `src/middleware.ts` - Simplificado para compatibilidade com Edge Runtime
+  - Usa verificação simples de cookie `sb-doiogabdzybqxnyhktbv-auth-token`
+  - Mantém redirecionamentos de login/dashboard
+  - Mantém bypass para rotas OAuth (Meta e Google)
+
+#### Technical Details
+- Next.js 15/16 usa Edge Runtime para middleware por padrão
+- Edge Runtime não suporta módulos CommonJS (`exports`)
+- Supabase SSR usa módulos que não são compatíveis com Edge Runtime
+- Solução: Autenticação básica no middleware, validação completa nas rotas
+
+### 2025-12-10 - ✅ Migração Meta Ads Hierarchy Aplicada com Sucesso
+
+#### Added
+- Tabelas de hierarquia Meta Ads criadas via Supabase MCP Power
+  - `meta_adsets` - Conjuntos de anúncios com targeting e orçamentos
+  - `meta_ads` - Anúncios individuais com criativos
+  - `meta_adset_insights` - Métricas por período de adsets
+  - `meta_ad_insights` - Métricas por período de ads
+- Índices para performance em todas as tabelas
+- Triggers para atualização automática de `updated_at`
+- Políticas RLS para isolamento por cliente via memberships
+- Script de sincronização `sync-meta-campaigns.js` atualizado
+
+#### Fixed
+- Problema de tabelas antigas com estrutura incorreta (dropadas e recriadas)
+- Referências corretas para `client_meta_connections(id)`
+
+#### Data Sincronizada
+- 16 campanhas Meta Ads
+- 2 conjuntos de anúncios (adsets)
+- 13 anúncios individuais
+- Cliente: BM Coan (act_3656912201189816)
+
+### 2025-12-10 - Criação de Tabelas de Hierarquia Meta Ads
+
+#### Problema Identificado
+- **Tabelas `meta_adsets` e `meta_ads` não existiam no banco de dados**
+- Hierarquia de campanhas não mostrava conjuntos de anúncios e anúncios
+- Apenas campanhas eram exibidas
+
+#### Adicionado
+- **Migração SQL**: `database/migrations/add-meta-hierarchy-tables.sql`
+  - Tabela `meta_adsets` - Conjuntos de anúncios (Ad Sets)
+  - Tabela `meta_ads` - Anúncios individuais
+  - Tabela `meta_adset_insights` - Métricas de adsets por período
+  - Tabela `meta_ad_insights` - Métricas de ads por período
+  - Índices para performance em todas as foreign keys
+  - Triggers para atualização automática de `updated_at`
+  - Políticas RLS para isolamento por cliente
+
+- **Scripts de Diagnóstico e Sincronização**:
+  - `sync-meta-campaigns.js` - Sincroniza campanhas, adsets e ads da API Meta
+  - `test-meta-real.js` - Testa hierarquia completa com dados reais
+  - `check-meta-data.js` - Verifica dados Meta no banco
+
+- **Documentação**:
+  - `APLICAR_META_HIERARCHY_MIGRATION.md` - Guia de aplicação da migração
+  - `META_HIERARCHY_PROBLEMA_RESOLVIDO.md` - Diagnóstico completo e solução
+
+#### Estrutura das Novas Tabelas
+
+**meta_adsets:**
+- `connection_id` → `client_meta_connections(id)`
+- `campaign_id` → `meta_campaigns(id)`
+- `external_id` - ID do adset no Meta
+- Orçamento (daily/lifetime), otimização, targeting
+- RLS: Isolamento por `connection_id` via memberships
+
+**meta_ads:**
+- `connection_id` → `client_meta_connections(id)`
+- `adset_id` → `meta_adsets(id)`
+- `external_id` - ID do ad no Meta
+- Creative, status
+- RLS: Isolamento por `connection_id` via memberships
+
+#### Testado
+- ✅ 11 conexões Meta ativas encontradas
+- ✅ 16 campanhas sincronizadas com sucesso
+- ✅ 2 adsets identificados (aguardando tabela)
+- ✅ 13 ads identificados (aguardando tabela)
+- ✅ Cliente testado: `e3ab33da-79f9-45e9-a43f-6ce76ceb9751`
+- ✅ Ad Account: `act_3656912201189816` (BM Coan)
+
+#### Próximos Passos
+1. Aplicar migração no Supabase SQL Editor
+2. Executar `node sync-meta-campaigns.js` para sincronizar dados
+3. Verificar hierarquia completa na interface
+
+---
+
+### 2025-12-08 - Métricas na Hierarquia de Campanhas Meta
+
+#### Adicionado
+- **Métricas em tempo real** na hierarquia de campanhas Meta (similar ao Gerenciador de Anúncios)
+- Colunas de métricas: Gasto, Impressões, Cliques, CTR, CPC, Alcance
+- Insights disponíveis em todos os níveis: Campanhas, Conjuntos de Anúncios e Anúncios
+- **Filtro de data avançado** (`src/components/meta/date-range-filter.tsx`):
+  - Presets: Hoje, Ontem, Últimos 7/14/30/90 dias, Este mês, Mês passado, Este ano
+  - Seleção de período personalizado com calendário duplo
+  - Propagação automática para todos os níveis da hierarquia
+
+#### Modificado
+- **API de Campanhas** (`src/app/api/meta/campaigns/route.ts`):
+  - Novo parâmetro `withInsights` (default: true)
+  - Novos parâmetros `since` e `until` para filtro de data
+  - Busca insights do período selecionado
+
+- **API de AdSets** (`src/app/api/meta/adsets/route.ts`):
+  - Novo parâmetro `withInsights` (default: true)
+  - Novos parâmetros `since` e `until` para filtro de data
+  - Busca insights do período selecionado
+
+- **API de Ads** (`src/app/api/meta/ads/route.ts`):
+  - Novo parâmetro `withInsights` (default: true)
+  - Novos parâmetros `since` e `until` para filtro de data
+  - Busca insights do período selecionado
+
+- **Componente CampaignsList** (`src/components/meta/campaigns-list.tsx`):
+  - Nova tabela com colunas de métricas
+  - Filtro de data integrado no header
+  - Formatação de moeda, números e percentuais
+
+- **Componente AdSetsList** (`src/components/meta/adsets-list.tsx`):
+  - Nova tabela com colunas de métricas
+  - Recebe dateRange do componente pai
+  - Exibição de objetivo de otimização
+
+- **Componente AdsList** (`src/components/meta/ads-list.tsx`):
+  - Cards com métricas (Gasto, Impressões, Cliques, CTR)
+  - Recebe dateRange do componente pai
+
+- **MetaAdsClient** (`src/lib/meta/client.ts`):
+  - Novos métodos: `getAdSetInsights()`, `getAdInsights()`
+
+---
 
 ### 2025-12-05 - Nova Conta Stripe Configurada (Gestor de Tráfego)
 
@@ -99,7 +675,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 #### Variáveis de Ambiente Necessárias
 ```env
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxx
-STRIPE_SECRET_KEY=sk_test_xxx
+STRIPE_SECRET_KEY=sk_mock_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
 ```
 

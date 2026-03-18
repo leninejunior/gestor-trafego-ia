@@ -7,13 +7,14 @@
 
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle, RefreshCw, Search } from 'lucide-react';
 
 // Forçar renderização dinâmica (não fazer pre-render estático)
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,7 @@ function SelectAccountsContent() {
 
   const [accounts, setAccounts] = useState<GoogleAdsAccount[]>([]);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [accountsSearch, setAccountsSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -386,6 +388,27 @@ function SelectAccountsContent() {
     router.push('/dashboard/google');
   };
 
+  const filteredAccounts = useMemo(() => {
+    const query = accountsSearch.trim().toLowerCase();
+    if (!query) return accounts;
+
+    const normalize = (value: unknown) => String(value ?? '').toLowerCase();
+
+    return accounts.filter((account) => {
+      const name = normalize(account.descriptiveName);
+      const customerId = normalize(account.customerId);
+      const currency = normalize(account.currencyCode);
+      const timezone = normalize(account.timeZone);
+
+      return (
+        name.includes(query) ||
+        customerId.includes(query) ||
+        currency.includes(query) ||
+        timezone.includes(query)
+      );
+    });
+  }, [accounts, accountsSearch]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -535,45 +558,70 @@ function SelectAccountsContent() {
             )}
 
             <div className="space-y-4 mb-6">
-              {accounts.map((account) => (
-                <Card key={account.customerId} className="cursor-pointer hover:bg-accent/50">
-                  <CardContent className="pt-4">
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        id={account.customerId}
-                        checked={selectedAccounts.includes(account.customerId)}
-                        onCheckedChange={() => handleAccountToggle(account.customerId)}
-                      />
-                      <div className="flex-1">
-                        <label 
-                          htmlFor={account.customerId}
-                          className="cursor-pointer block"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{account.descriptiveName}</span>
-                            {account.canManageClients && (
-                              <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded font-semibold">
-                                ⚠️ MCC (Não selecionável)
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            ID: {account.customerId}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {account.currencyCode} • {account.timeZone}
-                          </div>
-                          {!account.canManageClients && (
-                            <div className="text-xs text-green-600 mt-1">
-                              ✓ Conta de anúncios (pode ser conectada)
-                            </div>
-                          )}
-                        </label>
-                      </div>
-                    </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  value={accountsSearch}
+                  onChange={(e) => setAccountsSearch(e.target.value)}
+                  placeholder="Filtrar contas por nome, customer ID, moeda ou timezone..."
+                  className="pl-9"
+                />
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                Mostrando {filteredAccounts.length}
+                {accountsSearch.trim() ? ` de ${accounts.length}` : ''} conta(s)
+              </p>
+
+              {filteredAccounts.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6 text-center text-sm text-muted-foreground">
+                    {accounts.length === 0
+                      ? 'Nenhuma conta disponível.'
+                      : 'Nenhuma conta corresponde ao filtro informado.'}
                   </CardContent>
                 </Card>
-              ))}
+              ) : (
+                filteredAccounts.map((account) => (
+                  <Card key={account.customerId} className="cursor-pointer hover:bg-accent/50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id={account.customerId}
+                          checked={selectedAccounts.includes(account.customerId)}
+                          onCheckedChange={() => handleAccountToggle(account.customerId)}
+                        />
+                        <div className="flex-1">
+                          <label
+                            htmlFor={account.customerId}
+                            className="cursor-pointer block"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{account.descriptiveName || 'Sem nome'}</span>
+                              {account.canManageClients && (
+                                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded font-semibold">
+                                  ⚠️ MCC (Não selecionável)
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              ID: {account.customerId || 'N/A'}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {account.currencyCode || 'N/A'} • {account.timeZone || 'N/A'}
+                            </div>
+                            {!account.canManageClients && (
+                              <div className="text-xs text-green-600 mt-1">
+                                ✓ Conta de anúncios (pode ser conectada)
+                              </div>
+                            )}
+                          </label>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
 
             <div className="flex gap-4">

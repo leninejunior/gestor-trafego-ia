@@ -506,9 +506,16 @@ export class HybridDataService {
   getDataSourceRecommendation(query: DataQuery): DataSource {
     const recentThreshold = new Date();
     recentThreshold.setDate(recentThreshold.getDate() - this.RECENT_DATA_THRESHOLD_DAYS);
+    recentThreshold.setHours(0, 0, 0, 0);
 
-    const isEntirelyRecent = query.date_from >= recentThreshold;
-    const isEntirelyHistorical = query.date_to < recentThreshold;
+    const normalizedDateFrom = new Date(query.date_from);
+    normalizedDateFrom.setHours(0, 0, 0, 0);
+
+    const normalizedDateTo = new Date(query.date_to);
+    normalizedDateTo.setHours(23, 59, 59, 999);
+
+    const isEntirelyRecent = normalizedDateFrom >= recentThreshold;
+    const isEntirelyHistorical = normalizedDateTo < recentThreshold;
 
     if (isEntirelyRecent) {
       return DataSource.API;

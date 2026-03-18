@@ -540,7 +540,7 @@ describe('Security Tests', () => {
 
   describe('Error Handling and Security', () => {
     it('should not leak sensitive information in error messages', () => {
-      const sensitiveData = 'sk_test_sensitive_api_key_12345';
+      const sensitiveData = 'sk_mock_sensitive_api_key_12345';
       
       try {
         // Simulate an error with sensitive data

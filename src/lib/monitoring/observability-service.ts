@@ -27,6 +27,11 @@ export interface TraceSpan {
   metadata?: Record<string, any>;
 }
 
+export interface ObservabilityEvent {
+  type: string;
+  metadata?: Record<string, any>;
+}
+
 export class ObservabilityService {
   private metrics: Metric[] = [];
   private logs: LogEntry[] = [];
@@ -212,6 +217,11 @@ export class ObservabilityService {
   }
 
   // Utility methods for common operations
+  async recordEvent(event: ObservabilityEvent): Promise<void> {
+    this.recordMetric(event.type, 1);
+    this.log('info', `Event: ${event.type}`, event.metadata);
+  }
+
   recordApiCall(endpoint: string, method: string, statusCode: number, duration: number) {
     this.recordMetric('api_calls_total', 1, { endpoint, method, status: statusCode.toString() });
     this.recordMetric('api_duration_ms', duration, { endpoint, method });

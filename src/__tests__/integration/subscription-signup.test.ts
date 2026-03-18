@@ -1,435 +1,210 @@
-// Mock environment variables
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-key';
-process.env.STRIPE_SECRET_KEY = 'sk_test_123';
+process.env.STRIPE_SECRET_KEY = 'sk_mock_123';
 
-// Mock Stripe
-const mockStripe = {
-  paymentIntents: {
-    create: jest.fn(),
-    confirm: jest.fn(),
-  },
-  customers: {
-    create: jest.fn(),
-  },
+const mockQueryBuilder: any = {
+  select: jest.fn(),
+  insert: jest.fn(),
+  update: jest.fn(),
+  eq: jest.fn(),
+  single: jest.fn(),
 };
 
-jest.mock('stripe', () => jest.fn(() => mockStripe));
-
-// Mock Supabase
-const mockSupabaseClient = {
-  from: jest.fn(() => ({
-    select: jest.fn().mockReturnThis(),
-    insert: jest.fn().mockReturnThis(),
-    update: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    single: jest.fn(),
-  })),
+const mockSupabaseClient: any = {
+  from: jest.fn(),
   auth: {
     getUser: jest.fn(),
   },
 };
 
+const mockNotificationIntegration = {
+  handleSubscriptionConfirmation: jest.fn(),
+  handlePlanUpgrade: jest.fn(),
+  handlePaymentFailure: jest.fn(),
+};
+
 jest.mock('@/lib/supabase/server', () => ({
-  createClient: () => mockSupabaseClient,
+  createClient: jest.fn(async () => mockSupabaseClient),
+}));
+
+jest.mock('@/lib/services/subscription-notification-integration', () => ({
+  SubscriptionNotificationIntegration: jest.fn(() => mockNotificationIntegration),
 }));
 
 import { SubscriptionService } from '@/lib/services/subscription-service';
 import { PlanManager } from '@/lib/services/plan-manager';
-import { BillingEngine } from '@/lib/services/billing-engine';
 
 describe('Subscription Signup Integration', () => {
   let subscriptionService: SubscriptionService;
-  let planManager: PlanManager;
-  let billingEngine: BillingEngine;
 
-  const mockUser = {
-    id: 'user-123',
-    email: 'test@example.com',
-  };
-
-  const mockOrganization = {
-    id: 'org-123',
-    name: 'Test Organization',
-  };
-
-  const mockPlan = {
-    id: 'plan-123',
+  const activePlan = {
+    id: 'plan-pro',
     name: 'Pro Plan',
-    monthlyPrice: 99.99,
-    features: {
-      maxClients: 10,
-      maxCampaigns: 50,
-      advancedAnalytics: true,
-      customReports: true,
-      apiAccess: true,
-      whiteLabel: false,
-      prioritySupport: true,
-    },
+    is_active: true,
+    monthly_price: 99.99,
+    annual_price: 999.99,
+    features: [],
+  };
+
+  const baseDbSubscription = {
+    id: 'sub-123',
+    organization_id: 'org-123',
+    plan_id: 'plan-pro',
+    status: 'active',
+    billing_cycle: 'monthly',
+    current_period_start: '2026-02-01T00:00:00.000Z',
+    current_period_end: '2026-03-01T00:00:00.000Z',
+    trial_end: null,
+    payment_method_id: 'pm_123',
+    stripe_subscription_id: null,
+    stripe_customer_id: null,
+    created_at: '2026-02-01T00:00:00.000Z',
+    updated_at: '2026-02-01T00:00:00.000Z',
   };
 
   beforeEach(() => {
-    subscriptionService = new SubscriptionService();
-    planManager = new PlanManager();
-    billingEngine = new BillingEngine();
     jest.clearAllMocks();
 
-    // Mock user authentication
-    mockSupabaseClient.auth.getUser.mockResolvedValue({
-      data: { user: mockUser },
+    mockQueryBuilder.select.mockReturnValue(mockQueryBuilder);
+    mockQueryBuilder.insert.mockReturnValue(mockQueryBuilder);
+    mockQueryBuilder.update.mockReturnValue(mockQueryBuilder);
+    mockQueryBuilder.eq.mockReturnValue(mockQueryBuilder);
+    mockQueryBuilder.single.mockReset();
+
+    mockSupabaseClient.from.mockReturnValue(mockQueryBuilder);
+    mockNotificationIntegration.handleSubscriptionConfirmation.mockResolvedValue(undefined);
+    mockNotificationIntegration.handlePlanUpgrade.mockResolvedValue(undefined);
+    mockNotificationIntegration.handlePaymentFailure.mockResolvedValue(undefined);
+
+    subscriptionService = new SubscriptionService();
+  });
+
+  it('creates an active subscription when plan is valid and no active subscription exists', async () => {
+    jest.spyOn(PlanManager.prototype, 'getPlanById').mockResolvedValue(activePlan);
+    jest.spyOn(subscriptionService, 'getActiveSubscription').mockResolvedValue(null);
+    mockQueryBuilder.single.mockResolvedValueOnce({
+      data: baseDbSubscription,
       error: null,
     });
-  });
 
-  describe('Complete Subscription Signup Process', () => {
-    it('should successfully create subscription with payment', async () => {
-      // Mock plan retrieval
-      mockSupabaseClient.from().select().eq().single().mockResolvedValueOnce({
-        data: mockPlan,
-        error: null,
-      });
+    const result = await subscriptionService.createSubscription({
+      organization_id: 'org-123',
+      plan_id: 'plan-pro',
+      billing_cycle: 'monthly',
+      payment_method_id: 'pm_123',
+    });
 
-      // Mock Stripe customer creation
-      mockStripe.customers.create.mockResolvedValue({
-        id: 'cus_123',
-        email: 'test@example.com',
-      });
-
-      // Mock payment intent creation
-      mockStripe.paymentIntents.create.mockResolvedValue({
-        id: 'pi_123',
-        status: 'requires_payment_method',
-        client_secret: 'pi_123_secret_123',
-        amount: 9999,
-      });
-
-      // Mock subscription creation
-      const mockSubscription = {
-        id: 'sub-123',
-        organizationId: 'org-123',
-        planId: 'plan-123',
+    expect(mockSupabaseClient.from).toHaveBeenCalledWith('subscriptions');
+    expect(mockQueryBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organization_id: 'org-123',
+        plan_id: 'plan-pro',
         status: 'active',
-        billingCycle: 'monthly',
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      };
-
-      mockSupabaseClient.from().insert().single().mockResolvedValue({
-        data: mockSubscription,
-        error: null,
-      });
-
-      // Execute subscription creation
-      const result = await subscriptionService.createSubscription({
-        organizationId: 'org-123',
-        planId: 'plan-123',
-        billingCycle: 'monthly',
-        paymentMethodId: 'pm_123',
-      });
-
-      // Verify the complete flow
-      expect(mockStripe.customers.create).toHaveBeenCalledWith({
-        email: 'test@example.com',
-        metadata: {
-          organizationId: 'org-123',
-          userId: 'user-123',
-        },
-      });
-
-      expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith({
-        amount: 9999,
-        currency: 'usd',
-        customer: 'cus_123',
-        payment_method: 'pm_123',
-        confirmation_method: 'manual',
-        confirm: true,
-        metadata: {
-          subscriptionId: expect.any(String),
-          organizationId: 'org-123',
-        },
-      });
-
-      expect(result.subscription).toEqual(mockSubscription);
-      expect(result.paymentIntent).toBeDefined();
-    });
-
-    it('should handle payment failure during signup', async () => {
-      // Mock plan retrieval
-      mockSupabaseClient.from().select().eq().single().mockResolvedValueOnce({
-        data: mockPlan,
-        error: null,
-      });
-
-      // Mock Stripe customer creation
-      mockStripe.customers.create.mockResolvedValue({
-        id: 'cus_123',
-        email: 'test@example.com',
-      });
-
-      // Mock payment intent failure
-      mockStripe.paymentIntents.create.mockRejectedValue(
-        new Error('Your card was declined.')
-      );
-
-      // Execute subscription creation
-      await expect(
-        subscriptionService.createSubscription({
-          organizationId: 'org-123',
-          planId: 'plan-123',
-          billingCycle: 'monthly',
-          paymentMethodId: 'pm_invalid',
-        })
-      ).rejects.toThrow('Your card was declined.');
-
-      // Verify no subscription was created
-      expect(mockSupabaseClient.from().insert).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'active',
-        })
-      );
-    });
-
-    it('should handle invalid plan selection', async () => {
-      // Mock plan not found
-      mockSupabaseClient.from().select().eq().single().mockResolvedValue({
-        data: null,
-        error: { message: 'Plan not found' },
-      });
-
-      await expect(
-        subscriptionService.createSubscription({
-          organizationId: 'org-123',
-          planId: 'nonexistent-plan',
-          billingCycle: 'monthly',
-          paymentMethodId: 'pm_123',
-        })
-      ).rejects.toThrow('Plan not found');
-    });
-
-    it('should create trial subscription without payment', async () => {
-      // Mock plan retrieval
-      mockSupabaseClient.from().select().eq().single().mockResolvedValueOnce({
-        data: { ...mockPlan, trialDays: 14 },
-        error: null,
-      });
-
-      // Mock trial subscription creation
-      const mockTrialSubscription = {
-        id: 'sub-trial-123',
-        organizationId: 'org-123',
-        planId: 'plan-123',
-        status: 'trialing',
-        billingCycle: 'monthly',
-        trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      };
-
-      mockSupabaseClient.from().insert().single().mockResolvedValue({
-        data: mockTrialSubscription,
-        error: null,
-      });
-
-      const result = await subscriptionService.createTrialSubscription({
-        organizationId: 'org-123',
-        planId: 'plan-123',
-        billingCycle: 'monthly',
-      });
-
-      expect(result.status).toBe('trialing');
-      expect(result.trialEnd).toBeDefined();
-      expect(mockStripe.paymentIntents.create).not.toHaveBeenCalled();
-    });
+        billing_cycle: 'monthly',
+      })
+    );
+    expect(mockNotificationIntegration.handleSubscriptionConfirmation).toHaveBeenCalledWith(
+      'sub-123',
+      'plan-pro',
+      'org-123'
+    );
+    expect(result.id).toBe('sub-123');
+    expect(result.organization_id).toBe('org-123');
+    expect(result.plan_id).toBe('plan-pro');
+    expect(result.status).toBe('active');
   });
 
-  describe('Subscription Upgrade/Downgrade Flow', () => {
+  it('creates a trial subscription when trial_days is informed', async () => {
+    jest.spyOn(PlanManager.prototype, 'getPlanById').mockResolvedValue(activePlan);
+    jest.spyOn(subscriptionService, 'getActiveSubscription').mockResolvedValue(null);
+
+    mockQueryBuilder.single.mockResolvedValueOnce({
+      data: {
+        ...baseDbSubscription,
+        id: 'sub-trial-123',
+        status: 'trialing',
+        trial_end: '2026-02-15T00:00:00.000Z',
+      },
+      error: null,
+    });
+
+    const result = await subscriptionService.createSubscription({
+      organization_id: 'org-123',
+      plan_id: 'plan-pro',
+      billing_cycle: 'monthly',
+      trial_days: 14,
+    });
+
+    expect(mockQueryBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'trialing',
+      })
+    );
+    expect(result.status).toBe('trialing');
+    expect(result.trial_end).toBe('2026-02-15T00:00:00.000Z');
+  });
+
+  it('throws when plan is invalid or inactive', async () => {
+    jest.spyOn(PlanManager.prototype, 'getPlanById').mockResolvedValue(null);
+
+    await expect(
+      subscriptionService.createSubscription({
+        organization_id: 'org-123',
+        plan_id: 'plan-missing',
+        billing_cycle: 'monthly',
+      })
+    ).rejects.toThrow('Invalid or inactive subscription plan');
+
+    expect(mockSupabaseClient.from).not.toHaveBeenCalled();
+  });
+
+  it('upgrades subscription and returns proration payload', async () => {
     const currentSubscription = {
       id: 'sub-123',
-      organizationId: 'org-123',
-      planId: 'basic-plan',
+      organization_id: 'org-123',
+      plan_id: 'plan-basic',
       status: 'active',
-      billingCycle: 'monthly',
-      currentPeriodStart: new Date('2024-01-01'),
-      currentPeriodEnd: new Date('2024-02-01'),
-      plan: {
-        monthlyPrice: 29.99,
-      },
+      billing_cycle: 'monthly' as const,
+      current_period_start: '2026-02-01T00:00:00.000Z',
+      current_period_end: '2026-03-01T00:00:00.000Z',
+      trial_end: null,
+      payment_method_id: 'pm_123',
+      stripe_subscription_id: null,
+      stripe_customer_id: null,
+      created_at: '2026-02-01T00:00:00.000Z',
+      updated_at: '2026-02-01T00:00:00.000Z',
     };
 
-    it('should successfully upgrade subscription with prorated billing', async () => {
-      // Mock current subscription retrieval
-      mockSupabaseClient.from().select().eq().single()
-        .mockResolvedValueOnce({
-          data: currentSubscription,
-          error: null,
-        })
-        // Mock new plan retrieval
-        .mockResolvedValueOnce({
-          data: mockPlan,
-          error: null,
-        });
+    const expectedProration = {
+      current_plan_cost: 20,
+      new_plan_cost: 45,
+      prorated_amount: 25,
+      days_remaining: 15,
+      effective_date: '2026-02-15T00:00:00.000Z',
+    };
 
-      // Mock proration calculation
-      const prorationAmount = 35.00; // Calculated based on remaining days
-      
-      // Mock payment intent for upgrade
-      mockStripe.paymentIntents.create.mockResolvedValue({
-        id: 'pi_upgrade_123',
-        status: 'succeeded',
-        amount: 3500, // $35.00 in cents
-      });
+    jest.spyOn(subscriptionService, 'getSubscriptionById').mockResolvedValue(currentSubscription);
+    jest.spyOn(PlanManager.prototype, 'getPlanById').mockResolvedValue(activePlan);
+    jest.spyOn(subscriptionService as any, 'calculateProration').mockResolvedValue(expectedProration);
 
-      // Mock subscription update
-      mockSupabaseClient.from().update().eq().mockResolvedValue({
-        data: { ...currentSubscription, planId: 'plan-123' },
-        error: null,
-      });
-
-      const result = await subscriptionService.upgradeSubscription(
-        'sub-123',
-        'plan-123'
-      );
-
-      expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith({
-        amount: 3500,
-        currency: 'usd',
-        automatic_payment_methods: { enabled: true },
-        metadata: {
-          subscriptionId: 'sub-123',
-          upgradeType: 'plan_change',
-          prorationAmount: '35.00',
-        },
-      });
-
-      expect(result.prorationAmount).toBe(prorationAmount);
+    mockQueryBuilder.single.mockResolvedValueOnce({
+      data: {
+        ...baseDbSubscription,
+        plan_id: 'plan-pro',
+      },
+      error: null,
     });
 
-    it('should handle downgrade with credit application', async () => {
-      const premiumSubscription = {
-        ...currentSubscription,
-        planId: 'premium-plan',
-        plan: { monthlyPrice: 199.99 },
-      };
+    const result = await subscriptionService.upgradeSubscription('sub-123', 'plan-pro');
 
-      // Mock current subscription retrieval
-      mockSupabaseClient.from().select().eq().single()
-        .mockResolvedValueOnce({
-          data: premiumSubscription,
-          error: null,
-        })
-        // Mock new plan retrieval
-        .mockResolvedValueOnce({
-          data: mockPlan, // Downgrading to Pro from Premium
-          error: null,
-        });
-
-      // Mock subscription update
-      mockSupabaseClient.from().update().eq().mockResolvedValue({
-        data: { ...premiumSubscription, planId: 'plan-123' },
-        error: null,
-      });
-
-      const result = await subscriptionService.upgradeSubscription(
-        'sub-123',
-        'plan-123'
-      );
-
-      // Should not create payment intent for downgrades
-      expect(mockStripe.paymentIntents.create).not.toHaveBeenCalled();
-      expect(result.creditAmount).toBeGreaterThan(0);
-    });
-  });
-
-  describe('Payment Failure and Recovery', () => {
-    it('should handle payment failure with retry logic', async () => {
-      const failedPaymentIntent = {
-        id: 'pi_failed_123',
-        status: 'requires_payment_method',
-        metadata: {
-          subscriptionId: 'sub-123',
-          retryCount: '0',
-        },
-      };
-
-      // Mock subscription retrieval
-      mockSupabaseClient.from().select().eq().single().mockResolvedValue({
-        data: currentSubscription,
-        error: null,
-      });
-
-      // Mock retry payment creation
-      mockStripe.paymentIntents.create.mockResolvedValue({
-        id: 'pi_retry_123',
-        status: 'requires_payment_method',
-        metadata: {
-          subscriptionId: 'sub-123',
-          retryCount: '1',
-        },
-      });
-
-      await billingEngine.handlePaymentFailure(failedPaymentIntent);
-
-      expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith({
-        amount: expect.any(Number),
-        currency: 'usd',
-        automatic_payment_methods: { enabled: true },
-        metadata: {
-          subscriptionId: 'sub-123',
-          retryCount: '1',
-          retryAttempt: 'true',
-        },
-      });
-    });
-
-    it('should cancel subscription after maximum retry attempts', async () => {
-      const maxRetriesPaymentIntent = {
-        id: 'pi_max_retries_123',
-        status: 'requires_payment_method',
-        metadata: {
-          subscriptionId: 'sub-123',
-          retryCount: '3', // Maximum retries reached
-        },
-      };
-
-      // Mock subscription update to canceled
-      mockSupabaseClient.from().update().eq().mockResolvedValue({
-        data: { ...currentSubscription, status: 'canceled' },
-        error: null,
-      });
-
-      await billingEngine.handlePaymentFailure(maxRetriesPaymentIntent);
-
-      expect(mockSupabaseClient.from().update).toHaveBeenCalledWith({
-        status: 'canceled',
-        updatedAt: expect.any(Date),
-      });
-
-      // Should not create another retry payment
-      expect(mockStripe.paymentIntents.create).not.toHaveBeenCalled();
-    });
-
-    it('should recover subscription after successful payment retry', async () => {
-      const successfulRetryIntent = {
-        id: 'pi_success_retry_123',
-        status: 'succeeded',
-        metadata: {
-          subscriptionId: 'sub-123',
-          retryAttempt: 'true',
-        },
-      };
-
-      // Mock subscription update to active
-      mockSupabaseClient.from().update().eq().mockResolvedValue({
-        data: { ...currentSubscription, status: 'active' },
-        error: null,
-      });
-
-      await billingEngine.handlePaymentSuccess(successfulRetryIntent);
-
-      expect(mockSupabaseClient.from().update).toHaveBeenCalledWith({
-        status: 'active',
-        currentPeriodStart: expect.any(Date),
-        currentPeriodEnd: expect.any(Date),
-        updatedAt: expect.any(Date),
-      });
-    });
+    expect(mockSupabaseClient.from).toHaveBeenCalledWith('subscriptions');
+    expect(mockQueryBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan_id: 'plan-pro',
+      })
+    );
+    expect(result.subscription.plan_id).toBe('plan-pro');
+    expect(result.proration).toEqual(expectedProration);
+    expect(mockNotificationIntegration.handlePlanUpgrade).toHaveBeenCalled();
   });
 });

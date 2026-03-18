@@ -201,7 +201,7 @@ export class GoogleOAuthFlowManager {
     // Buscar conexão
     const { data: connection, error } = await supabase
       .from('google_ads_connections')
-      .select('*')
+      .select('id, access_token, refresh_token, status')
       .eq('id', connectionId)
       .eq('client_id', clientId)
       .single();
@@ -209,11 +209,9 @@ export class GoogleOAuthFlowManager {
     if (error || !connection) {
       throw new Error('Conexão não encontrada');
     }
-    
-    // Verificar se token ainda é válido
-    const tokenExpiry = new Date(connection.token_expires_at);
-    if (tokenExpiry <= new Date()) {
-      throw new Error('Token expirado, refaça a conexão');
+
+    if (connection.status === 'revoked') {
+      throw new Error('Conexão revogada, refaça a conexão');
     }
     
     // Buscar contas usando Google Ads API

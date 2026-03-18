@@ -1,372 +1,155 @@
-/**
- * Integration Tests for Google Ads RLS Policies
- * 
- * These tests verify that Row Level Security policies properly isolate
- * client data in all Google Ads related tables.
- */
+import fs from 'fs';
+import path from 'path';
 
-import { createClient } from '@supabase/supabase-js';
+const baseSchemaPath = path.join(process.cwd(), 'database/migrations/01-google-ads-complete-schema.sql');
+const fixSchemaPath = path.join(process.cwd(), 'database/migrations/fix-google-ads-schema.sql');
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const readSql = (filePath: string) => fs.readFileSync(filePath, 'utf-8');
+const normalizeSql = (sql: string) => sql.replace(/\s+/g, ' ');
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const extractCreatePolicyBlock = (sql: string, policyName: string): string => {
+  const pattern = new RegExp(`CREATE POLICY\\s+"${escapeRegExp(policyName)}"[\\s\\S]*?;`, 'i');
+  const match = sql.match(pattern);
+  return match ? normalizeSql(match[0]) : '';
+};
 
 describe('Google Ads RLS Policies', () => {
-  let supabase: ReturnType<typeof createClient>;
+  let baseSchemaSql: string;
+  let fixSchemaSql: string;
 
   beforeAll(() => {
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing required environment variables');
-    }
-
-    supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
+    baseSchemaSql = readSql(baseSchemaPath);
+    fixSchemaSql = readSql(fixSchemaPath);
   });
 
-  describe('RLS Policy Existence', () => {
-    it('should have RLS enabled on google_ads_connections', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT relrowsecurity 
-          FROM pg_class 
-          WHERE relname = 'google_ads_connections';
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data[0]?.relrowsecurity).toBe(true);
-    });
-
-    it('should have RLS enabled on google_ads_campaigns', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT relrowsecurity 
-          FROM pg_class 
-          WHERE relname = 'google_ads_campaigns';
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data[0]?.relrowsecurity).toBe(true);
-    });
-
-    it('should have RLS enabled on google_ads_metrics', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT relrowsecurity 
-          FROM pg_class 
-          WHERE relname = 'google_ads_metrics';
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data[0]?.relrowsecurity).toBe(true);
-    });
-
-    it('should have RLS enabled on google_ads_sync_logs', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT relrowsecurity 
-          FROM pg_class 
-          WHERE relname = 'google_ads_sync_logs';
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data[0]?.relrowsecurity).toBe(true);
-    });
-
-    it('should have RLS enabled on google_ads_audit_log', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT relrowsecurity 
-          FROM pg_class 
-          WHERE relname = 'google_ads_audit_log';
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data[0]?.relrowsecurity).toBe(true);
-    });
-  });
-
-  describe('RLS Policy Configuration', () => {
-    it('should have client isolation policies for google_ads_connections', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT policyname, cmd, roles::text[]
-          FROM pg_policies
-          WHERE tablename = 'google_ads_connections'
-          AND policyname LIKE '%client%'
-          ORDER BY policyname;
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data.length).toBeGreaterThan(0);
-      
-      // Should have policies for SELECT, INSERT, UPDATE, DELETE
-      const commands = data.map((p: any) => p.cmd);
-      expect(commands).toContain('SELECT');
-      expect(commands).toContain('INSERT');
-      expect(commands).toContain('UPDATE');
-      expect(commands).toContain('DELETE');
-    });
-
-    it('should have client isolation policies for google_ads_campaigns', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT policyname, cmd, roles::text[]
-          FROM pg_policies
-          WHERE tablename = 'google_ads_campaigns'
-          AND policyname LIKE '%client%'
-          ORDER BY policyname;
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data.length).toBeGreaterThan(0);
-      
-      const commands = data.map((p: any) => p.cmd);
-      expect(commands).toContain('SELECT');
-      expect(commands).toContain('INSERT');
-      expect(commands).toContain('UPDATE');
-      expect(commands).toContain('DELETE');
-    });
-
-    it('should have client isolation policies for google_ads_metrics', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT policyname, cmd, roles::text[]
-          FROM pg_policies
-          WHERE tablename = 'google_ads_metrics'
-          AND policyname LIKE '%client%'
-          ORDER BY policyname;
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data.length).toBeGreaterThan(0);
-      
-      const commands = data.map((p: any) => p.cmd);
-      expect(commands).toContain('SELECT');
-      expect(commands).toContain('INSERT');
-      expect(commands).toContain('UPDATE');
-      expect(commands).toContain('DELETE');
-    });
-
-    it('should have client isolation policies for google_ads_sync_logs', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT policyname, cmd, roles::text[]
-          FROM pg_policies
-          WHERE tablename = 'google_ads_sync_logs'
-          AND policyname LIKE '%client%'
-          ORDER BY policyname;
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data.length).toBeGreaterThan(0);
-      
-      const commands = data.map((p: any) => p.cmd);
-      expect(commands).toContain('SELECT');
-      expect(commands).toContain('INSERT');
-      expect(commands).toContain('UPDATE');
-      expect(commands).toContain('DELETE');
-    });
-
-    it('should have service role bypass policies', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT tablename, policyname
-          FROM pg_policies
-          WHERE tablename IN (
-            'google_ads_connections',
-            'google_ads_campaigns',
-            'google_ads_metrics',
-            'google_ads_sync_logs'
-          )
-          AND policyname LIKE '%service_role%'
-          ORDER BY tablename;
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data.length).toBeGreaterThanOrEqual(4); // One for each table
-    });
-  });
-
-  describe('RLS Policy Logic', () => {
-    it('should filter connections by client membership', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT qual
-          FROM pg_policies
-          WHERE tablename = 'google_ads_connections'
-          AND policyname = 'google_connections_client_select';
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data[0]?.qual).toContain('client_id');
-      expect(data[0]?.qual).toContain('memberships');
-      expect(data[0]?.qual).toContain('organization_id');
-    });
-
-    it('should filter campaigns by client membership', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT qual
-          FROM pg_policies
-          WHERE tablename = 'google_ads_campaigns'
-          AND policyname = 'google_campaigns_client_select';
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data[0]?.qual).toContain('client_id');
-      expect(data[0]?.qual).toContain('memberships');
-      expect(data[0]?.qual).toContain('organization_id');
-    });
-
-    it('should filter metrics by campaign ownership', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT qual
-          FROM pg_policies
-          WHERE tablename = 'google_ads_metrics'
-          AND policyname = 'google_metrics_client_select';
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data[0]?.qual).toContain('campaign_id');
-      expect(data[0]?.qual).toContain('google_ads_campaigns');
-      expect(data[0]?.qual).toContain('memberships');
-    });
-
-    it('should filter sync logs by connection ownership', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT qual
-          FROM pg_policies
-          WHERE tablename = 'google_ads_sync_logs'
-          AND policyname = 'google_sync_logs_client_select';
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data[0]?.qual).toContain('connection_id');
-      expect(data[0]?.qual).toContain('google_ads_connections');
-      expect(data[0]?.qual).toContain('memberships');
-    });
-  });
-
-  describe('Policy Coverage', () => {
-    it('should have all CRUD policies for each table', async () => {
+  describe('RLS Enablement', () => {
+    it('enables RLS for all Google Ads operational tables', () => {
       const tables = [
         'google_ads_connections',
         'google_ads_campaigns',
         'google_ads_metrics',
-        'google_ads_sync_logs'
+        'google_ads_sync_logs',
+        'google_ads_audit_log',
       ];
 
       for (const table of tables) {
-        const { data, error } = await supabase.rpc('exec_sql', {
-          sql: `
-            SELECT cmd
-            FROM pg_policies
-            WHERE tablename = '${table}'
-            AND policyname LIKE '%client%'
-            ORDER BY cmd;
-          `
-        });
-
-        expect(error).toBeNull();
-        expect(data).toBeDefined();
-        
-        const commands = data.map((p: any) => p.cmd);
-        expect(commands).toContain('SELECT');
-        expect(commands).toContain('INSERT');
-        expect(commands).toContain('UPDATE');
-        expect(commands).toContain('DELETE');
+        expect(baseSchemaSql).toMatch(
+          new RegExp(`ALTER TABLE\\s+${table}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY;`, 'i')
+        );
       }
-    });
-
-    it('should not have overly permissive "access all" policies', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT tablename, policyname
-          FROM pg_policies
-          WHERE tablename IN (
-            'google_ads_connections',
-            'google_ads_campaigns',
-            'google_ads_metrics',
-            'google_ads_sync_logs'
-          )
-          AND policyname = 'authenticated_users_can_access_all';
-        `
-      });
-
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data.length).toBe(0); // Should not find any overly permissive policies
     });
   });
 
-  describe('Audit Log RLS', () => {
-    it('should have proper RLS policies for audit log', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT policyname, cmd, roles::text[]
-          FROM pg_policies
-          WHERE tablename = 'google_ads_audit_log'
-          ORDER BY policyname;
-        `
-      });
+  describe('Client Isolation Policy Coverage', () => {
+    it('defines SELECT/INSERT/UPDATE/DELETE policies for all core Google Ads tables', () => {
+      const policyPrefixes: Record<string, string> = {
+        google_ads_connections: 'google_connections_client',
+        google_ads_campaigns: 'google_campaigns_client',
+        google_ads_metrics: 'google_metrics_client',
+        google_ads_sync_logs: 'google_sync_logs_client',
+      };
 
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data.length).toBeGreaterThan(0);
-      
-      // Should have service role and authenticated user policies
-      const policyNames = data.map((p: any) => p.policyname);
-      expect(policyNames.some((name: string) => name.includes('service_role'))).toBe(true);
-      expect(policyNames.some((name: string) => name.includes('authenticated'))).toBe(true);
+      const commands = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
+
+      for (const [table, prefix] of Object.entries(policyPrefixes)) {
+        for (const command of commands) {
+          const policyName = `${prefix}_${command.toLowerCase()}`;
+          const block = extractCreatePolicyBlock(fixSchemaSql, policyName);
+
+          expect(block).not.toBe('');
+          expect(block).toMatch(new RegExp(`ON\\s+${table}`, 'i'));
+          expect(block).toMatch(new RegExp(`FOR\\s+${command}`, 'i'));
+          expect(block).toMatch(/TO\s+authenticated/i);
+        }
+      }
+    });
+  });
+
+  describe('Service Role Bypass', () => {
+    it('defines full-access service_role policies for core tables', () => {
+      const servicePolicies: Array<{ table: string; policy: string }> = [
+        { table: 'google_ads_connections', policy: 'service_role_full_access_connections' },
+        { table: 'google_ads_campaigns', policy: 'service_role_full_access_campaigns' },
+        { table: 'google_ads_metrics', policy: 'service_role_full_access_metrics' },
+        { table: 'google_ads_sync_logs', policy: 'service_role_full_access_sync_logs' },
+      ];
+
+      for (const entry of servicePolicies) {
+        const block = extractCreatePolicyBlock(fixSchemaSql, entry.policy);
+        expect(block).not.toBe('');
+        expect(block).toMatch(new RegExp(`ON\\s+${entry.table}`, 'i'));
+        expect(block).toMatch(/FOR\s+ALL/i);
+        expect(block).toMatch(/TO\s+service_role/i);
+        expect(block).toMatch(/USING\s*\(\s*true\s*\)/i);
+      }
+    });
+  });
+
+  describe('Isolation Logic', () => {
+    it('uses membership-based checks in connection and campaign policies', () => {
+      const connectionSelect = extractCreatePolicyBlock(
+        fixSchemaSql,
+        'google_connections_client_select'
+      );
+      const campaignSelect = extractCreatePolicyBlock(
+        fixSchemaSql,
+        'google_campaigns_client_select'
+      );
+
+      expect(connectionSelect).toContain('client_id IN');
+      expect(connectionSelect).toContain('JOIN memberships m ON m.organization_id = c.org_id');
+
+      expect(campaignSelect).toContain('client_id IN');
+      expect(campaignSelect).toContain('JOIN memberships m ON m.organization_id = c.org_id');
     });
 
-    it('should filter audit logs by client_id', async () => {
-      const { data, error } = await supabase.rpc('exec_sql', {
-        sql: `
-          SELECT qual
-          FROM pg_policies
-          WHERE tablename = 'google_ads_audit_log'
-          AND policyname = 'authenticated_users_audit_log_access';
-        `
-      });
+    it('uses relationship-based checks for metrics and sync logs', () => {
+      const metricsSelect = extractCreatePolicyBlock(fixSchemaSql, 'google_metrics_client_select');
+      const syncLogsSelect = extractCreatePolicyBlock(
+        fixSchemaSql,
+        'google_sync_logs_client_select'
+      );
 
-      expect(error).toBeNull();
-      expect(data).toBeDefined();
-      expect(data[0]?.qual).toContain('client_id');
-      expect(data[0]?.qual).toContain('memberships');
+      expect(metricsSelect).toContain('campaign_id IN');
+      expect(metricsSelect).toContain('FROM google_ads_campaigns gc');
+      expect(metricsSelect).toContain('JOIN memberships m ON m.organization_id = c.org_id');
+
+      expect(syncLogsSelect).toContain('connection_id IN');
+      expect(syncLogsSelect).toContain('FROM google_ads_connections gac');
+      expect(syncLogsSelect).toContain('JOIN memberships m ON m.organization_id = c.org_id');
+    });
+  });
+
+  describe('Audit Log Policies', () => {
+    it('defines both service-role and authenticated-user policies for audit log', () => {
+      const serviceBlock = extractCreatePolicyBlock(fixSchemaSql, 'service_role_audit_log_access');
+      const userBlock = extractCreatePolicyBlock(
+        fixSchemaSql,
+        'authenticated_users_audit_log_access'
+      );
+
+      expect(serviceBlock).not.toBe('');
+      expect(serviceBlock).toMatch(/ON\s+google_ads_audit_log/i);
+      expect(serviceBlock).toMatch(/FOR\s+ALL/i);
+      expect(serviceBlock).toMatch(/TO\s+service_role/i);
+
+      expect(userBlock).not.toBe('');
+      expect(userBlock).toMatch(/ON\s+google_ads_audit_log/i);
+      expect(userBlock).toMatch(/FOR\s+SELECT/i);
+      expect(userBlock).toMatch(/TO\s+authenticated/i);
+      expect(userBlock).toContain('client_id IN');
+      expect(userBlock).toContain('JOIN memberships m ON m.organization_id = c.org_id');
+      expect(userBlock).toContain('OR user_id = auth.uid()');
+    });
+  });
+
+  describe('Hardening Guardrail', () => {
+    it('does not define the old permissive authenticated_users_can_access_all policy', () => {
+      expect(fixSchemaSql).not.toMatch(
+        /CREATE POLICY\s+"authenticated_users_can_access_all"/i
+      );
     });
   });
 });

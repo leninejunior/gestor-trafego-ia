@@ -19,9 +19,9 @@ import { AdPlatform, DataQuery } from '@/lib/types/sync';
 import { BaseSyncAdapter } from '@/lib/sync/base-sync-adapter';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 /**
@@ -55,7 +55,7 @@ export async function GET(
     }
 
     // Get campaign ID from path
-    const campaignId = params.id;
+    const { id: campaignId } = await params;
 
     if (!campaignId) {
       return NextResponse.json(

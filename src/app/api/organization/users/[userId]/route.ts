@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 // PATCH - Atualizar role do usuário
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -15,6 +15,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { userId } = await params;
     const { role } = await request.json();
 
     if (!role || !['admin', 'member', 'viewer'].includes(role)) {
@@ -36,7 +37,7 @@ export async function PATCH(
     const { data: targetMembership } = await supabase
       .from('memberships')
       .select('organization_id, role')
-      .eq('user_id', params.userId)
+      .eq('user_id', userId)
       .single();
 
     if (!targetMembership) {
@@ -49,7 +50,7 @@ export async function PATCH(
     }
 
     // Não pode alterar próprio role
-    if (params.userId === user.id) {
+    if (userId === user.id) {
       return NextResponse.json({ error: 'Cannot change your own role' }, { status: 400 });
     }
 
@@ -57,7 +58,7 @@ export async function PATCH(
     const { error: updateError } = await supabase
       .from('memberships')
       .update({ role })
-      .eq('user_id', params.userId)
+      .eq('user_id', userId)
       .eq('organization_id', adminMembership.organization_id);
 
     if (updateError) throw updateError;

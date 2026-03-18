@@ -10,6 +10,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getGoogleTokenManager } from '@/lib/google/token-manager';
 import { getGoogleAdsClient } from '@/lib/google/client';
+import {
+  countGoogleCampaignsByConnectionId,
+  getActiveSyncByConnectionId,
+  getGoogleConnectionById,
+  getClientOrganizationId,
+  getLatestSyncLogByConnectionId,
+  hasOrgMembershipAccess,
+  isUserSuperAdmin,
+  listGoogleConnectionsByClient,
+  updateGoogleSyncLogStatus,
+} from '@/lib/postgres/google-sync-repository';
 import { z } from 'zod';
 
 // ============================================================================
@@ -57,22 +68,16 @@ interface ConnectionDiagnostics {
 async function verifyOAuthScopes(connectionId: string): Promise<DiagnosticResult> {
   try {
     console.log('[Diagnostics] Verifying OAuth scopes:', { connectionId });
-    
-    const supabase = await createClient();
+
     const tokenManager = getGoogleTokenManager();
     
     // Get connection details
-    const { data: connection, error: connError } = await supabase
-      .from('google_ads_connections')
-      .select('id, client_id, customer_id, refresh_token, access_token')
-      .eq('id', connectionId)
-      .single();
-    
-    if (connError || !connection) {
+    const connection = await getGoogleConnectionById(connectionId);
+    if (!connection) {
       return {
         status: 'fail',
         message: 'Failed to retrieve connection details',
-        error: connError?.message || 'Connection not found',
+        error: 'Connection not found',
       };
     }
     
@@ -190,21 +195,14 @@ async function verifyOAuthScopes(connectionId: string): Promise<DiagnosticResult
 async function checkCustomerIdAccess(connectionId: string): Promise<DiagnosticResult> {
   try {
     console.log('[Diagnostics] Checking customer ID access:', { connectionId });
-    
-    const supabase = await createClient();
-    
+
     // Get connection details
-    const { data: connection, error: connError } = await supabase
-      .from('google_ads_connections')
-      .select('id, customer_id, refresh_token')
-      .eq('id', connectionId)
-      .single();
-    
-    if (connError || !connection) {
+    const connection = await getGoogleConnectionById(connectionId);
+    if (!connection) {
       return {
         status: 'fail',
         message: 'Failed to retrieve connection details',
-        error: connError?.message || 'Connection not found',
+        error: 'Connection not found',
       };
     }
     
@@ -305,21 +303,14 @@ async function checkCustomerIdAccess(connectionId: string): Promise<DiagnosticRe
 async function testApiPermissions(connectionId: string): Promise<DiagnosticResult> {
   try {
     console.log('[Diagnostics] Testing API permissions:', { connectionId });
-    
-    const supabase = await createClient();
-    
+
     // Get connection details
-    const { data: connection, error: connError } = await supabase
-      .from('google_ads_connections')
-      .select('id, customer_id, refresh_token')
-      .eq('id', connectionId)
-      .single();
-    
-    if (connError || !connection) {
+    const connection = await getGoogleConnectionById(connectionId);
+    if (!connection) {
       return {
         status: 'fail',
         message: 'Failed to retrieve connection details',
-        error: connError?.message || 'Connection not found',
+        error: 'Connection not found',
       };
     }
     
@@ -577,34 +568,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Simplified: Skip membership verification for now to avoid errors
-    console.log('[Google Sync Status] ⏸️ PULANDO VERIFICAÇÃO DE MEMBERSHIP (simplificado)');
-
-    // Get connections for the client
-    let connectionsQuery = supabase
-      .from('google_ads_connections')
-      .select('id, customer_id, status, last_sync_at, created_at')
-      .eq('client_id', clientId);
-
-    if (connectionId) {
-      connectionsQuery = connectionsQuery.eq('id', connectionId);
+    const clientOrgId = await getClientOrganizationId(clientId);
+    if (!clientOrgId) {
+      return NextResponse.json(
+        { error: 'Cliente não encontrado ou sem organização vinculada' },
+        { status: 404 }
+      );
     }
 
-    const { data: connections, error: connectionsError } = await connectionsQuery;
+    const superAdmin = await isUserSuperAdmin(user.id);
+    const hasAccess = superAdmin || await hasOrgMembershipAccess(user.id, clientOrgId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Acesso negado ao cliente especificado' },
+        { status: 403 }
+      );
+    }
+
+    const connections = await listGoogleConnectionsByClient(clientId, connectionId || undefined);
 
     console.log('[Google Sync Status] 📊 RESULTADO DA QUERY DE CONEXÕES:', {
       hasConnections: !!connections,
-      connectionsCount: connections?.length || 0,
-      error: connectionsError?.message
+      connectionsCount: connections?.length || 0
     });
-
-    if (connectionsError) {
-      console.error('[Google Sync Status] ❌ ERRO AO BUSCAR CONEXÕES:', connectionsError);
-      return NextResponse.json(
-        { error: 'Erro ao buscar conexões', details: connectionsError.message },
-        { status: 500 }
-      );
-    }
 
     if (!connections || connections.length === 0) {
       console.log('[Google Sync Status] ⚠️ NENHUMA CONEXÃO ENCONTRADA');
@@ -627,35 +613,28 @@ export async function GET(request: NextRequest) {
       connections.map(async (connection) => {
         console.log(`[Google Sync Status] 🔍 Processando conexão: ${connection.id}`);
         
-        // Simplified status - just return basic info without querying tables that might not exist
+        // Status e métricas via Postgres (dados de negócio fora do Supabase)
         let latestSync = null;
         let activeSync = null;
         let campaignCount = 0;
         let latestMetrics = null;
 
         try {
-          // Try to get sync logs if table exists
-          const { data: syncData } = await supabase
-            .from('google_ads_sync_logs')
-            .select('*')
-            .eq('connection_id', connection.id)
-            .order('started_at', { ascending: false })
-            .limit(1)
-            .single();
-          latestSync = syncData;
+          latestSync = await getLatestSyncLogByConnectionId(connection.id);
         } catch (syncError) {
-          console.log(`[Google Sync Status] ⚠️ Tabela sync_logs não existe ou erro:`, syncError.message);
+          console.log(`[Google Sync Status] ⚠️ Erro ao buscar latest sync:`, (syncError as Error).message);
         }
 
         try {
-          // Try to get campaign count if table exists
-          const { data: campaigns } = await supabase
-            .from('google_ads_campaigns')
-            .select('id', { count: 'exact' })
-            .eq('connection_id', connection.id);
-          campaignCount = campaigns?.length || 0;
+          activeSync = await getActiveSyncByConnectionId(connection.id);
+        } catch (activeSyncError) {
+          console.log(`[Google Sync Status] ⚠️ Erro ao buscar sync ativa:`, (activeSyncError as Error).message);
+        }
+
+        try {
+          campaignCount = await countGoogleCampaignsByConnectionId(connection.id);
         } catch (campaignError) {
-          console.log(`[Google Sync Status] ⚠️ Tabela campaigns não existe ou erro:`, campaignError.message);
+          console.log(`[Google Sync Status] ⚠️ Erro ao contar campanhas:`, (campaignError as Error).message);
         }
 
         // Determine current status
@@ -714,7 +693,7 @@ export async function GET(request: NextRequest) {
             elapsedMinutes: Math.round((Date.now() - new Date(activeSync.started_at).getTime()) / 1000 / 60),
           } : null,
           stats: {
-            campaignCount: campaignCount?.length || 0,
+            campaignCount,
             latestMetricsDate: latestMetrics?.date || null,
             connectionAge: Math.round((Date.now() - new Date(connection.created_at).getTime()) / 1000 / 60 / 60 / 24), // days
           },
@@ -776,6 +755,20 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const statusForWidget: 'idle' | 'syncing' | 'error' | 'success' =
+      overallStatus === 'syncing'
+        ? 'syncing'
+        : overallStatus === 'error' || overallStatus === 'partial_error'
+          ? 'error'
+          : overallStatus === 'never_synced'
+            ? 'idle'
+            : 'success';
+
+    const mostRecentSync = connectionStatuses
+      .map(s => s.lastSync)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b!.startedAt).getTime() - new Date(a!.startedAt).getTime())[0] || null;
+
     return NextResponse.json({
       clientId,
       overallStatus,
@@ -785,6 +778,13 @@ export async function GET(request: NextRequest) {
       totalConnections: connectionStatuses.length,
       connections: connectionStatuses,
       nextScheduledSync,
+      status: statusForWidget,
+      lastSync: mostRecentSync?.completedAt || mostRecentSync?.startedAt || null,
+      error: hasErrors
+        ? connectionStatuses.find(s => s.status === 'error')?.statusMessage || overallMessage
+        : undefined,
+      campaignsSynced: mostRecentSync?.campaignsSynced,
+      metricsUpdated: mostRecentSync?.metricsUpdated,
       lastUpdated: new Date().toISOString(),
       ...(diagnostics && { diagnostics }),
     });
@@ -816,7 +816,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { syncId, status, progress, error } = body;
+    const { syncId, status, error } = body;
 
     if (!syncId || !status) {
       return NextResponse.json(
@@ -826,7 +826,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get authenticated user (this might be called by internal services)
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -839,28 +839,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Update sync log
-    const updateData: any = {
-      updated_at: new Date().toISOString(),
-    };
+    const updateData: {
+      status?: 'success' | 'failed' | 'partial';
+      completedAt?: string;
+      errorMessage?: string | null;
+    } = {};
 
     if (status === 'completed') {
-      updateData.completed_at = new Date().toISOString();
+      updateData.completedAt = new Date().toISOString();
       updateData.status = 'success';
     } else if (status === 'failed') {
-      updateData.completed_at = new Date().toISOString();
+      updateData.completedAt = new Date().toISOString();
       updateData.status = 'failed';
       if (error) {
-        updateData.error_message = error;
+        updateData.errorMessage = error;
       }
     }
 
-    const { error: updateError } = await supabase
-      .from('google_ads_sync_logs')
-      .update(updateData)
-      .eq('id', syncId);
-
-    if (updateError) {
-      console.error('[Google Sync Status POST] Error updating sync log:', updateError);
+    const updated = await updateGoogleSyncLogStatus(syncId, updateData);
+    if (!updated) {
+      console.error('[Google Sync Status POST] Error updating sync log:', { syncId, status });
       return NextResponse.json(
         { error: 'Erro ao atualizar status da sincronização' },
         { status: 500 }
@@ -871,7 +869,7 @@ export async function POST(request: NextRequest) {
       success: true,
       syncId,
       status,
-      updatedAt: updateData.updated_at,
+      updatedAt: new Date().toISOString(),
     });
 
   } catch (error) {

@@ -7,7 +7,7 @@ const subscriptionService = new SubscriptionService();
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check admin authentication
@@ -17,7 +17,7 @@ export async function GET(
     }
 
     const supabase = await createClient();
-    const subscriptionId = params.id;
+    const { id: subscriptionId } = await params;
 
     // Get subscription with related data
     const { data: subscription, error } = await supabase
@@ -96,7 +96,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check admin authentication
@@ -105,7 +105,7 @@ export async function PATCH(
       return authResult.error;
     }
 
-    const subscriptionId = params.id;
+    const { id: subscriptionId } = await params;
     const body = await request.json();
     const { status, plan_id, billing_cycle, notes } = body;
 

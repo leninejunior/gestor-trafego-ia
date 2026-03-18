@@ -97,7 +97,7 @@ export function useSubscription({ organizationId }: UseSubscriptionProps): UseSu
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Falha ao atualizar assinatura');
+        throw new Error(errorData?.error || 'Falha ao atualizar assinatura');
       }
 
       // Refresh subscription data
@@ -127,7 +127,7 @@ export function useSubscription({ organizationId }: UseSubscriptionProps): UseSu
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Falha ao cancelar assinatura');
+        throw new Error(errorData?.error || 'Falha ao cancelar assinatura');
       }
 
       // Refresh subscription data

@@ -15,8 +15,22 @@ import { MetaCampaign } from "@/lib/meta/types";
 import { toast } from "sonner";
 import { BudgetEditDialog } from "./budget-edit-dialog";
 import { AdSetsList } from "./adsets-list";
-import { Play, Pause, DollarSign, ChevronDown, ChevronRight, Facebook, RefreshCw } from "lucide-react";
+import { Play, Pause, DollarSign, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { translateMetaObjective } from "@/lib/utils/meta-translations";
+import { DateRangeFilter, DateRange, getDefaultDateRange } from "./date-range-filter";
+
+interface CampaignInsights {
+  impressions: string;
+  clicks: string;
+  spend: string;
+  reach: string;
+  ctr: string;
+  cpc: string;
+  cpm: string;
+  frequency: string;
+  actions?: any[];
+  cost_per_action_type?: any[];
+}
 
 interface CampaignsListProps {
   clientId: string;
@@ -32,27 +46,32 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
   const [selectedCampaign, setSelectedCampaign] = useState<MetaCampaign | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
+  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
+  const [showOnlyWithResults, setShowOnlyWithResults] = useState(false);
 
   // Se campanhas externas forem fornecidas, usar elas
   useEffect(() => {
     if (externalCampaigns) {
       // Converter campanhas do dashboard para o formato esperado
-      const convertedCampaigns: MetaCampaign[] = externalCampaigns.map(c => ({
+      // IMPORTANTE: Manter o campo insights que vem da API
+      const convertedCampaigns = externalCampaigns.map(c => ({
         id: c.id,
         name: c.name,
         status: c.status as 'ACTIVE' | 'PAUSED' | 'DELETED' | 'ARCHIVED',
         objective: c.objective,
-        daily_budget: c.daily_budget, // Já vem no formato correto da API
+        daily_budget: c.daily_budget,
         lifetime_budget: c.lifetime_budget,
         created_time: c.created_time,
-        updated_time: c.updated_time || c.created_time
+        updated_time: c.updated_time || c.created_time,
+        insights: c.insights // Preservar insights da API
       }));
-      setCampaigns(convertedCampaigns);
+      setCampaigns(convertedCampaigns as any);
       setIsLoading(false);
     } else if (adAccountId) {
       fetchCampaigns();
     }
-  }, [clientId, adAccountId, externalCampaigns]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, adAccountId, externalCampaigns, dateRange.since, dateRange.until]);
 
   const fetchCampaigns = async () => {
     // Se há callback externo, usar ele
@@ -68,7 +87,7 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
     console.log('📋 [CAMPAIGNS LIST] Parâmetros:', { clientId, adAccountId });
     
     try {
-      const url = `/api/meta/campaigns?clientId=${clientId}&adAccountId=${adAccountId}`;
+      const url = `/api/meta/campaigns?clientId=${clientId}&adAccountId=${adAccountId}&since=${dateRange.since}&until=${dateRange.until}`;
       console.log('🔗 [CAMPAIGNS LIST] URL da requisição:', url);
       
       const response = await fetch(url);
@@ -130,14 +149,28 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
     return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>;
   };
 
-  const formatCurrency = (value: string | undefined) => {
+  const formatCurrency = (value: string | undefined, divideBy100 = true) => {
     if (!value) return '-';
     const numValue = parseFloat(value);
     if (isNaN(numValue)) return '-';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
-    }).format(numValue / 100);
+    }).format(divideBy100 ? numValue / 100 : numValue);
+  };
+
+  const formatNumber = (value: string | undefined) => {
+    if (!value) return '-';
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) return '-';
+    return new Intl.NumberFormat('pt-BR').format(numValue);
+  };
+
+  const formatPercent = (value: string | undefined) => {
+    if (!value) return '-';
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) return '-';
+    return `${numValue.toFixed(2)}%`;
   };
 
   const handleToggleStatus = async (campaign: MetaCampaign) => {
@@ -281,101 +314,151 @@ export function CampaignsList({ clientId, adAccountId, campaigns: externalCampai
     );
   }
 
+  // Filtrar campanhas com resultados se necessário
+  const filteredCampaigns = showOnlyWithResults 
+    ? campaigns.filter(campaign => {
+        const insights = (campaign as any).insights as CampaignInsights | null;
+        return insights && (
+          parseFloat(insights.impressions || '0') > 0 ||
+          parseFloat(insights.clicks || '0') > 0 ||
+          parseFloat(insights.spend || '0') > 0
+        );
+      })
+    : campaigns;
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Campanhas Meta Ads</h3>
-        <Button onClick={fetchCampaigns} variant="outline" size="sm">
-          Atualizar
-        </Button>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <h3 className="text-lg font-semibold">
+          Campanhas Meta Ads ({filteredCampaigns.length}{showOnlyWithResults ? ` de ${campaigns.length}` : ''})
+        </h3>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShowOnlyWithResults(!showOnlyWithResults)}
+            variant={showOnlyWithResults ? "default" : "outline"}
+            size="sm"
+          >
+            {showOnlyWithResults ? "Mostrar Todas" : "Apenas com Resultados"}
+          </Button>
+          <DateRangeFilter value={dateRange} onChange={setDateRange} />
+          <Button onClick={fetchCampaigns} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Atualizar
+          </Button>
+        </div>
       </div>
       
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Nome</TableHead>
+            <TableHead className="min-w-[200px]">Nome</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Objetivo</TableHead>
-            <TableHead>Orçamento Diário</TableHead>
-            <TableHead>Criada em</TableHead>
+            <TableHead className="text-right">Gasto</TableHead>
+            <TableHead className="text-right">Impressões</TableHead>
+            <TableHead className="text-right">Cliques</TableHead>
+            <TableHead className="text-right">CTR</TableHead>
+            <TableHead className="text-right">CPC</TableHead>
+            <TableHead className="text-right">Alcance</TableHead>
             <TableHead>Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {campaigns.map((campaign) => (
-            <React.Fragment key={campaign.id}>
-              <TableRow>
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleCampaignExpansion(campaign.id)}
-                      className="h-8 w-8 p-0 hover:bg-muted"
-                      title={expandedCampaigns.has(campaign.id) ? "Colapsar" : "Expandir"}
-                    >
-                      {expandedCampaigns.has(campaign.id) ? (
-                        <ChevronDown className="h-5 w-5" />
-                      ) : (
-                        <ChevronRight className="h-5 w-5" />
-                      )}
-                    </Button>
-                    {campaign.name}
-                  </div>
-                </TableCell>
-                <TableCell>{getStatusBadge(campaign.status)}</TableCell>
-                <TableCell>{translateMetaObjective(campaign.objective)}</TableCell>
-                <TableCell>{formatCurrency(campaign.daily_budget)}</TableCell>
-                <TableCell>
-                  {new Date(campaign.created_time).toLocaleDateString('pt-BR')}
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={campaign.status === 'ACTIVE' ? 'outline' : 'default'}
-                      size="sm"
-                      onClick={() => handleToggleStatus(campaign)}
-                      disabled={updatingStatus === campaign.id}
-                    >
-                      {updatingStatus === campaign.id ? (
-                        'Atualizando...'
-                      ) : campaign.status === 'ACTIVE' ? (
-                        <>
-                          <Pause className="h-4 w-4 mr-1" />
-                          Pausar
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4 mr-1" />
-                          Ativar
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditBudget(campaign)}
-                    >
-                      <DollarSign className="h-4 w-4 mr-1" />
-                      Orçamento
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-              {expandedCampaigns.has(campaign.id) && (
-                <TableRow>
-                  <TableCell colSpan={6} className="p-0">
-                    <AdSetsList 
-                      campaignId={campaign.id} 
-                      campaignName={campaign.name}
-                      clientId={clientId}
-                      adAccountId={adAccountId || ''}
-                    />
+          {filteredCampaigns.map((campaign) => {
+            const insights = (campaign as any).insights as CampaignInsights | null;
+            return (
+              <React.Fragment key={campaign.id}>
+                <TableRow className="hover:bg-muted/50">
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleCampaignExpansion(campaign.id)}
+                        className="h-8 w-8 p-0 hover:bg-muted"
+                        title={expandedCampaigns.has(campaign.id) ? "Colapsar" : "Expandir"}
+                      >
+                        {expandedCampaigns.has(campaign.id) ? (
+                          <ChevronDown className="h-5 w-5" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5" />
+                        )}
+                      </Button>
+                      <div>
+                        <div className="font-medium">{campaign.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {translateMetaObjective(campaign.objective)}
+                        </div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>{getStatusBadge(campaign.status)}</TableCell>
+                  <TableCell className="text-right font-medium">
+                    {insights ? formatCurrency(insights.spend, false) : '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {insights ? formatNumber(insights.impressions) : '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {insights ? formatNumber(insights.clicks) : '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {insights ? formatPercent(insights.ctr) : '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {insights ? formatCurrency(insights.cpc, false) : '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {insights ? formatNumber(insights.reach) : '-'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={campaign.status === 'ACTIVE' ? 'outline' : 'default'}
+                        size="sm"
+                        onClick={() => handleToggleStatus(campaign)}
+                        disabled={updatingStatus === campaign.id}
+                      >
+                        {updatingStatus === campaign.id ? (
+                          'Atualizando...'
+                        ) : campaign.status === 'ACTIVE' ? (
+                          <>
+                            <Pause className="h-4 w-4 mr-1" />
+                            Pausar
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-1" />
+                            Ativar
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditBudget(campaign)}
+                      >
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        Orçamento
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
-              )}
-            </React.Fragment>
-          ))}
+                {expandedCampaigns.has(campaign.id) && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="p-0">
+                      <AdSetsList 
+                        campaignId={campaign.id} 
+                        campaignName={campaign.name}
+                        clientId={clientId}
+                        adAccountId={adAccountId || ''}
+                        dateRange={{ since: dateRange.since, until: dateRange.until }}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </React.Fragment>
+            );
+          })}
         </TableBody>
       </Table>
 

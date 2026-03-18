@@ -149,7 +149,7 @@ export default function UserManagementSimple() {
       
       if (!response.ok) {
         console.log("API simple falhou, tentando API debug...");
-        response = await authenticatedFetch(`/api/admin/users/debug`);
+        response = await authenticatedFetch(`/api/admin/users/simple-test`);
       }
       
       if (response.ok) {

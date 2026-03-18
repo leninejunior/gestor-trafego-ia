@@ -33,7 +33,7 @@ Stripe is a global payment processor supporting credit cards, digital wallets, a
 ```bash
 # Stripe Configuration
 STRIPE_PUBLISHABLE_KEY=pk_test_...
-STRIPE_SECRET_KEY=sk_test_...
+STRIPE_SECRET_KEY=sk_mock_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_API_VERSION=2023-10-16
 ```
@@ -48,7 +48,7 @@ STRIPE_API_VERSION=2023-10-16
   "priority": 1,
   "credentials": {
     "publishableKey": "pk_test_...",
-    "secretKey": "sk_test_...",
+    "secretKey": "sk_mock_...",
     "webhookSecret": "whsec_..."
   },
   "settings": {

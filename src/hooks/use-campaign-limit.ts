@@ -56,11 +56,16 @@ export function useCampaignLimit(clientId?: string): CampaignLimitResult {
           return false;
         }
         
-        throw new Error(`API Error: ${response.status} - ${errorData.error || 'Unknown error'}`);
+        throw new Error(`API Error: ${response.status} - ${errorData?.error || 'Unknown error'}`);
       }
 
       const data = await response.json();
       console.log('✅ API Response data:', data);
+      if (data?.debug) {
+        console.log('🧪 Campaign limit debug:', data.debug);
+      } else {
+        console.log('🧪 Campaign limit debug: none');
+      }
       
       setAllowed(data.allowed);
       setCurrent(data.current);

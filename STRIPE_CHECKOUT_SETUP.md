@@ -18,8 +18,8 @@ Adicione as seguintes variáveis ao seu arquivo `.env`:
 
 ```env
 # Stripe Configuration
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_xxx
-STRIPE_SECRET_KEY=sk_live_xxx
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=<stripe_publishable_key>
+STRIPE_SECRET_KEY=<stripe_secret_key>
 STRIPE_WEBHOOK_SECRET=whsec_xxx
 ```
 
@@ -27,8 +27,8 @@ STRIPE_WEBHOOK_SECRET=whsec_xxx
 
 1. **Publishable Key e Secret Key:**
    - Acesse: https://dashboard.stripe.com/apikeys
-   - Copie a "Publishable key" (pk_live_...)
-   - Copie a "Secret key" (sk_live_...)
+   - Copie a "Publishable key"
+   - Copie a "Secret key"
 
 2. **Webhook Secret:**
    - Acesse: https://dashboard.stripe.com/test/webhooks
@@ -119,7 +119,7 @@ O CLI mostrará um webhook secret temporário para usar em desenvolvimento.
 
 ## ⚠️ Importante
 
-- Em produção, use as chaves `pk_live_` e `sk_live_`
+- Em produção, use as chaves de produção do Stripe
 - Nunca exponha a `STRIPE_SECRET_KEY` no frontend
 - Configure o webhook em produção com a URL correta
 - Teste todos os cenários antes de ir para produção

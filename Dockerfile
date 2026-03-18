@@ -14,6 +14,7 @@ EXPOSE 3000
 CMD ["npm", "run", "dev", "--", "-H", "0.0.0.0", "-p", "3000"]
 
 FROM base AS builder
+ENV NODE_OPTIONS=--max-old-space-size=3072
 COPY . .
 RUN npm run build
 

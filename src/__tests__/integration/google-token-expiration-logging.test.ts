@@ -50,7 +50,7 @@ describe('Google Token Expiration Logging', () => {
     expect(content).toContain('alreadyExpired');
 
     // Check for token refresh logging
-    expect(content).toContain('Starting token refresh:');
+    expect(content).toContain('Starting token refresh with retry logic:');
     expect(content).toContain('Token refresh completed successfully:');
     expect(content).toContain('Token refresh failed:');
     expect(content).toContain('durationMs');
@@ -133,9 +133,10 @@ describe('Google Token Expiration Logging', () => {
 
     // Check for audit logging
     expect(content).toContain('auditService.logTokenOperation');
-    expect(content).toContain('token_refresh_success');
-    expect(content).toContain('token_refresh_failed');
-    expect(content).toContain('connection_expired');
+    expect(content).toContain("'token_refresh'");
+    expect(content).toContain("status: 'success'");
+    expect(content).toContain("status: 'failed'");
+    expect(content).toContain("status: 'connection_expired'");
   });
 
   it('should include visual separators for log readability', () => {

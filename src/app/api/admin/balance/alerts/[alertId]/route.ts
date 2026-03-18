@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { alertId: string } }
+  { params }: { params: Promise<{ alertId: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -17,7 +17,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const alertId = params.alertId
+    const { alertId } = await params
     const body = await request.json()
 
     // Atualizar alerta no banco
@@ -50,7 +50,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { alertId: string } }
+  { params }: { params: Promise<{ alertId: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -60,7 +60,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const alertId = params.alertId
+    const { alertId } = await params
 
     // Deletar alerta do banco
     const { error: deleteError } = await supabase

@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import {
+  countConnectionsByClientId,
+  deactivateConnectionsByClientId,
+  getClientAccess,
+  listConnectionsByClientId,
+  removeDuplicateConnections,
+} from '@/lib/postgres/meta-connections-repository';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,93 +23,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'clientId é obrigatório' }, { status: 400 });
     }
 
-    // Verificar se o usuário tem acesso ao cliente
-    const { data: client } = await supabase
-      .from('clients')
-      .select('id, org_id')
-      .eq('id', clientId)
-      .single();
-
-    if (!client) {
+    const access = await getClientAccess(clientId, user.id);
+    if (!access.clientExists) {
       return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
     }
 
-    // Verificar se o usuário pertence à organização
-    const { data: membership } = await supabase
-      .from('memberships')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('organization_id', client.org_id)
-      .single();
-
-    if (!membership) {
+    if (!access.hasAccess) {
       return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
     }
 
-    // 1. Buscar conexões existentes antes de limpar
-    const { data: existingConnections } = await supabase
-      .from('client_meta_connections')
-      .select('*')
-      .eq('client_id', clientId);
+    // 1. Buscar conexões existentes antes de limpar (Postgres direto).
+    const existingConnections = await listConnectionsByClientId(clientId);
 
     console.log(`[Meta Cleanup] Cliente ${clientId} tem ${existingConnections?.length || 0} conexões`);
 
     // 2. Desativar todas as conexões antigas deste cliente
-    const { error: deactivateError } = await supabase
-      .from('client_meta_connections')
-      .update({ 
-        is_active: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq('client_id', clientId);
-
-    if (deactivateError) {
-      console.error('[Meta Cleanup] Erro ao desativar conexões:', deactivateError);
-      throw deactivateError;
-    }
+    await deactivateConnectionsByClientId(clientId);
 
     // 3. Remover duplicatas (manter apenas a mais recente por ad_account_id)
     if (existingConnections && existingConnections.length > 0) {
       const accountGroups = existingConnections.reduce((acc, conn) => {
-        if (!acc[conn.ad_account_id]) {
-          acc[conn.ad_account_id] = [];
+        const adAccountId = String(conn.ad_account_id || '');
+        if (!adAccountId) {
+          return acc;
         }
-        acc[conn.ad_account_id].push(conn);
+
+        if (!acc[adAccountId]) {
+          acc[adAccountId] = [];
+        }
+        acc[adAccountId].push(conn);
         return acc;
       }, {} as Record<string, any[]>);
 
-      const idsToDelete: string[] = [];
-      
-      Object.values(accountGroups).forEach(group => {
-        if (group.length > 1) {
-          // Ordenar por data de criação (mais recente primeiro)
-          group.sort((a, b) => 
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          );
-          // Deletar todas exceto a primeira (mais recente)
-          idsToDelete.push(...group.slice(1).map(c => c.id));
-        }
-      });
-
-      if (idsToDelete.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('client_meta_connections')
-          .delete()
-          .in('id', idsToDelete);
-
-        if (deleteError) {
-          console.error('[Meta Cleanup] Erro ao deletar duplicatas:', deleteError);
-        } else {
-          console.log(`[Meta Cleanup] Removidas ${idsToDelete.length} conexões duplicadas`);
-        }
+      const duplicateGroups = Object.values(accountGroups) as any[][];
+      const duplicateGroupsCount = duplicateGroups.filter(group => group.length > 1).length;
+      if (duplicateGroupsCount > 0) {
+        const removedCount = await removeDuplicateConnections(clientId);
+        console.log(`[Meta Cleanup] Removidas ${removedCount} conexões duplicadas`);
       }
     }
 
     // 4. Buscar conexões finais
-    const { data: finalConnections, count } = await supabase
-      .from('client_meta_connections')
-      .select('*', { count: 'exact' })
-      .eq('client_id', clientId);
+    const finalConnections = await listConnectionsByClientId(clientId);
+    const count = await countConnectionsByClientId(clientId);
 
     return NextResponse.json({
       success: true,

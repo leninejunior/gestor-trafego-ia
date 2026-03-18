@@ -70,7 +70,7 @@ jest.mock('../infrastructure/config/environment', () => ({
     },
     providers: {
       stripe: {
-        secretKey: 'sk_test_123',
+        secretKey: 'sk_mock_123',
         webhookSecret: 'whsec_test'
       },
       iugu: {
@@ -830,7 +830,7 @@ describe('Integration Tests - Payment Microservice', () => {
   describe('Security and Cryptography Tests', () => {
     it('should encrypt and decrypt provider credentials securely', async () => {
       const credentials = {
-        apiKey: 'sk_test_12345',
+        apiKey: 'sk_mock_12345',
         secretKey: 'secret_67890',
         webhookSecret: 'whsec_test'
       };
@@ -1019,7 +1019,7 @@ describe('Integration Tests - Payment Microservice', () => {
       // 3. Process with full encryption and audit trail
       const encryptedCredentials = await cryptographyManager.encryptProviderCredentials(
         'stripe',
-        { apiKey: 'sk_test_integration', secretKey: 'secret_integration' }
+        { apiKey: 'sk_mock_integration', secretKey: 'secret_integration' }
       );
 
       expect(encryptedCredentials).toBeDefined();

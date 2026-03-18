@@ -209,6 +209,13 @@ export default function CampaignsPage() {
   };
 
   const loadCampaignData = async () => {
+    if (!selectedClient || selectedClient === 'all') {
+      setCampaigns([])
+      setDemographics([])
+      setWeeklyData([])
+      return
+    }
+
     try {
       setLoading(true)
       
@@ -221,49 +228,103 @@ export default function CampaignsPage() {
         order: sortOrder
       })
 
-      // Carregar campanhas - usando API original
-      const campaignsResponse = await fetch(`/api/dashboard/campaigns?${params}`)
-      if (campaignsResponse.ok) {
-        const campaignsData = await campaignsResponse.json()
-        const loadedCampaigns = campaignsData.campaigns || []
+      const fetchJson = async (url: string, retries = 1): Promise<{ ok: boolean; status: number; data: any }> => {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          try {
+            const response = await fetch(url, { cache: 'no-store' })
+            const contentType = response.headers.get('content-type') || ''
+            let data: any = null
+
+            if (contentType.includes('application/json')) {
+              data = await response.json()
+            } else {
+              const raw = await response.text()
+              data = raw ? { raw } : null
+            }
+
+            return { ok: response.ok, status: response.status, data }
+          } catch (error) {
+            if (attempt === retries) {
+              throw error
+            }
+
+            // Retry curto para falhas transitórias de rede
+            await new Promise(resolve => setTimeout(resolve, 350))
+          }
+        }
+
+        throw new Error('Erro inesperado ao buscar dados')
+      }
+
+      const query = params.toString()
+      const requests = await Promise.allSettled([
+        fetchJson(`/api/dashboard/campaigns?${query}`),
+        fetchJson(`/api/dashboard/campaigns/demographics?${query}`),
+        fetchJson(`/api/dashboard/campaigns/weekly?${query}`)
+      ])
+
+      const [campaignsResult, demographicsResult, weeklyResult] = requests
+
+      if (campaignsResult.status === 'fulfilled' && campaignsResult.value.ok) {
+        const campaignsData = campaignsResult.value.data
+        const loadedCampaigns = campaignsData?.campaigns || []
         setCampaigns(loadedCampaigns)
         
-        // Atualizar contador de campanhas no cliente selecionado
-        if (selectedClient !== 'all') {
-          setClients(prevClients => 
-            prevClients.map(client => 
-              client.id === selectedClient 
-                ? { ...client, campaigns_count: loadedCampaigns.length }
-                : client
-            )
+        setClients(prevClients => 
+          prevClients.map(client => 
+            client.id === selectedClient 
+              ? { ...client, campaigns_count: loadedCampaigns.length }
+              : client
           )
-        }
+        )
         
-        // Log para debug
-        if (campaignsData.message) {
+        if (campaignsData?.message) {
           console.log('API Message:', campaignsData.message)
         }
       } else {
-        console.error('Error loading campaigns:', campaignsResponse.status)
+        const status = campaignsResult.status === 'fulfilled' ? campaignsResult.value.status : 'network-error'
+        console.warn(`Error loading campaigns (status: ${status})`)
         setCampaigns([])
       }
 
-      // Carregar dados demográficos
-      const demographicsResponse = await fetch(`/api/dashboard/campaigns/demographics?${params}`)
-      if (demographicsResponse.ok) {
-        const demographicsData = await demographicsResponse.json()
-        setDemographics(demographicsData.demographics || [])
+      if (demographicsResult.status === 'fulfilled' && demographicsResult.value.ok) {
+        setDemographics(demographicsResult.value.data?.demographics || [])
+      } else {
+        setDemographics([])
       }
 
-      // Carregar dados semanais
-      const weeklyResponse = await fetch(`/api/dashboard/campaigns/weekly?${params}`)
-      if (weeklyResponse.ok) {
-        const weeklyDataResponse = await weeklyResponse.json()
-        setWeeklyData(weeklyDataResponse.weekly || [])
+      if (weeklyResult.status === 'fulfilled' && weeklyResult.value.ok) {
+        setWeeklyData(weeklyResult.value.data?.weekly || [])
+      } else {
+        setWeeklyData([])
+      }
+
+      const failedEndpoints: string[] = []
+      if (campaignsResult.status === 'rejected' || (campaignsResult.status === 'fulfilled' && !campaignsResult.value.ok)) {
+        failedEndpoints.push('campanhas')
+      }
+      if (demographicsResult.status === 'rejected' || (demographicsResult.status === 'fulfilled' && !demographicsResult.value.ok)) {
+        failedEndpoints.push('demografia')
+      }
+      if (weeklyResult.status === 'rejected' || (weeklyResult.status === 'fulfilled' && !weeklyResult.value.ok)) {
+        failedEndpoints.push('semanal')
+      }
+
+      if (failedEndpoints.length > 0) {
+        toast({
+          title: 'Falha de conexão ao carregar campanhas',
+          description: `Falha em: ${failedEndpoints.join(', ')}. Tente novamente em alguns segundos.`,
+          variant: 'destructive'
+        })
       }
 
     } catch (error) {
       console.error('Error loading campaign data:', error)
+      toast({
+        title: 'Erro ao carregar campanhas',
+        description: 'Não foi possível buscar os dados deste cliente no momento.',
+        variant: 'destructive'
+      })
     } finally {
       setLoading(false)
     }

@@ -173,11 +173,6 @@ export async function GET(request: NextRequest) {
       }
 
       const weeklyInsights = metaData.data || []
-      
-      // Gerar dados semanais (fallback se não houver dados reais)
-      const days = parseInt(daysParam === 'this_week' || daysParam === 'last_week' ? '7' : 
-                           daysParam === 'this_month' || daysParam === 'last_month' ? '30' : daysParam)
-      const weeksToShow = Math.min(Math.ceil(days / 7), 8)
       const weeklyData = []
 
       if (weeklyInsights.length > 0) {
@@ -207,33 +202,6 @@ export async function GET(request: NextRequest) {
             roas: Math.round(roas * 100) / 100
           })
         })
-      } else {
-        // Fallback para dados simulados
-        for (let i = weeksToShow - 1; i >= 0; i--) {
-          const weekStart = new Date()
-          weekStart.setDate(weekStart.getDate() - (i * 7))
-          
-          const weekEnd = new Date(weekStart)
-          weekEnd.setDate(weekEnd.getDate() + 6)
-
-          // Usar formatador de datas
-          const weekLabel = `${formatters.week(weekStart)} - ${formatters.week(weekEnd)}`
-
-          const baseSpend = 1000 + (Math.random() * 1000)
-          const baseImpressions = 15000 + (Math.random() * 10000)
-          const baseClicks = Math.floor(baseImpressions * (0.01 + Math.random() * 0.02))
-          const baseConversions = Math.floor(baseClicks * (0.02 + Math.random() * 0.03))
-          const roas = baseSpend > 0 ? (baseConversions * 50) / baseSpend : 0
-
-          weeklyData.push({
-            week: weekLabel,
-            spend: Math.round(baseSpend),
-            impressions: Math.round(baseImpressions),
-            clicks: baseClicks,
-            conversions: baseConversions,
-            roas: Math.round(roas * 100) / 100
-          })
-        }
       }
 
       console.log('✅ [WEEKLY] Retornando', weeklyData.length, 'dados semanais')
@@ -241,30 +209,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         weekly: weeklyData,
         total: weeklyData.length,
-        message: weeklyInsights.length > 0 ? 
-          `✅ ${weeklyData.length} dados semanais carregados do Meta Ads!` : 
-          'Usando dados simulados - nenhum dado semanal encontrado no Meta Ads',
+        message: weeklyInsights.length > 0
+          ? `✅ ${weeklyData.length} dados semanais carregados do Meta Ads!`
+          : 'Nenhum dado semanal encontrado para o período selecionado',
         isRealData: weeklyInsights.length > 0,
         filters: { client_id: clientId, status: statusFilter, objective: objectiveFilter, days: daysParam }
       })
 
     } catch (metaError) {
       console.error('💥 [WEEKLY] Erro ao chamar Meta API:', metaError)
-      
-      // Fallback para dados simulados em caso de erro
-      const weeklyData = [{
-        week: 'Esta semana',
-        spend: 1500,
-        impressions: 20000,
-        clicks: 300,
-        conversions: 8,
-        roas: 0.27
-      }]
-      
+
       return NextResponse.json({
-        weekly: weeklyData,
-        total: weeklyData.length,
-        message: 'Erro ao buscar dados do Meta Ads - usando dados simulados',
+        weekly: [],
+        total: 0,
+        message: 'Erro ao buscar dados do Meta Ads',
+        error: metaError instanceof Error ? metaError.message : 'Erro desconhecido',
         filters: { client_id: clientId, status: statusFilter, objective: objectiveFilter, days: daysParam }
       })
     }

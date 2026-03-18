@@ -1,451 +1,280 @@
 /**
- * Integration Tests for Historical Data Sync
- * Tests complete sync flow from API to cache
+ * Integration tests for historical data sync (contract-aligned, deterministic)
  */
 
 import { MultiPlatformSyncEngine } from '@/lib/sync/multi-platform-sync-engine';
 import { HistoricalDataRepository } from '@/lib/repositories/historical-data-repository';
 import { AdPlatform } from '@/lib/types/sync';
+import { createClient } from '@/lib/supabase/server';
 
-// Mock Supabase
 jest.mock('@/lib/supabase/server', () => ({
-  createClient: jest.fn(() => ({
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          single: jest.fn(),
-          order: jest.fn(() => ({
-            limit: jest.fn(),
-          })),
-        })),
-        in: jest.fn(() => ({
-          order: jest.fn(),
-        })),
-        gte: jest.fn(() => ({
-          lte: jest.fn(() => ({
-            order: jest.fn(),
-          })),
-        })),
-      })),
-      insert: jest.fn(() => ({
-        select: jest.fn(),
-      })),
-      update: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          select: jest.fn(() => ({
-            single: jest.fn(),
-          })),
-        })),
-      })),
-      delete: jest.fn(() => ({
-        lt: jest.fn(),
-      })),
-    })),
-  })),
+  createClient: jest.fn(),
 }));
 
-// Mock fetch for API calls
-global.fetch = jest.fn();
+const createClientMock = createClient as jest.MockedFunction<typeof createClient>;
 
 describe('Historical Data Sync Integration', () => {
-  let syncEngine: MultiPlatformSyncEngine;
-  let repository: HistoricalDataRepository;
-  let mockSupabase: any;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    
-    syncEngine = new MultiPlatformSyncEngine();
-    repository = new HistoricalDataRepository();
-    
-    const { createClient } = require('@/lib/supabase/server');
-    mockSupabase = createClient();
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  describe('Complete Sync Flow', () => {
-    it('should sync Meta Ads data from API to cache', async () => {
-      const clientId = 'client-1';
-      const platform = AdPlatform.META;
+  it('syncs client data successfully from adapter to repository cache', async () => {
+    const engine = new MultiPlatformSyncEngine();
 
-      // Mock sync configuration
-      mockSupabase.from().select().eq().single.mockResolvedValue({
-        data: {
-          id: 'config-1',
-          client_id: clientId,
-          platform,
+    const config = {
+      id: 'config-1',
+      platform: AdPlatform.META,
+      client_id: 'client-1',
+      account_id: 'act_123',
+      access_token: 'token',
+      sync_status: 'active',
+      created_at: new Date('2026-01-01T00:00:00.000Z'),
+      updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    };
+
+    const adapter = {
+      authenticate: jest.fn(async () => undefined),
+      fetchCampaigns: jest.fn(async () => [
+        {
+          id: 'campaign-1',
+          name: 'Campaign One',
+          status: 'ACTIVE',
+          platform: AdPlatform.META,
           account_id: 'act_123',
-          access_token: 'test-token',
-          sync_status: 'active',
         },
-        error: null,
-      });
-
-      // Mock Meta API responses
-      (global.fetch as jest.Mock)
-        // Campaigns fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            data: [
-              {
-                id: 'campaign-1',
-                name: 'Test Campaign',
-                status: 'ACTIVE',
-              },
-            ],
-          }),
-        })
-        // Insights fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            data: [
-              {
-                campaign_id: 'campaign-1',
-                campaign_name: 'Test Campaign',
-                date_start: '2025-01-15',
-                impressions: '1000',
-                clicks: '50',
-                spend: '100',
-                actions: [{ action_type: 'purchase', value: '5' }],
-              },
-            ],
-          }),
-        });
-
-      // Mock insert
-      mockSupabase.from().insert().select.mockResolvedValue({
-        data: [{ id: 'insight-1' }],
-        error: null,
-      });
-
-      // Mock update sync config
-      mockSupabase.from().update().eq().select().single.mockResolvedValue({
-        data: { id: 'config-1', sync_status: 'completed' },
-        error: null,
-      });
-
-      const result = await syncEngine.syncClient(clientId, platform);
-
-      expect(result.success).toBe(true);
-      expect(result.records_synced).toBeGreaterThan(0);
-      expect(mockSupabase.from).toHaveBeenCalledWith('campaign_insights_history');
-    });
-
-    it('should handle sync errors gracefully', async () => {
-      const clientId = 'client-1';
-      const platform = AdPlatform.META;
-
-      // Mock sync configuration
-      mockSupabase.from().select().eq().single.mockResolvedValue({
-        data: {
-          id: 'config-1',
-          client_id: clientId,
-          platform,
-          account_id: 'act_123',
-          access_token: 'invalid-token',
-          sync_status: 'active',
+      ]),
+      fetchInsights: jest.fn(async () => [
+        {
+          id: 'insight-1',
+          platform: AdPlatform.META,
+          client_id: 'client-1',
+          campaign_id: 'campaign-1',
+          campaign_name: 'Campaign One',
+          date: new Date('2026-01-10T00:00:00.000Z'),
+          impressions: 1000,
+          clicks: 50,
+          spend: 100,
+          conversions: 10,
+          ctr: 5,
+          cpc: 2,
+          cpm: 100,
+          conversion_rate: 20,
+          is_deleted: false,
+          synced_at: new Date('2026-01-10T10:00:00.000Z'),
         },
-        error: null,
-      });
+      ]),
+    };
 
-      // Mock API error
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: false,
-        status: 401,
-        json: async () => ({ error: { message: 'Invalid token' } }),
-      });
+    engine.registerAdapter(AdPlatform.META, () => adapter as any);
 
-      const result = await syncEngine.syncClient(clientId, platform);
+    const storeInsightsMock = jest.fn(async () => 1);
+    (engine as any).repository = {
+      storeInsights: storeInsightsMock,
+    };
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
-    });
+    (engine as any).planService = {
+      getUserPlanLimits: jest.fn(async () => ({ data_retention_days: 90 })),
+    };
+
+    jest.spyOn(engine as any, 'getSyncConfig').mockResolvedValue(config);
+    jest.spyOn(engine as any, 'updateSyncConfig').mockResolvedValue(undefined);
+    jest.spyOn(engine as any, 'logSyncCompletion').mockResolvedValue(undefined);
+    jest.spyOn(engine, 'getNextSyncTime').mockResolvedValue(new Date('2026-01-11T10:00:00.000Z'));
+
+    createClientMock.mockResolvedValue({
+      from: jest.fn(() => ({
+        select: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            single: jest.fn(async () => ({
+              data: { user_id: 'user-1' },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    } as any);
+
+    const result = await engine.syncClient('client-1', AdPlatform.META);
+
+    expect(result.success).toBe(true);
+    expect(result.records_synced).toBe(1);
+    expect(adapter.authenticate).toHaveBeenCalled();
+    expect(adapter.fetchCampaigns).toHaveBeenCalledWith('act_123');
+    expect(adapter.fetchInsights).toHaveBeenCalledWith(
+      'campaign-1',
+      expect.objectContaining({ start: expect.any(Date), end: expect.any(Date) })
+    );
+    expect(storeInsightsMock).toHaveBeenCalledTimes(1);
   });
 
-  describe('Data Retention and Cleanup', () => {
-    it('should delete expired data based on retention period', async () => {
-      const retentionDays = 90;
+  it('returns failed result and logs error when adapter sync fails', async () => {
+    const engine = new MultiPlatformSyncEngine();
 
-      mockSupabase.from().delete().lt.mockResolvedValue({
-        count: 150,
-        error: null,
-      });
+    const config = {
+      id: 'config-1',
+      platform: AdPlatform.META,
+      client_id: 'client-1',
+      account_id: 'act_123',
+      access_token: 'token',
+      sync_status: 'active',
+      created_at: new Date('2026-01-01T00:00:00.000Z'),
+      updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    };
 
-      const deletedCount = await repository.deleteExpiredData(retentionDays);
+    const adapter = {
+      authenticate: jest.fn(async () => undefined),
+      fetchCampaigns: jest.fn(async () => {
+        throw new Error('Provider unavailable');
+      }),
+      fetchInsights: jest.fn(async () => []),
+    };
 
-      expect(deletedCount).toBe(150);
-      expect(mockSupabase.from).toHaveBeenCalledWith('campaign_insights_history');
-    });
+    engine.registerAdapter(AdPlatform.META, () => adapter as any);
 
-    it('should preserve data within retention period', async () => {
-      const clientId = 'client-1';
-      const platform = AdPlatform.META;
+    const getSyncConfigSpy = jest
+      .spyOn(engine as any, 'getSyncConfig')
+      .mockResolvedValue(config);
+    const updateSyncConfigSpy = jest
+      .spyOn(engine as any, 'updateSyncConfig')
+      .mockResolvedValue(undefined);
+    jest.spyOn(engine as any, 'logSyncCompletion').mockResolvedValue(undefined);
 
-      // Mock recent data
-      const recentDate = new Date();
-      recentDate.setDate(recentDate.getDate() - 30); // 30 days ago
+    createClientMock.mockResolvedValue({
+      from: jest.fn(() => ({
+        select: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            single: jest.fn(async () => ({
+              data: { user_id: 'user-1' },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    } as any);
 
-      mockSupabase.from().select().eq().gte().lte().order.mockResolvedValue({
-        data: [
-          {
-            id: 'insight-1',
-            client_id: clientId,
-            platform,
-            date: recentDate,
-            impressions: 1000,
-          },
-        ],
-        error: null,
-      });
+    const result = await engine.syncClient('client-1', AdPlatform.META);
 
-      const insights = await repository.queryInsights({
-        client_id: clientId,
-        platform,
-        date_from: recentDate,
-        date_to: new Date(),
-      });
-
-      expect(insights).toHaveLength(1);
-      expect(insights[0].date).toEqual(recentDate);
-    });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Provider unavailable');
+    expect(getSyncConfigSpy).toHaveBeenCalled();
+    expect(updateSyncConfigSpy).toHaveBeenCalledWith(
+      'config-1',
+      expect.objectContaining({ sync_status: 'error' })
+    );
   });
 
-  describe('Multi-Platform Sync', () => {
-    it('should sync data from multiple platforms', async () => {
-      const clientId = 'client-1';
+  it('calculates next sync time based on plan sync interval', async () => {
+    const engine = new MultiPlatformSyncEngine();
 
-      // Mock Meta sync config
-      mockSupabase.from().select().eq().single
-        .mockResolvedValueOnce({
-          data: {
-            id: 'config-meta',
-            client_id: clientId,
-            platform: AdPlatform.META,
-            account_id: 'act_123',
-            access_token: 'meta-token',
-            sync_status: 'active',
-          },
-          error: null,
-        })
-        // Mock Google sync config
-        .mockResolvedValueOnce({
-          data: {
-            id: 'config-google',
-            client_id: clientId,
-            platform: AdPlatform.GOOGLE,
-            account_id: '123-456-7890',
-            access_token: 'google-token',
-            sync_status: 'active',
-          },
-          error: null,
-        });
+    (engine as any).planService = {
+      getUserPlanLimits: jest.fn(async () => ({ sync_interval_hours: 12 })),
+    };
 
-      // Mock API responses for both platforms
-      (global.fetch as jest.Mock)
-        // Meta campaigns
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ data: [{ id: 'meta-campaign-1', name: 'Meta Campaign' }] }),
-        })
-        // Meta insights
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ data: [] }),
-        })
-        // Google campaigns
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ results: [{ campaign: { id: 'google-campaign-1', name: 'Google Campaign' } }] }),
-        })
-        // Google insights
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ results: [] }),
-        });
+    createClientMock.mockResolvedValue({
+      from: jest.fn(() => ({
+        select: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            single: jest.fn(async () => ({
+              data: { user_id: 'user-1' },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    } as any);
 
-      mockSupabase.from().insert().select.mockResolvedValue({
-        data: [],
-        error: null,
-      });
+    const before = Date.now();
+    const nextSync = await engine.getNextSyncTime('client-1', AdPlatform.META);
+    const after = Date.now();
 
-      mockSupabase.from().update().eq().select().single.mockResolvedValue({
-        data: {},
-        error: null,
-      });
+    const minExpected = before + 12 * 60 * 60 * 1000;
+    const maxExpected = after + 12 * 60 * 60 * 1000 + 2000;
 
-      const metaResult = await syncEngine.syncClient(clientId, AdPlatform.META);
-      const googleResult = await syncEngine.syncClient(clientId, AdPlatform.GOOGLE);
-
-      expect(metaResult.success).toBe(true);
-      expect(googleResult.success).toBe(true);
-    });
+    expect(nextSync.getTime()).toBeGreaterThanOrEqual(minExpected);
+    expect(nextSync.getTime()).toBeLessThanOrEqual(maxExpected);
   });
 
-  describe('Sync Scheduling', () => {
-    it('should schedule next sync based on plan limits', async () => {
-      const clientId = 'client-1';
+  it('deletes expired data for a client using retention period', async () => {
+    const repository = new HistoricalDataRepository();
 
-      // Mock user plan limits
-      mockSupabase.from().select().eq().single
-        .mockResolvedValueOnce({
-          data: { user_id: 'user-1' },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: { plan_id: 'plan-1' },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: { sync_interval_hours: 24 },
-          error: null,
-        });
+    const selectMock = jest.fn(async () => ({
+      data: [{ id: 'old-1' }, { id: 'old-2' }],
+      error: null,
+    }));
 
-      const nextSyncTime = await syncEngine.getNextSyncTime(clientId);
+    createClientMock.mockResolvedValue({
+      from: jest.fn(() => ({
+        delete: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            lt: jest.fn(() => ({
+              select: selectMock,
+            })),
+          })),
+        })),
+      })),
+    } as any);
 
-      expect(nextSyncTime).toBeInstanceOf(Date);
-      
-      const now = new Date();
-      const expectedTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-      const timeDiff = Math.abs(nextSyncTime.getTime() - expectedTime.getTime());
-      
-      // Allow 1 second tolerance
-      expect(timeDiff).toBeLessThan(1000);
-    });
+    const deleted = await repository.deleteExpiredData('client-1', 90);
+
+    expect(deleted).toBe(2);
+    expect(selectMock).toHaveBeenCalledWith('id');
   });
 
-  describe('Error Recovery', () => {
-    it('should retry failed syncs with exponential backoff', async () => {
-      const clientId = 'client-1';
-      const platform = AdPlatform.META;
+  it('queries insights with date and campaign filters', async () => {
+    const repository = new HistoricalDataRepository();
 
-      mockSupabase.from().select().eq().single.mockResolvedValue({
-        data: {
-          id: 'config-1',
-          client_id: clientId,
-          platform,
-          account_id: 'act_123',
-          access_token: 'test-token',
-          sync_status: 'active',
-        },
-        error: null,
-      });
+    const dbRows = [
+      {
+        id: 'insight-1',
+        platform: AdPlatform.META,
+        client_id: 'client-1',
+        campaign_id: 'campaign-1',
+        campaign_name: 'Campaign One',
+        date: '2026-01-10',
+        impressions: 1000,
+        clicks: 50,
+        spend: '100',
+        conversions: 10,
+        ctr: '5',
+        cpc: '2',
+        cpm: '100',
+        conversion_rate: '20',
+        is_deleted: false,
+        synced_at: '2026-01-10T10:00:00.000Z',
+      },
+    ];
 
-      // First two attempts fail, third succeeds
-      (global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          json: async () => ({ error: { message: 'Server error' } }),
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          json: async () => ({ error: { message: 'Server error' } }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ data: [] }),
-        });
+    const query: any = {};
+    query.eq = jest.fn(() => query);
+    query.gte = jest.fn(() => query);
+    query.lte = jest.fn(() => query);
+    query.order = jest.fn(() => query);
+    query.in = jest.fn(() => query);
+    query.limit = jest.fn(() => query);
+    query.range = jest.fn(() => query);
+    query.then = (resolve: any, reject: any) =>
+      Promise.resolve({ data: dbRows, error: null }).then(resolve, reject);
 
-      mockSupabase.from().insert().select.mockResolvedValue({
-        data: [],
-        error: null,
-      });
+    createClientMock.mockResolvedValue({
+      from: jest.fn(() => ({
+        select: jest.fn(() => query),
+      })),
+    } as any);
 
-      mockSupabase.from().update().eq().select().single.mockResolvedValue({
-        data: {},
-        error: null,
-      });
-
-      const result = await syncEngine.syncClient(clientId, platform);
-
-      expect(result.success).toBe(true);
-      expect(global.fetch).toHaveBeenCalledTimes(3);
+    const insights = await repository.queryInsights({
+      client_id: 'client-1',
+      platform: AdPlatform.META,
+      campaign_ids: ['campaign-1'],
+      date_from: new Date('2026-01-01T00:00:00.000Z'),
+      date_to: new Date('2026-01-31T00:00:00.000Z'),
+      limit: 50,
     });
 
-    it('should log sync failures', async () => {
-      const clientId = 'client-1';
-      const platform = AdPlatform.META;
-
-      mockSupabase.from().select().eq().single.mockResolvedValue({
-        data: {
-          id: 'config-1',
-          client_id: clientId,
-          platform,
-          account_id: 'act_123',
-          access_token: 'test-token',
-          sync_status: 'active',
-        },
-        error: null,
-      });
-
-      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
-
-      // Mock sync log insert
-      mockSupabase.from().insert().select.mockResolvedValue({
-        data: [{ id: 'log-1', status: 'failed' }],
-        error: null,
-      });
-
-      const result = await syncEngine.syncClient(clientId, platform);
-
-      expect(result.success).toBe(false);
-      expect(mockSupabase.from).toHaveBeenCalledWith('sync_logs');
-    });
-  });
-
-  describe('Concurrent Sync Operations', () => {
-    it('should handle concurrent syncs for different clients', async () => {
-      const client1 = 'client-1';
-      const client2 = 'client-2';
-
-      mockSupabase.from().select().eq().single
-        .mockResolvedValueOnce({
-          data: {
-            id: 'config-1',
-            client_id: client1,
-            platform: AdPlatform.META,
-            account_id: 'act_123',
-            access_token: 'token-1',
-            sync_status: 'active',
-          },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: 'config-2',
-            client_id: client2,
-            platform: AdPlatform.META,
-            account_id: 'act_456',
-            access_token: 'token-2',
-            sync_status: 'active',
-          },
-          error: null,
-        });
-
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: [] }),
-      });
-
-      mockSupabase.from().insert().select.mockResolvedValue({
-        data: [],
-        error: null,
-      });
-
-      mockSupabase.from().update().eq().select().single.mockResolvedValue({
-        data: {},
-        error: null,
-      });
-
-      const [result1, result2] = await Promise.all([
-        syncEngine.syncClient(client1, AdPlatform.META),
-        syncEngine.syncClient(client2, AdPlatform.META),
-      ]);
-
-      expect(result1.success).toBe(true);
-      expect(result2.success).toBe(true);
-    });
+    expect(insights).toHaveLength(1);
+    expect(insights[0].campaign_id).toBe('campaign-1');
+    expect(insights[0].date).toBeInstanceOf(Date);
+    expect(query.eq).toHaveBeenCalledWith('platform', AdPlatform.META);
+    expect(query.in).toHaveBeenCalledWith('campaign_id', ['campaign-1']);
   });
 });

@@ -47,14 +47,18 @@ export async function GET(request: NextRequest) {
 
   const clientId = storedState.clientId;
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/meta/oauth/callback`;
-  const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID;
+  const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID || process.env.META_APP_ID;
   const metaAppSecret = process.env.META_APP_SECRET;
+
+  if (!metaAppId || !metaAppSecret) {
+    return new Response('Meta OAuth is not configured', { status: 500 });
+  }
 
   // 1. Exchange code for an access token
   const tokenUrl = new URL('https://graph.facebook.com/v19.0/oauth/access_token');
-  tokenUrl.searchParams.set('client_id', metaAppId!);
+  tokenUrl.searchParams.set('client_id', metaAppId);
   tokenUrl.searchParams.set('redirect_uri', redirectUri);
-  tokenUrl.searchParams.set('client_secret', metaAppSecret!);
+  tokenUrl.searchParams.set('client_secret', metaAppSecret);
   tokenUrl.searchParams.set('code', code);
 
   try {

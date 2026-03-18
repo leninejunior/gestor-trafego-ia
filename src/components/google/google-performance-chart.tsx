@@ -103,34 +103,30 @@ export function GooglePerformanceChart({ clientId, startDate, endDate }: GoogleP
         const response = await fetch(`/api/google/metrics-daily?${params}`);
         
         if (!response.ok) {
-          // Se a API não existir, usar dados agregados
+          // Fallback sem dados simulados: usa apenas o agregado como ponto único
           const fallbackResponse = await fetch(`/api/google/metrics-simple?clientId=${clientId}&startDate=${startDate}&endDate=${endDate}`);
           if (fallbackResponse.ok) {
             const fallbackData = await fallbackResponse.json();
-            // Criar dados simulados baseados no período
-            const days = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
-            const dailyData: DailyMetric[] = [];
             const totalCost = fallbackData.summary?.totalCost || 0;
             const totalImpressions = fallbackData.summary?.totalImpressions || 0;
             const totalClicks = fallbackData.summary?.totalClicks || 0;
             const totalConversions = fallbackData.summary?.totalConversions || 0;
-            
-            for (let i = 0; i <= days; i++) {
-              const date = new Date(startDate);
-              date.setDate(date.getDate() + i);
-              const variance = 0.7 + Math.random() * 0.6; // 70% to 130% variance
-              
-              dailyData.push({
-                date: date.toISOString().split('T')[0],
-                cost: (totalCost / days) * variance,
-                impressions: Math.round((totalImpressions / days) * variance),
-                clicks: Math.round((totalClicks / days) * variance),
-                conversions: (totalConversions / days) * variance,
-                ctr: totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100 * variance) : 0,
-                cpc: totalClicks > 0 ? ((totalCost / totalClicks) * variance) : 0,
-              });
+
+            if (totalCost > 0 || totalImpressions > 0 || totalClicks > 0 || totalConversions > 0) {
+              setData([
+                {
+                  date: endDate,
+                  cost: totalCost,
+                  impressions: totalImpressions,
+                  clicks: totalClicks,
+                  conversions: totalConversions,
+                  ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+                  cpc: totalClicks > 0 ? totalCost / totalClicks : 0,
+                },
+              ]);
+            } else {
+              setData([]);
             }
-            setData(dailyData);
           }
           return;
         }

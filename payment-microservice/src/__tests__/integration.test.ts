@@ -69,7 +69,7 @@ describe('Payment Microservice Integration', () => {
         isActive: true,
         priority: 1,
         credentials: {
-          secretKey: 'sk_test_123'
+          secretKey: 'sk_mock_123'
         },
         settings: {},
         createdAt: new Date(),

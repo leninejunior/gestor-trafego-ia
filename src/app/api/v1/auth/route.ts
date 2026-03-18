@@ -14,7 +14,7 @@ interface ApiKeyValidation {
   keyId?: string
 }
 
-export class ApiAuthService {
+class ApiAuthService {
   private supabase = createClient()
 
   /**
@@ -162,7 +162,7 @@ export class ApiAuthService {
 }
 
 // Instância singleton
-export const apiAuthService = new ApiAuthService()
+const apiAuthService = new ApiAuthService()
 
 /**
  * Endpoint para testar autenticação

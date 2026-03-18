@@ -169,7 +169,9 @@ export class GoogleAdsRepository {
       .select('*')
       .eq('client_id', clientId)
       .eq('status', 'active')
-      .single();
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
       if (error.code === 'PGRST116') {

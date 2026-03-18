@@ -104,20 +104,52 @@ export function GoogleCampaignsList({ clientId, connectionId, dateFilter, startD
       
       console.log('🔍 GoogleCampaignsList: Fetching campaigns from:', url);
       
-      const response = await fetch(url);
-      const data = await response.json();
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Incluir cookies de autenticação
+      });
       
-      console.log('🔍 GoogleCampaignsList: Response:', data);
+      console.log('🔍 GoogleCampaignsList: Response status:', response.status);
       
-      if (response.ok) {
-        setCampaigns(data.campaigns || []);
-      } else {
-        toast.error(data.error || 'Erro ao carregar campanhas');
+      if (!response.ok) {
+        // Tentar parsear o erro
+        let errorMessage = 'Erro ao carregar campanhas';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+          console.error('❌ GoogleCampaignsList: Error response:', errorData);
+          
+          // Se não há conexão, não mostrar erro
+          if (errorData.needsReconnection) {
+            setCampaigns([]);
+            return;
+          }
+        } catch (parseError) {
+          console.error('❌ GoogleCampaignsList: Failed to parse error response:', parseError);
+        }
+        
+        toast.error(errorMessage);
         setCampaigns([]);
+        return;
       }
+      
+      const data = await response.json();
+      console.log('✅ GoogleCampaignsList: Response data:', data);
+      
+      setCampaigns(data.campaigns || []);
     } catch (error) {
-      console.error('Erro ao carregar campanhas:', error);
-      toast.error('Erro ao carregar campanhas');
+      console.error('💥 GoogleCampaignsList: Fetch error:', error);
+      
+      // Verificar se é erro de rede
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        toast.error('Erro de conexão. Verifique sua internet e tente novamente.');
+      } else {
+        toast.error('Erro ao carregar campanhas');
+      }
+      
       setCampaigns([]);
     } finally {
       setIsLoading(false);

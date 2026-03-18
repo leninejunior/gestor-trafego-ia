@@ -92,4 +92,50 @@ export interface Ad {
   spend: number;
   impressions: number;
   clicks: number;
-  conversions: nu
+  conversions: number;
+  ctr: number;
+  cpc: number;
+  cpm: number;
+  roas: number;
+  reach: number;
+  frequency: number;
+  created_time: string;
+  updated_time: string;
+  start_time?: string;
+  end_time?: string;
+}
+
+export interface AnalyticsFilters {
+  dateRange?: DateRangePreset | CustomDateRange;
+  level?: AnalysisLevel;
+  campaignIds?: string[];
+  adsetIds?: string[];
+  accountIds?: string[];
+  status?: ('ACTIVE' | 'PAUSED' | 'ARCHIVED')[];
+}
+
+export interface AnalyticsMetrics {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  ctr: number;
+  cpc: number;
+  cpm: number;
+  roas: number;
+  reach: number;
+  frequency: number;
+}
+
+export interface AnalyticsResponse<T> {
+  data: T[];
+  metrics: AnalyticsMetrics;
+  pagination: {
+    hasNext: boolean;
+    hasPrevious: boolean;
+    cursors?: {
+      before?: string;
+      after?: string;
+    };
+  };
+}

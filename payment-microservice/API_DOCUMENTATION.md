@@ -140,7 +140,7 @@ Content-Type: application/json
 
 {
   "credentials": {
-    "apiKey": "sk_test_...",
+    "apiKey": "sk_mock_...",
     "secretKey": "..."
   },
   "settings": {
@@ -388,7 +388,7 @@ NODE_ENV=development
 PORT=3000
 DATABASE_URL=postgresql://...
 REDIS_URL=redis://...
-STRIPE_SECRET_KEY=sk_test_...
+STRIPE_SECRET_KEY=sk_mock_...
 IUGU_API_TOKEN=...
 ```
 

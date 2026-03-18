@@ -15,23 +15,26 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { 
-  ArrowLeft,
+  ArrowLeft,  
   Users, 
   Search,
   Filter,
-  UserCheck,
-  Shield,
+  Users as UserIcon,         
+  Shield,   
   Building2,
-  Ban,
+  XCircle,      
   CheckCircle,
-  XCircle,
   Clock,
   Eye,
-  UserPlus,
-  RefreshCw
+  Plus,         
+  RefreshCw,
+  Crown
 } from "lucide-react";
 import { UserInviteDialog } from "./user-invite-dialog";
-import { UserDetailsDialog } from "./user-details-dialog";
+import { UserCreateDialog } from "./user-create-dialog";
+import { UserDetailsDialogEnhanced } from "./user-details-dialog-enhanced";
+import { UserAccessIndicator, UserTypeBadge } from "@/components/ui/user-access-indicator";
+import { useUserAccess, useUserType } from "@/hooks/use-user-access";
 import { useToast } from "@/hooks/use-toast";
 
 interface User {
@@ -41,11 +44,13 @@ interface User {
   email: string;
   created_at: string;
   last_sign_in_at: string;
+  user_type?: string;
   is_suspended?: boolean;
   memberships?: Array<{
     id: string;
     role: string;
     status: string;
+    user_type?: 'master' | 'regular' | 'client';
     organizations?: {
       name: string;
     };
@@ -74,9 +79,56 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Hooks do novo sistema de controle de acesso
+  const { userType: currentUserType, isSuperAdmin } = useUserType();
+  const { currentUser } = useUserAccess();
+
+  // Função para obter o tipo de usuário baseado no novo sistema
+  const getUserTypeFromMembership = (user: User): 'master' | 'regular' | 'client' => {
+    // Verificar se tem membership com user_type definido
+    const membership = user.memberships?.[0];
+    if (membership?.user_type) {
+      return membership.user_type;
+    }
+    
+    // Fallback para o user_type antigo
+    if (user.user_type === 'Super Admin') return 'master';
+    if (user.user_type === 'Admin') return 'regular';
+    return 'regular'; // Default
+  };
+
+  // Função para obter badge do tipo de usuário
+  const getUserTypeBadgeVariant = (userType: 'master' | 'regular' | 'client') => {
+    switch (userType) {
+      case 'master':
+        return 'destructive'; // Vermelho para master
+      case 'regular':
+        return 'default'; // Azul para regular
+      case 'client':
+        return 'secondary'; // Cinza para client
+      default:
+        return 'outline';
+    }
+  };
+
+  // Função para obter label do tipo de usuário
+  const getUserTypeLabel = (userType: 'master' | 'regular' | 'client') => {
+    switch (userType) {
+      case 'master':
+        return 'Master';
+      case 'regular':
+        return 'Regular';
+      case 'client':
+        return 'Cliente';
+      default:
+        return 'Indefinido';
+    }
+  };
 
   const loadUsers = async () => {
     setLoading(true);
@@ -85,41 +137,27 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
-      // Tentar API normal primeiro, depois API simples, depois debug
-      let response = await fetch(`/api/admin/users?${params}`);
-      
-      if (!response.ok) {
-        console.log("API normal falhou, tentando API simples...");
-        response = await fetch(`/api/admin/users/simple?${params}`);
-      }
-      
-      if (!response.ok) {
-        console.log("API simples falhou, tentando API debug...");
-        response = await fetch(`/api/admin/users/debug?${params}`);
-      }
+      // Usar a nova API simple-test
+      const response = await fetch(`/api/admin/users/simple-test?${params}`);
       
       if (response.ok) {
         const data = await response.json();
-        console.log("=== DADOS RECEBIDOS ===");
-        console.log("Total users:", data.users?.length);
-        console.log("Users array:", data.users);
-        console.log("Stats:", data.stats);
-        console.log("Debug info:", data.debug);
         
-        // Forçar exibição dos dados
         const usersArray = data.users || [];
-        console.log("Setting users:", usersArray);
         setUsers(usersArray);
         setStats(data.stats || { total: 0, active: 0, pending: 0, superAdmins: 0 });
         
-        // Log adicional
-        console.log("Users state after set:", usersArray.length);
+        toast({
+          title: "Sucesso",
+          description: `${usersArray.length} usuários carregados`,
+          variant: "default"
+        });
       } else {
         const errorData = await response.json();
         console.error("Erro da API:", errorData);
         toast({
           title: "Erro",
-          description: errorData.error || "Erro ao carregar usuários",
+          description: errorData?.error || "Erro ao carregar usuários",
           variant: "destructive"
         });
       }
@@ -153,11 +191,17 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
   }, [searchTerm, statusFilter]);
 
   const handleViewUser = (userId: string) => {
+    console.log('👁️ handleViewUser chamado com userId:', userId);
     setSelectedUserId(userId);
     setDetailsDialogOpen(true);
+    console.log('🔄 Estado atualizado - selectedUserId:', userId, 'detailsDialogOpen:', true);
   };
 
   const handleInviteSuccess = () => {
+    loadUsers();
+  };
+
+  const handleCreateSuccess = () => {
     loadUsers();
   };
 
@@ -175,40 +219,21 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
       email.includes(search);
 
     if (!matchesSearch) {
-      console.log("User filtered out by search:", user.email, "search:", searchTerm);
       return false;
     }
 
-    let statusMatch = true;
+    // Lógica de filtro simplificada baseada apenas em is_suspended
     switch (statusFilter) {
       case 'active':
-        statusMatch = (user.memberships?.some(m => m.status === 'active') ?? false) && !user.is_suspended;
-        break;
-      case 'pending':
-        statusMatch = user.memberships?.some(m => m.status === 'pending') ?? false;
-        break;
+        return !user.is_suspended;
       case 'suspended':
-        statusMatch = user.is_suspended ?? false;
-        break;
-      case 'inactive':
-        statusMatch = !(user.memberships?.some(m => m.status === 'active') ?? false) && !(user.is_suspended ?? false);
-        break;
+        return user.is_suspended;
+      case 'all':
       default:
-        statusMatch = true;
+        return true;
     }
-    
-    if (!statusMatch) {
-      console.log("User filtered out by status:", user.email, "filter:", statusFilter, "memberships:", user.memberships);
-    }
-    
-    return statusMatch;
   });
 
-  console.log("=== FILTER RESULTS ===");
-  console.log("Total users:", users.length);
-  console.log("Filtered users:", filteredUsers.length);
-  console.log("Search term:", searchTerm);
-  console.log("Status filter:", statusFilter);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -225,7 +250,7 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
               </Button>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">
-                  Gerenciar Usuários
+                  Gerenciar Usuários ✅ NOVO
                 </h1>
                 <p className="text-gray-600 mt-1">
                   Controle de usuários, roles e permissões
@@ -233,7 +258,7 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <Badge variant="destructive">SUPER ADMIN</Badge>
+              <UserTypeBadge />
               <Button 
                 variant="outline" 
                 size="sm"
@@ -245,9 +270,17 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
               </Button>
               <Button 
                 size="sm"
+                onClick={() => setCreateDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Criar Usuário
+              </Button>
+              <Button 
+                variant="outline"
+                size="sm"
                 onClick={() => setInviteDialogOpen(true)}
               >
-                <UserPlus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 mr-2" />
                 Convidar Usuário
               </Button>
             </div>
@@ -276,7 +309,7 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center">
-                <UserCheck className="w-4 h-4 mr-2 text-green-500" />
+                <UserIcon className="w-4 h-4 mr-2 text-green-500" />
                 Usuários Ativos
               </CardTitle>
             </CardHeader>
@@ -291,14 +324,14 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center">
-                <Clock className="w-4 h-4 mr-2 text-yellow-500" />
-                Convites Pendentes
+                <XCircle className="w-4 h-4 mr-2 text-red-500" />
+                Usuários Suspensos
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+              <div className="text-2xl font-bold text-red-600">{stats.pending}</div>
               <p className="text-xs text-muted-foreground">
-                Aguardando aceitação
+                Com acesso bloqueado
               </p>
             </CardContent>
           </Card>
@@ -356,13 +389,6 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
                   Ativos
                 </Button>
                 <Button 
-                  variant={statusFilter === 'pending' ? 'default' : 'outline'} 
-                  size="sm"
-                  onClick={() => setStatusFilter('pending')}
-                >
-                  Pendentes
-                </Button>
-                <Button 
                   variant={statusFilter === 'suspended' ? 'default' : 'outline'} 
                   size="sm"
                   onClick={() => setStatusFilter('suspended')}
@@ -387,6 +413,26 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="w-6 h-6 animate-spin mr-2" />
                 Carregando usuários...
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">
+                  {users.length === 0 
+                    ? "Nenhum usuário encontrado no sistema" 
+                    : `Nenhum usuário encontrado com os filtros aplicados (${users.length} usuários no total)`
+                  }
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    setSearchTerm("");
+                    setStatusFilter("all");
+                  }}
+                  className="mt-2"
+                >
+                  Limpar Filtros
+                </Button>
               </div>
             ) : (
               <Table>
@@ -451,23 +497,30 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
                         
                         <TableCell>
                           <div className="space-y-1">
-                            {user.memberships?.map((membership, membershipIndex) => (
-                              <div key={`membership-${membership.id}-${membershipIndex}`}>
-                                {membership.user_roles && membership.user_roles.length > 0 ? (
-                                  membership.user_roles.map((role, roleIndex) => (
-                                    <Badge key={`${membership.id}-role-${roleIndex}`} variant="outline" className="text-xs mr-1 mb-1">
-                                      <Shield className="w-3 h-3 mr-1" />
-                                      {role.name}
+                            {user.memberships && user.memberships.length > 0 ? (
+                              user.memberships.map((membership, membershipIndex) => {
+                                const userType = getUserTypeFromMembership(user);
+                                return (
+                                  <div key={`membership-${membership.id}-${membershipIndex}`} className="flex items-center space-x-2">
+                                    <Shield className="w-3 h-3 text-gray-400" />
+                                    <Badge 
+                                      variant={getUserTypeBadgeVariant(userType)} 
+                                      className="text-xs"
+                                    >
+                                      {getUserTypeLabel(userType)}
                                     </Badge>
-                                  ))
-                                ) : (
-                                  <Badge key={`${membership.id}-simple`} variant="outline" className="text-xs">
-                                    <Shield className="w-3 h-3 mr-1" />
-                                    {membership.role}
-                                  </Badge>
-                                )}
+                                    {userType === 'master' && <Crown className="w-3 h-3 text-yellow-500" />}
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div className="flex items-center space-x-2">
+                                <Shield className="w-3 h-3 text-gray-400" />
+                                <Badge variant="outline" className="text-xs">
+                                  Sem Tipo
+                                </Badge>
                               </div>
-                            ))}
+                            )}
                           </div>
                         </TableCell>
                         
@@ -475,23 +528,13 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
                           <div className="flex items-center space-x-2">
                             {user.is_suspended ? (
                               <>
-                                <Ban className="w-4 h-4 text-red-500" />
+                                <XCircle className="w-4 h-4 text-red-500" />
                                 <Badge variant="destructive" className="text-xs">Suspenso</Badge>
-                              </>
-                            ) : hasActiveOrg ? (
-                              <>
-                                <CheckCircle className="w-4 h-4 text-green-500" />
-                                <Badge variant="default" className="text-xs">Ativo</Badge>
-                              </>
-                            ) : pendingMemberships.length > 0 ? (
-                              <>
-                                <Clock className="w-4 h-4 text-yellow-500" />
-                                <Badge variant="secondary" className="text-xs">Pendente</Badge>
                               </>
                             ) : (
                               <>
-                                <XCircle className="w-4 h-4 text-red-500" />
-                                <Badge variant="destructive" className="text-xs">Inativo</Badge>
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                                <Badge variant="default" className="text-xs">Ativo</Badge>
                               </>
                             )}
                           </div>
@@ -523,7 +566,7 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
                               onClick={() => handleViewUser(user.id)}
                             >
                               <Eye className="w-4 h-4 mr-1" />
-                              Ver
+                              Ver ✅
                             </Button>
                           </div>
                         </TableCell>
@@ -538,6 +581,12 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
       </div>
 
       {/* Dialogs */}
+      <UserCreateDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onSuccess={handleCreateSuccess}
+      />
+
       <UserInviteDialog
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
@@ -545,12 +594,22 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
       />
 
       {selectedUserId && (
-        <UserDetailsDialog
-          open={detailsDialogOpen}
-          onOpenChange={setDetailsDialogOpen}
-          userId={selectedUserId}
-          onUserUpdated={handleUserUpdated}
-        />
+        <>
+          {console.log('🎭 Renderizando modal ENHANCED - selectedUserId:', selectedUserId, 'detailsDialogOpen:', detailsDialogOpen)}
+          <UserDetailsDialogEnhanced
+            open={detailsDialogOpen}
+            onOpenChange={(open) => {
+              console.log('🔄 Modal onOpenChange chamado com:', open);
+              setDetailsDialogOpen(open);
+              if (!open) {
+                console.log('🧹 Limpando selectedUserId');
+                setSelectedUserId(null);
+              }
+            }}
+            userId={selectedUserId}
+            onUserUpdated={handleUserUpdated}
+          />
+        </>
       )}
     </div>
   );

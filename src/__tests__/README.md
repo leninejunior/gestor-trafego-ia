@@ -1,161 +1,273 @@
-# SaaS Subscription Plans Testing Suite
+# Sistema de Testes do Projeto
 
-This directory contains comprehensive tests for the SaaS subscription plans system, covering unit tests, integration tests, and end-to-end tests.
+## Visão Geral
 
-## Test Structure
+Este diretório contém todos os testes do projeto, organizados por tipo e camada:
 
-### Unit Tests (`src/lib/services/__tests__/`)
-- **plan-manager.test.ts**: Tests for Plan Manager service including plan CRUD operations, proration calculations, and feature validation
-- **feature-gate.test.ts**: Tests for Feature Gate service including access control, usage limits, and feature matrix management
-- **billing-engine.test.ts**: Tests for Billing Engine including recurring billing, invoice generation, payment processing, and retry logic
-
-### Integration Tests (`src/__tests__/integration/`)
-- **subscription-signup.test.ts**: Tests complete subscription signup flow, plan upgrades/downgrades, and payment failure scenarios
-- **webhook-processing.test.ts**: Tests Stripe webhook processing, payment events, and subscription lifecycle management
-
-### End-to-End Tests (`src/__tests__/e2e/`)
-- **subscription-portal.spec.ts**: Tests customer subscription portal functionality including plan display, upgrades, billing history, and payment methods
-- **admin-panel.spec.ts**: Tests admin panel subscription management including analytics, plan management, and billing oversight
-- **feature-gate.spec.ts**: Tests feature gate enforcement across different subscription plans and user journeys
-
-## Test Coverage
-
-### Core Services Tested
-1. **Plan Manager**
-   - Plan creation and validation
-   - Proration calculations for upgrades/downgrades
-   - Feature matrix management
-   - Plan retrieval and filtering
-
-2. **Feature Gate Service**
-   - Feature access validation
-   - Usage limit enforcement
-   - Real-time feature checking
-   - Plan-based restrictions
-
-3. **Billing Engine**
-   - Recurring billing processing
-   - Invoice generation and management
-   - Payment success/failure handling
-   - Retry logic with exponential backoff
-   - Proration calculations
-
-### Integration Scenarios Tested
-1. **Subscription Signup Flow**
-   - Complete signup with payment
-   - Trial subscription creation
-   - Payment failure handling
-   - Plan validation
-
-2. **Plan Changes**
-   - Upgrade with prorated billing
-   - Downgrade with credit application
-   - Immediate feature access updates
-
-3. **Payment Processing**
-   - Webhook event processing
-   - Payment retry mechanisms
-   - Subscription status updates
-   - Dunning management
-
-### User Journey Tests
-1. **Customer Portal**
-   - Current subscription display
-   - Plan comparison and selection
-   - Billing history access
-   - Payment method management
-   - Subscription cancellation
-
-2. **Admin Management**
-   - Subscription analytics dashboard
-   - Individual subscription management
-   - Plan creation and editing
-   - Billing oversight and intervention
-
-3. **Feature Enforcement**
-   - Basic plan restrictions
-   - Pro plan access levels
-   - Trial subscription behavior
-   - Expired subscription handling
-
-## Running Tests
-
-### Unit Tests
-```bash
-npm test                    # Run all Jest tests
-npm run test:watch         # Run tests in watch mode
-npm run test:coverage      # Run tests with coverage report
+```
+src/__tests__/
+├── unit/              # Testes unitários
+├── integration/        # Testes de integração
+├── e2e/              # Testes end-to-end (Playwright)
+├── components/         # Testes de componentes React
+├── hooks/             # Testes de hooks personalizados
+├── services/          # Testes de serviços
+├── performance/       # Testes de performance
+└── security/          # Testes de segurança
 ```
 
-### Integration Tests
+## Como Executar os Testes
+
+### Todos os Testes
 ```bash
-npm test -- --testPathPatterns="integration"
+npm run test:all
 ```
 
-### End-to-End Tests
+### Tipos Específicos
 ```bash
-npm run test:e2e           # Run Playwright tests
-npm run test:e2e:ui        # Run tests with UI mode
+# Testes unitários
+npm run test:unit
+
+# Testes de integração
+npm run test:integration
+
+# Testes E2E
+npm run test:e2e
+
+# Testes de performance
+npm run test:performance
+
+# Testes de segurança
+npm run test:security
 ```
 
-## Test Configuration
+### Com Cobertura
+```bash
+npm run test:coverage
+```
 
-### Jest Configuration (`jest.config.js`)
-- Next.js integration for proper module resolution
-- TypeScript support
-- Mock setup for Supabase and Stripe
-- Coverage reporting configuration
+### Modo Watch
+```bash
+npm run test:watch
+```
 
-### Playwright Configuration (`playwright.config.ts`)
-- Multi-browser testing (Chrome, Firefox, Safari)
-- Local development server integration
-- Test reporting and tracing
+## Estrutura dos Testes
 
-## Mock Strategy
+### Testes Unitários
+- **Localização**: `src/__tests__/unit/`
+- **Objetivo**: Testar funções e classes isoladamente
+- **Exemplo**: `src/lib/services/__tests__/subscription-intent-service.test.ts`
 
-### External Services
-- **Supabase**: Mocked database operations and authentication
-- **Stripe**: Mocked payment processing and webhook events
-- **Next.js**: Mocked routing and navigation
+### Testes de Integração
+- **Localização**: `src/__tests__/integration/`
+- **Objetivo**: Testar interação entre componentes e APIs
+- **Exemplo**: `src/__tests__/integration/checkout-iugu-api.test.ts`
 
-### Test Data
-- Consistent mock data across all test files
-- Realistic subscription and plan configurations
-- Edge case scenarios (expired subscriptions, payment failures)
+### Testes E2E
+- **Localização**: `src/__tests__/e2e/`
+- **Objetivo**: Testar fluxos completos do usuário
+- **Framework**: Playwright
+- **Exemplo**: `src/__tests__/e2e/checkout-flow.spec.ts`
 
-## Key Test Scenarios
+## Boas Práticas
 
-### Payment Flows
-- Successful subscription creation
-- Payment method validation
-- Retry logic for failed payments
-- Webhook event processing
-- Proration calculations
+### 1. Nomenclatura
+- Use `describe()` para agrupar testes relacionados
+- Use `it()` ou `test()` com descrições claras
+- Arquivos devem terminar com `.test.ts` ou `.spec.ts`
 
-### Feature Access
-- Plan-based feature restrictions
-- Usage limit enforcement
-- Trial subscription behavior
-- Upgrade prompts and flows
+### 2. Estrutura AAA
+```typescript
+it('should do something', async () => {
+  // Arrange
+  const input = { /* dados */ }
+  
+  // Act
+  const result = await service.doSomething(input)
+  
+  // Assert
+  expect(result.success).toBe(true)
+})
+```
 
-### Admin Operations
-- Subscription analytics and reporting
-- Manual subscription adjustments
-- Plan management and configuration
-- Billing oversight and intervention
+### 3. Mocks
+- Mocke dependências externas
+- Use `jest.clearAllMocks()` no `beforeEach`
+- Mantenha os mocks realistas
 
-## Notes
+### 4. Testes Assíncronos
+- Use `async/await` para operações assíncronas
+- Retorne promises quando necessário
+- Teste casos de erro
 
-- Tests use comprehensive mocking to avoid external dependencies
-- Integration tests focus on service interactions
-- E2E tests validate complete user workflows
-- All tests include error handling and edge case scenarios
-- Mock data is designed to be realistic and comprehensive
+## Cobertura de Código
 
-## Future Enhancements
+### Thresholds
+- **Branches**: 80%
+- **Functions**: 80%
+- **Lines**: 80%
+- **Statements**: 80%
 
-- Add performance testing for billing operations
-- Implement load testing for webhook processing
-- Add accessibility testing for subscription portal
-- Include security testing for payment flows
-- Add visual regression testing for UI components
+### Relatórios
+- **Texto**: Console
+- **HTML**: `coverage/lcov-report/index.html`
+- **JSON**: `coverage/coverage-final.json`
+- **LCOV**: `coverage/lcov.info`
+
+## CI/CD
+
+### GitHub Actions
+- **Trigger**: Push e Pull Requests
+- **Jobs**: Test, Performance, Security, Build
+- **Arquivo**: `.github/workflows/test.yml`
+
+### Execução Local
+```bash
+# Verificar ambiente
+node scripts/run-all-tests.js --check-only
+
+# Executar todos os testes
+npm run test:all
+
+# Gerar relatório apenas
+npm run test:report
+```
+
+## Debug
+
+### Jest
+```bash
+# Debug com VS Code
+# Adicionar breakpoint com debugger
+# Usar test.only para isolar
+
+# Verbose output
+npm test -- --verbose
+
+# Update snapshots
+npm test -- --updateSnapshot
+```
+
+### Playwright
+```bash
+# Modo UI
+npm run test:e2e:ui
+
+# Debug
+npm run test:e2e:debug
+
+# Trace
+npx playwright test --trace on
+```
+
+## Exemplos
+
+### Teste Unitário
+```typescript
+import { SubscriptionIntentService } from '@/lib/services/subscription-intent-service'
+
+describe('SubscriptionIntentService', () => {
+  let service: SubscriptionIntentService
+
+  beforeEach(() => {
+    service = new SubscriptionIntentService()
+  })
+
+  it('should create intent successfully', async () => {
+    const result = await service.createIntent({
+      email: 'test@example.com',
+      planId: 'basic'
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.data.id).toBeDefined()
+  })
+})
+```
+
+### Teste de Integração
+```typescript
+import { POST } from '@/app/api/checkout/route'
+
+describe('Checkout API', () => {
+  it('should process checkout successfully', async () => {
+    const request = new Request('http://localhost/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'test@example.com' })
+    })
+
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+  })
+})
+```
+
+### Teste E2E
+```typescript
+import { test, expect } from '@playwright/test'
+
+test('checkout flow', async ({ page }) => {
+  await page.goto('/checkout')
+  
+  await page.fill('[data-testid="email"]', 'test@example.com')
+  await page.click('[data-testid="submit"]')
+  
+  await expect(page).toHaveURL(/success/)
+})
+```
+
+## Recursos
+
+### Documentação
+- [Jest Documentation](https://jestjs.io/docs/getting-started)
+- [Playwright Documentation](https://playwright.dev/docs/intro)
+- [Testing Library](https://testing-library.com/docs/)
+- [Guia de Testes do Projeto](../../docs/TESTING_GUIDE.md)
+
+### Ferramentas
+- **Jest Runner**: Extensão VS Code
+- **Playwright Test Runner**: Extensão VS Code
+- **Coverage Gutters**: Visualização de cobertura
+
+## Problemas Comuns
+
+### 1. Mocks não funcionando
+Verifique se o mock está configurado antes da importação:
+```typescript
+jest.mock('@/module', () => ({ /* mock */ }))
+import { Module } from '@/module'
+```
+
+### 2. Testes assíncronos
+Use `async/await` ou retorne a promise:
+```typescript
+it('should handle async', async () => {
+  await asyncOperation()
+  // ou
+  return expect(asyncOperation()).resolves.toBe(expected)
+})
+```
+
+### 3. Variáveis de ambiente
+Configure no `jest.setup.js` ou no `beforeEach`:
+```typescript
+process.env.NODE_ENV = 'test'
+```
+
+## Contribuição
+
+1. Crie testes para novas funcionalidades
+2. Mantenha a cobertura acima dos thresholds
+3. Siga as convenções de nomenclatura
+4. Documente casos complexos
+5. Revise testes em Pull Requests
+
+## Suporte
+
+Para dúvidas ou problemas:
+- Verifique o [Guia de Testes](../../docs/TESTING_GUIDE.md)
+- Consulte a documentação oficial
+- Abra uma issue no repositório

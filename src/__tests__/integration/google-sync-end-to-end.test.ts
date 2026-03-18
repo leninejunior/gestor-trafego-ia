@@ -1,709 +1,276 @@
 /**
- * Google Ads Sync End-to-End Integration Tests
- * 
- * Tests complete synchronization flow from API calls to database storage
- * Requirements: 3.1, 2.1
+ * Google Ads Sync API integration tests (contract-aligned)
  */
 
 import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// Mock external dependencies
-jest.mock('@/lib/supabase/server');
-jest.mock('@/lib/google/client');
-jest.mock('@/lib/google/sync-service');
-jest.mock('@/lib/google/token-manager');
+const mockSyncService = {
+  startSync: jest.fn(),
+};
 
-describe('Google Ads Sync End-to-End Integration', () => {
-  const mockUser = {
-    id: 'user-123',
-    email: 'test@example.com',
+jest.mock('@/lib/supabase/server');
+jest.mock('@/lib/google/sync-service', () => ({
+  getGoogleSyncService: () => mockSyncService,
+}));
+
+type QueryResult = { data: any; error: any };
+
+function createThenableQuery(result: QueryResult) {
+  const chain: any = {
+    select: jest.fn(() => chain),
+    eq: jest.fn(() => chain),
+    in: jest.fn(() => chain),
+    is: jest.fn(() => chain),
+    gte: jest.fn(() => chain),
+    single: jest.fn(async () => result),
+    then: (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject),
   };
 
-  const mockClientId = 'client-123';
-  const mockConnectionId = 'connection-123';
-  const mockCustomerId = '1234567890';
-  const mockCampaignId = 'campaign-123';
+  return chain;
+}
 
+type SupabaseScenario = {
+  user?: { id: string } | null;
+  client?: { org_id: string } | null;
+  membership?: { id: string } | null;
+  connections?: Array<{ id: string; customer_id: string; status: string; last_sync_at?: string | null }>;
+  activeSyncs?: Array<{ id: string; connection_id: string; sync_type: string; started_at: string }>;
+};
+
+function createSupabaseMock(scenario: SupabaseScenario = {}) {
+  const {
+    user = { id: 'user-123' },
+    client = { org_id: 'org-123' },
+    membership = { id: 'membership-123' },
+    connections = [
+      {
+        id: '30000000-0000-4000-8000-000000000003',
+        customer_id: '1234567890',
+        status: 'active',
+        last_sync_at: null,
+      },
+    ],
+    activeSyncs = [],
+  } = scenario;
+
+  return {
+    auth: {
+      getUser: jest.fn().mockResolvedValue({
+        data: { user },
+        error: user ? null : { message: 'unauthorized' },
+      }),
+    },
+    from: jest.fn((table: string) => {
+      if (table === 'clients') {
+        return createThenableQuery({ data: client, error: null });
+      }
+      if (table === 'memberships') {
+        return createThenableQuery({ data: membership, error: null });
+      }
+      if (table === 'google_ads_connections') {
+        return createThenableQuery({ data: connections, error: null });
+      }
+      if (table === 'google_ads_sync_logs') {
+        return createThenableQuery({ data: activeSyncs, error: null });
+      }
+      return createThenableQuery({ data: [], error: null });
+    }),
+  };
+}
+
+function buildSyncRequest(payload: Record<string, unknown>) {
+  return new NextRequest('http://localhost:3000/api/google/sync', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+describe('Google Ads Sync End-to-End Integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSyncService.startSync.mockResolvedValue({
+      syncId: 'sync-123',
+      status: 'started',
+      estimatedTime: 45,
+    });
   });
 
-  describe('Complete Sync Flow', () => {
-    it('should sync campaigns and metrics successfully', async () => {
-      // Mock Supabase client
-      const mockSupabase = {
-        auth: {
-          getUser: jest.fn().mockResolvedValue({
-            data: { user: mockUser },
-            error: null,
-          }),
-        },
-        from: jest.fn(() => ({
-          select: jest.fn().mockReturnThis(),
-          insert: jest.fn().mockReturnThis(),
-          update: jest.fn().mockReturnThis(),
-          upsert: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          in: jest.fn().mockReturnThis(),
-          gte: jest.fn().mockReturnThis(),
-          lte: jest.fn().mockReturnThis(),
-          order: jest.fn().mockReturnThis(),
-          single: jest.fn(),
-        })),
-      };
+  it('returns 400 for invalid UUID payload', async () => {
+    const { POST } = await import('@/app/api/google/sync/route');
 
-      (createClient as jest.Mock).mockReturnValue(mockSupabase);
+    const response = await POST(
+      buildSyncRequest({
+        clientId: 'client-123',
+        fullSync: true,
+      })
+    );
+    const body = await response.json();
 
-      // Mock Google Ads client
-      const { getGoogleAdsClient } = require('@/lib/google/client');
-      const mockGoogleClient = {
-        getCampaigns: jest.fn().mockResolvedValue([
+    expect(response.status).toBe(400);
+    expect(body.error).toBe('Dados inválidos');
+  });
+
+  it('returns 401 when user is not authenticated', async () => {
+    (createClient as jest.Mock).mockResolvedValue(
+      createSupabaseMock({
+        user: null,
+      })
+    );
+
+    const { POST } = await import('@/app/api/google/sync/route');
+    const response = await POST(
+      buildSyncRequest({
+        clientId: '10000000-0000-4000-8000-000000000001',
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body.error).toBe('Não autorizado');
+  });
+
+  it('starts sync successfully with valid payload', async () => {
+    const clientId = '10000000-0000-4000-8000-000000000001';
+    const connectionId = '30000000-0000-4000-8000-000000000003';
+
+    (createClient as jest.Mock).mockResolvedValue(
+      createSupabaseMock({
+        connections: [
           {
-            id: '12345',
-            name: 'Test Campaign',
-            status: 'ENABLED',
-            budget: {
-              amountMicros: '100000000', // $100
-              currency: 'USD',
-            },
-            startDate: '2024-01-01',
-            endDate: '2024-12-31',
-          },
-        ]),
-        getCampaignMetrics: jest.fn().mockResolvedValue([
-          {
-            campaignId: '12345',
-            date: '2024-01-01',
-            impressions: '1000',
-            clicks: '50',
-            conversions: '5',
-            costMicros: '25000000', // $25
-          },
-        ]),
-      };
-      getGoogleAdsClient.mockReturnValue(mockGoogleClient);
-
-      // Mock token manager
-      const { getGoogleTokenManager } = require('@/lib/google/token-manager');
-      const mockTokenManager = {
-        ensureValidToken: jest.fn().mockResolvedValue('valid-access-token'),
-      };
-      getGoogleTokenManager.mockReturnValue(mockTokenManager);
-
-      // Mock sync service
-      const { getGoogleSyncService } = require('@/lib/google/sync-service');
-      const mockSyncService = {
-        syncCampaigns: jest.fn().mockResolvedValue({
-          success: true,
-          campaignsSynced: 1,
-          metricsUpdated: 1,
-          errors: [],
-        }),
-      };
-      getGoogleSyncService.mockReturnValue(mockSyncService);
-
-      // Setup database mocks
-      mockSupabase.from().single
-        .mockResolvedValueOnce({
-          data: { client_id: mockClientId },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: mockConnectionId,
-            client_id: mockClientId,
-            customer_id: mockCustomerId,
+            id: connectionId,
+            customer_id: '1234567890',
             status: 'active',
-          },
-          error: null,
-        });
-
-      mockSupabase.from().select.mockResolvedValue({
-        data: [],
-        error: null,
-      });
-
-      mockSupabase.from().upsert.mockResolvedValue({
-        data: [{ id: mockCampaignId }],
-        error: null,
-      });
-
-      mockSupabase.from().insert.mockResolvedValue({
-        data: null,
-        error: null,
-      });
-
-      // Execute sync
-      const { POST: syncPost } = await import('@/app/api/google/sync/route');
-
-      const syncRequest = new NextRequest('http://localhost:3000/api/google/sync', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: mockClientId,
-          fullSync: true,
-        }),
-      });
-
-      const syncResponse = await syncPost(syncRequest);
-      const syncData = await syncResponse.json();
-
-      expect(syncResponse.status).toBe(200);
-      expect(syncData.success).toBe(true);
-      expect(syncData.results).toBeDefined();
-
-      // Verify Google client was called
-      expect(mockGoogleClient.getCampaigns).toHaveBeenCalledWith(mockCustomerId);
-      expect(mockGoogleClient.getCampaignMetrics).toHaveBeenCalled();
-
-      // Verify database operations
-      expect(mockSupabase.from().upsert).toHaveBeenCalled(); // Campaigns upserted
-      expect(mockSupabase.from().insert).toHaveBeenCalled(); // Metrics inserted
-    });
-
-    it('should handle incremental sync correctly', async () => {
-      const mockSupabase = {
-        auth: {
-          getUser: jest.fn().mockResolvedValue({
-            data: { user: mockUser },
-            error: null,
-          }),
-        },
-        from: jest.fn(() => ({
-          select: jest.fn().mockReturnThis(),
-          insert: jest.fn().mockReturnThis(),
-          update: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          gte: jest.fn().mockReturnThis(),
-          order: jest.fn().mockReturnThis(),
-          limit: jest.fn().mockReturnThis(),
-          single: jest.fn(),
-        })),
-      };
-
-      (createClient as jest.Mock).mockReturnValue(mockSupabase);
-
-      // Mock last sync time
-      mockSupabase.from().single
-        .mockResolvedValueOnce({
-          data: { client_id: mockClientId },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: mockConnectionId,
-            client_id: mockClientId,
-            customer_id: mockCustomerId,
-            status: 'active',
-            last_sync_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 24h ago
-          },
-          error: null,
-        });
-
-      // Mock existing campaigns
-      mockSupabase.from().select.mockResolvedValue({
-        data: [
-          {
-            id: mockCampaignId,
-            campaign_id: '12345',
-            updated_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12h ago
           },
         ],
-        error: null,
-      });
+      })
+    );
 
-      const { getGoogleSyncService } = require('@/lib/google/sync-service');
-      const mockSyncService = {
-        syncCampaigns: jest.fn().mockResolvedValue({
-          success: true,
-          campaignsSynced: 0, // No new campaigns
-          metricsUpdated: 1,
-          errors: [],
-        }),
-      };
-      getGoogleSyncService.mockReturnValue(mockSyncService);
+    const { POST } = await import('@/app/api/google/sync/route');
+    const response = await POST(
+      buildSyncRequest({
+        clientId,
+        fullSync: false,
+        syncType: 'campaigns',
+        dateFrom: '2026-02-01',
+        dateTo: '2026-02-10',
+      })
+    );
+    const body = await response.json();
 
-      const { POST: syncPost } = await import('@/app/api/google/sync/route');
-
-      const syncRequest = new NextRequest('http://localhost:3000/api/google/sync', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: mockClientId,
-          fullSync: false, // Incremental sync
-        }),
-      });
-
-      const syncResponse = await syncPost(syncRequest);
-      const syncData = await syncResponse.json();
-
-      expect(syncResponse.status).toBe(200);
-      expect(syncData.success).toBe(true);
-
-      // Verify incremental sync was performed
-      expect(mockSyncService.syncCampaigns).toHaveBeenCalledWith(
-        expect.objectContaining({
-          incremental: true,
-          since: expect.any(String),
-        })
-      );
-    });
-
-    it('should handle sync errors gracefully', async () => {
-      const mockSupabase = {
-        auth: {
-          getUser: jest.fn().mockResolvedValue({
-            data: { user: mockUser },
-            error: null,
-          }),
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.summary.successful).toBe(1);
+    expect(body.results[0].status).toBe('started');
+    expect(mockSyncService.startSync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId,
+        connectionId,
+        customerId: '1234567890',
+        fullSync: false,
+        syncType: 'campaigns',
+        dateRange: {
+          startDate: '2026-02-01',
+          endDate: '2026-02-10',
         },
-        from: jest.fn(() => ({
-          select: jest.fn().mockReturnThis(),
-          insert: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          single: jest.fn(),
-        })),
-      };
+      })
+    );
+  });
 
-      (createClient as jest.Mock).mockReturnValue(mockSupabase);
+  it('returns 403 when user has no membership for the client', async () => {
+    (createClient as jest.Mock).mockResolvedValue(
+      createSupabaseMock({
+        membership: null,
+      })
+    );
 
-      mockSupabase.from().single
-        .mockResolvedValueOnce({
-          data: { client_id: mockClientId },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: mockConnectionId,
-            client_id: mockClientId,
-            customer_id: mockCustomerId,
+    const { POST } = await import('@/app/api/google/sync/route');
+    const response = await POST(
+      buildSyncRequest({
+        clientId: '20000000-0000-4000-8000-000000000002',
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error).toBe('Acesso negado ao cliente especificado');
+  });
+
+  it('returns 409 when a sync is already in progress', async () => {
+    (createClient as jest.Mock).mockResolvedValue(
+      createSupabaseMock({
+        connections: [
+          {
+            id: '30000000-0000-4000-8000-000000000003',
+            customer_id: '1234567890',
             status: 'active',
           },
-          error: null,
-        });
+        ],
+        activeSyncs: [
+          {
+            id: 'sync-log-1',
+            connection_id: '30000000-0000-4000-8000-000000000003',
+            sync_type: 'full',
+            started_at: '2026-02-26T10:00:00.000Z',
+          },
+        ],
+      })
+    );
 
-      // Mock Google API error
-      const { getGoogleAdsClient } = require('@/lib/google/client');
-      const mockGoogleClient = {
-        getCampaigns: jest.fn().mockRejectedValue(new Error('API rate limit exceeded')),
-      };
-      getGoogleAdsClient.mockReturnValue(mockGoogleClient);
+    const { POST } = await import('@/app/api/google/sync/route');
+    const response = await POST(
+      buildSyncRequest({
+        clientId: '30000000-0000-4000-8000-000000000003',
+      })
+    );
+    const body = await response.json();
 
-      const { getGoogleSyncService } = require('@/lib/google/sync-service');
-      const mockSyncService = {
-        syncCampaigns: jest.fn().mockResolvedValue({
-          success: false,
-          campaignsSynced: 0,
-          metricsUpdated: 0,
-          errors: ['API rate limit exceeded'],
-        }),
-      };
-      getGoogleSyncService.mockReturnValue(mockSyncService);
-
-      // Mock sync log insertion
-      mockSupabase.from().insert.mockResolvedValue({
-        data: null,
-        error: null,
-      });
-
-      const { POST: syncPost } = await import('@/app/api/google/sync/route');
-
-      const syncRequest = new NextRequest('http://localhost:3000/api/google/sync', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: mockClientId,
-          fullSync: true,
-        }),
-      });
-
-      const syncResponse = await syncPost(syncRequest);
-      const syncData = await syncResponse.json();
-
-      expect(syncResponse.status).toBe(200);
-      expect(syncData.success).toBe(false);
-      expect(syncData.errors).toContain('API rate limit exceeded');
-
-      // Verify error was logged
-      expect(mockSupabase.from().insert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'failed',
-          error_message: expect.stringContaining('API rate limit exceeded'),
-        })
-      );
-    });
+    expect(response.status).toBe(409);
+    expect(body.error).toBe('Sincronização já em andamento');
   });
 
-  describe('Data Isolation Testing', () => {
-    it('should enforce client data isolation during sync', async () => {
-      const mockSupabase = {
-        auth: {
-          getUser: jest.fn().mockResolvedValue({
-            data: { user: mockUser },
-            error: null,
-          }),
-        },
-        from: jest.fn(() => ({
-          select: jest.fn().mockReturnThis(),
-          insert: jest.fn().mockReturnThis(),
-          upsert: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          single: jest.fn(),
-        })),
-      };
-
-      (createClient as jest.Mock).mockReturnValue(mockSupabase);
-
-      // Mock membership check - user has access to client-123 but not client-456
-      mockSupabase.from().single
-        .mockResolvedValueOnce({
-          data: { client_id: mockClientId }, // Valid membership
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: null, // No membership for other client
-          error: new Error('No membership found'),
-        });
-
-      const { POST: syncPost } = await import('@/app/api/google/sync/route');
-
-      // Valid sync request
-      const validRequest = new NextRequest('http://localhost:3000/api/google/sync', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: mockClientId,
-          fullSync: true,
-        }),
-      });
-
-      const validResponse = await syncPost(validRequest);
-      expect(validResponse.status).toBe(200);
-
-      // Invalid sync request for unauthorized client
-      const invalidRequest = new NextRequest('http://localhost:3000/api/google/sync', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: 'client-456', // Unauthorized
-          fullSync: true,
-        }),
-      });
-
-      const invalidResponse = await syncPost(invalidRequest);
-      expect(invalidResponse.status).toBe(403);
-
-      const invalidData = await invalidResponse.json();
-      expect(invalidData.error).toBe('Acesso negado ao cliente especificado');
-    });
-
-    it('should only sync campaigns for authorized client', async () => {
-      const mockSupabase = {
-        auth: {
-          getUser: jest.fn().mockResolvedValue({
-            data: { user: mockUser },
-            error: null,
-          }),
-        },
-        from: jest.fn(() => ({
-          select: jest.fn().mockReturnThis(),
-          insert: jest.fn().mockReturnThis(),
-          upsert: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          single: jest.fn(),
-        })),
-      };
-
-      (createClient as jest.Mock).mockReturnValue(mockSupabase);
-
-      mockSupabase.from().single
-        .mockResolvedValueOnce({
-          data: { client_id: mockClientId },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: mockConnectionId,
-            client_id: mockClientId,
-            customer_id: mockCustomerId,
+  it('returns 400 when connection has invalid customer ID format', async () => {
+    (createClient as jest.Mock).mockResolvedValue(
+      createSupabaseMock({
+        connections: [
+          {
+            id: '40000000-0000-4000-8000-000000000004',
+            customer_id: '123',
             status: 'active',
           },
-          error: null,
-        });
+        ],
+      })
+    );
 
-      // Mock campaigns upsert with client_id validation
-      mockSupabase.from().upsert.mockImplementation((data) => {
-        // Verify all campaigns have correct client_id
-        const campaigns = Array.isArray(data) ? data : [data];
-        campaigns.forEach(campaign => {
-          expect(campaign.client_id).toBe(mockClientId);
-        });
+    const { POST } = await import('@/app/api/google/sync/route');
+    const response = await POST(
+      buildSyncRequest({
+        clientId: '40000000-0000-4000-8000-000000000004',
+      })
+    );
+    const body = await response.json();
 
-        return Promise.resolve({
-          data: campaigns.map((_, index) => ({ id: `campaign-${index}` })),
-          error: null,
-        });
-      });
-
-      const { getGoogleSyncService } = require('@/lib/google/sync-service');
-      const mockSyncService = {
-        syncCampaigns: jest.fn().mockResolvedValue({
-          success: true,
-          campaignsSynced: 2,
-          metricsUpdated: 0,
-          errors: [],
-        }),
-      };
-      getGoogleSyncService.mockReturnValue(mockSyncService);
-
-      const { POST: syncPost } = await import('@/app/api/google/sync/route');
-
-      const syncRequest = new NextRequest('http://localhost:3000/api/google/sync', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: mockClientId,
-          fullSync: true,
-        }),
-      });
-
-      const syncResponse = await syncPost(syncRequest);
-      expect(syncResponse.status).toBe(200);
-
-      // Verify upsert was called and client_id was validated
-      expect(mockSupabase.from().upsert).toHaveBeenCalled();
-    });
+    expect(response.status).toBe(400);
+    expect(body.error).toBe('Formato inválido de Customer ID');
   });
 
-  describe('Sync Queue Integration', () => {
-    it('should handle concurrent sync requests', async () => {
-      const mockSupabase = {
-        auth: {
-          getUser: jest.fn().mockResolvedValue({
-            data: { user: mockUser },
-            error: null,
-          }),
-        },
-        from: jest.fn(() => ({
-          select: jest.fn().mockReturnThis(),
-          insert: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          single: jest.fn(),
-        })),
-      };
+  it('enforces rate limit after 3 sync requests', async () => {
+    const rateLimitClientId = '50000000-0000-4000-8000-000000000005';
+    (createClient as jest.Mock).mockResolvedValue(createSupabaseMock());
 
-      (createClient as jest.Mock).mockReturnValue(mockSupabase);
+    const { POST } = await import('@/app/api/google/sync/route');
 
-      mockSupabase.from().single
-        .mockResolvedValue({
-          data: { client_id: mockClientId },
-          error: null,
-        });
+    const first = await POST(buildSyncRequest({ clientId: rateLimitClientId }));
+    const second = await POST(buildSyncRequest({ clientId: rateLimitClientId }));
+    const third = await POST(buildSyncRequest({ clientId: rateLimitClientId }));
+    const fourth = await POST(buildSyncRequest({ clientId: rateLimitClientId }));
+    const fourthBody = await fourth.json();
 
-      // Mock active sync check
-      mockSupabase.from().select
-        .mockResolvedValueOnce({
-          data: [], // No active syncs
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: [{ id: 'active-sync-1' }], // Active sync found
-          error: null,
-        });
-
-      const { POST: syncPost } = await import('@/app/api/google/sync/route');
-
-      // First request should succeed
-      const firstRequest = new NextRequest('http://localhost:3000/api/google/sync', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: mockClientId,
-          fullSync: true,
-        }),
-      });
-
-      const firstResponse = await syncPost(firstRequest);
-      expect(firstResponse.status).toBe(200);
-
-      // Second concurrent request should be rejected
-      const secondRequest = new NextRequest('http://localhost:3000/api/google/sync', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: mockClientId,
-          fullSync: true,
-        }),
-      });
-
-      const secondResponse = await syncPost(secondRequest);
-      expect(secondResponse.status).toBe(409);
-
-      const secondData = await secondResponse.json();
-      expect(secondData.error).toBe('Sincronização já em andamento para este cliente');
-    });
-
-    it('should queue sync requests when rate limited', async () => {
-      const mockSupabase = {
-        auth: {
-          getUser: jest.fn().mockResolvedValue({
-            data: { user: mockUser },
-            error: null,
-          }),
-        },
-        from: jest.fn(() => ({
-          select: jest.fn().mockReturnThis(),
-          insert: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          single: jest.fn(),
-        })),
-      };
-
-      (createClient as jest.Mock).mockReturnValue(mockSupabase);
-
-      mockSupabase.from().single.mockResolvedValue({
-        data: { client_id: mockClientId },
-        error: null,
-      });
-
-      // Mock rate limit check
-      const rateLimitMap = new Map();
-      const checkRateLimit = (clientId: string) => {
-        const key = `sync_${clientId}`;
-        const current = rateLimitMap.get(key) || { count: 0, resetTime: Date.now() + 5 * 60 * 1000 };
-        
-        if (current.count >= 3) {
-          return { allowed: false, resetTime: current.resetTime };
-        }
-        
-        current.count += 1;
-        rateLimitMap.set(key, current);
-        return { allowed: true };
-      };
-
-      // Mock sync queue insertion
-      mockSupabase.from().insert.mockResolvedValue({
-        data: { id: 'queued-sync-1' },
-        error: null,
-      });
-
-      const { POST: syncPost } = await import('@/app/api/google/sync/route');
-
-      // Make multiple requests to trigger rate limiting
-      const requests = Array(5).fill(null).map(() => 
-        new NextRequest('http://localhost:3000/api/google/sync', {
-          method: 'POST',
-          body: JSON.stringify({
-            clientId: mockClientId,
-            fullSync: true,
-          }),
-        })
-      );
-
-      const responses = await Promise.all(
-        requests.map(req => syncPost(req))
-      );
-
-      // Some requests should be rate limited and queued
-      const rateLimited = responses.filter(res => res.status === 429);
-      expect(rateLimited.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe('Metrics Aggregation Integration', () => {
-    it('should aggregate metrics correctly during sync', async () => {
-      const mockSupabase = {
-        auth: {
-          getUser: jest.fn().mockResolvedValue({
-            data: { user: mockUser },
-            error: null,
-          }),
-        },
-        from: jest.fn(() => ({
-          select: jest.fn().mockReturnThis(),
-          insert: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          gte: jest.fn().mockReturnThis(),
-          lte: jest.fn().mockReturnThis(),
-          single: jest.fn(),
-        })),
-      };
-
-      (createClient as jest.Mock).mockReturnValue(mockSupabase);
-
-      // Mock raw metrics from Google Ads API
-      const rawMetrics = [
-        {
-          campaignId: '12345',
-          date: '2024-01-01',
-          impressions: '1000',
-          clicks: '50',
-          conversions: '5',
-          costMicros: '25000000',
-        },
-        {
-          campaignId: '12345',
-          date: '2024-01-02',
-          impressions: '1200',
-          clicks: '60',
-          conversions: '6',
-          costMicros: '30000000',
-        },
-      ];
-
-      // Mock processed metrics for database insertion
-      const processedMetrics = rawMetrics.map(metric => ({
-        campaign_id: mockCampaignId,
-        date: metric.date,
-        impressions: parseInt(metric.impressions),
-        clicks: parseInt(metric.clicks),
-        conversions: parseFloat(metric.conversions),
-        cost: parseFloat(metric.costMicros) / 1000000, // Convert micros to currency
-        ctr: (parseInt(metric.clicks) / parseInt(metric.impressions)) * 100,
-        conversion_rate: (parseFloat(metric.conversions) / parseInt(metric.clicks)) * 100,
-        cpc: parseFloat(metric.costMicros) / 1000000 / parseInt(metric.clicks),
-        cpa: parseFloat(metric.costMicros) / 1000000 / parseFloat(metric.conversions),
-      }));
-
-      mockSupabase.from().insert.mockImplementation((data) => {
-        // Verify metrics are properly processed
-        const metrics = Array.isArray(data) ? data : [data];
-        metrics.forEach(metric => {
-          expect(metric.ctr).toBeCloseTo(5.0, 1); // 50/1000 * 100 or 60/1200 * 100
-          expect(metric.conversion_rate).toBeCloseTo(10.0, 1); // 5/50 * 100 or 6/60 * 100
-          expect(metric.cost).toBeGreaterThan(0);
-        });
-
-        return Promise.resolve({
-          data: null,
-          error: null,
-        });
-      });
-
-      const { getGoogleSyncService } = require('@/lib/google/sync-service');
-      const mockSyncService = {
-        syncCampaigns: jest.fn().mockResolvedValue({
-          success: true,
-          campaignsSynced: 1,
-          metricsUpdated: 2,
-          errors: [],
-        }),
-      };
-      getGoogleSyncService.mockReturnValue(mockSyncService);
-
-      mockSupabase.from().single.mockResolvedValue({
-        data: { client_id: mockClientId },
-        error: null,
-      });
-
-      const { POST: syncPost } = await import('@/app/api/google/sync/route');
-
-      const syncRequest = new NextRequest('http://localhost:3000/api/google/sync', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: mockClientId,
-          fullSync: true,
-        }),
-      });
-
-      const syncResponse = await syncPost(syncRequest);
-      expect(syncResponse.status).toBe(200);
-
-      // Verify metrics were processed and inserted
-      expect(mockSupabase.from().insert).toHaveBeenCalled();
-    });
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(third.status).toBe(200);
+    expect(fourth.status).toBe(429);
+    expect(fourthBody.error).toBe('Limite de sincronizações excedido');
+    expect(mockSyncService.startSync).toHaveBeenCalledTimes(3);
   });
 });

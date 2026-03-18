@@ -17,7 +17,7 @@ function LoadingFallback() {
 
 export default function GooglePage() {
   return (
-    <Suspense fallback={<LoadingFallback />}>gle/connect-
+    <Suspense fallback={<LoadingFallback />}>
       <GooglePageContent />
     </Suspense>
   );

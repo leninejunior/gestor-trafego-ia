@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste Hierarquia Meta Ads</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; }
+        .error { background-color: #f8d7da; }
+        .warning { background-color: #fff3cd; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Teste de Hierarquia Meta Ads</h1>
+    
+    <div>
+        <label>Client ID: <input type="text" id="clientId" placeholder="UUID do cliente" style="width: 300px;"></label><br><br>
+        <label>Campaign ID (opcional): <input type="text" id="campaignId" placeholder="ID da campanha" style="width: 300px;"></label><br><br>
+        <button onclick="runDiagnostics()">🚀 Executar Diagnóstico</button>
+        <button onclick="clearResults()">🗑️ Limpar</button>
+    </div>
+    
+    <div id="results"></div>
+    
+    <script>
+        async function runDiagnostics() {
+            const clientId = document.getElementById('clientId').value;
+            const campaignId = document.getElementById('campaignId').value;
+            
+            if (!clientId) {
+                alert('Por favor, informe o Client ID');
+                return;
+            }
+            
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="section">⏳ Executando diagnóstico...</div>';
+            
+            try {
+                let url = `/api/meta/diagnostics?clientId=${clientId}`;
+                if (campaignId) {
+                    url += `&campaignId=${campaignId}`;
+                }
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    resultsDiv.innerHTML = `
+                        <div class="section error">
+                            <h3>❌ Erro</h3>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Renderizar resultados
+                let html = '<h2>📊 Resultados do Diagnóstico</h2>';
+                
+                // Informações gerais
+                html += `
+                    <div class="section">
+                        <h3>ℹ️ Informações</h3>
+                        <p><strong>Client ID:</strong> ${data.clientId}</p>
+                        <p><strong>Ad Account ID:</strong> ${data.adAccountId}</p>
+                        <p><strong>Período:</strong> ${data.period.since} até ${data.period.until}</p>
+                    </div>
+                `;
+                
+                // Insights da conta
+                if (data.results.account) {
+                    const acc = data.results.account;
+                    html += `
+                        <div class="section ${acc.success && acc.hasData ? 'success' : 'warning'}">
+                            <h3>📈 Insights da Conta</h3>
+                            <p><strong>Status:</strong> ${acc.success ? '✅ Sucesso' : '❌ Falha'}</p>
+                            <p><strong>Tem Dados:</strong> ${acc.hasData ? '✅ Sim' : '⚠️ Não'}</p>
+                            ${acc.data ? `<pre>${JSON.stringify(acc.data, null, 2)}</pre>` : ''}
+                            ${acc.error ? `<pre>Erro: ${JSON.stringify(acc.error, null, 2)}</pre>` : ''}
+                        </div>
+                    `;
+                }
+                
+                // Campanhas
+                if (data.results.campaigns) {
+                    const camps = data.results.campaigns;
+                    html += `
+                        <div class="section ${camps.success ? 'success' : 'error'}">
+                            <h3>📢 Campanhas</h3>
+                            <p><strong>Status:</strong> ${camps.success ? '✅ Sucesso' : '❌ Falha'}</p>
+                            <p><strong>Total:</strong> ${camps.count}</p>
+                            ${camps.campaigns.length > 0 ? `<pre>${JSON.stringify(camps.campaigns, null, 2)}</pre>` : ''}
+                            ${camps.error ? `<pre>Erro: ${JSON.stringify(camps.error, null, 2)}</pre>` : ''}
+                        </div>
+                    `;
+                }
+                
+                // Insights da campanha
+                if (data.results.campaignInsights) {
+                    const ci = data.results.campaignInsights;
+                    html += `
+                        <div class="section ${ci.success && ci.hasData ? 'success' : 'warning'}">
+                            <h3>📊 Insights da Campanha</h3>
+                            <p><strong>Campanha:</strong> ${ci.campaignName} (${ci.campaignId})</p>
+                            <p><strong>Status:</strong> ${ci.success ? '✅ Sucesso' : '❌ Falha'}</p>
+                            <p><strong>Tem Dados:</strong> ${ci.hasData ? '✅ Sim' : '⚠️ Não'}</p>
+                            ${ci.data ? `<pre>${JSON.stringify(ci.data, null, 2)}</pre>` : ''}
+                            ${ci.error ? `<pre>Erro: ${JSON.stringify(ci.error, null, 2)}</pre>` : ''}
+                        </div>
+                    `;
+                }
+                
+                // Adsets
+                if (data.results.adsets) {
+                    const adsets = data.results.adsets;
+                    html += `
+                        <div class="section ${adsets.success ? 'success' : 'error'}">
+                            <h3>🎯 Conjuntos de Anúncios</h3>
+                            <p><strong>Status:</strong> ${adsets.success ? '✅ Sucesso' : '❌ Falha'}</p>
+                            <p><strong>Total:</strong> ${adsets.count}</p>
+                            ${adsets.adsets.length > 0 ? `<pre>${JSON.stringify(adsets.adsets, null, 2)}</pre>` : ''}
+                            ${adsets.error ? `<pre>Erro: ${JSON.stringify(adsets.error, null, 2)}</pre>` : ''}
+                        </div>
+                    `;
+                }
+                
+                // Insights do adset
+                if (data.results.adsetInsights) {
+                    const ai = data.results.adsetInsights;
+                    html += `
+                        <div class="section ${ai.success && ai.hasData ? 'success' : 'warning'}">
+                            <h3>📊 Insights do Conjunto</h3>
+                            <p><strong>Conjunto:</strong> ${ai.adsetName} (${ai.adsetId})</p>
+                            <p><strong>Status:</strong> ${ai.success ? '✅ Sucesso' : '❌ Falha'}</p>
+                            <p><strong>Tem Dados:</strong> ${ai.hasData ? '✅ Sim' : '⚠️ Não'}</p>
+                            ${ai.data ? `<pre>${JSON.stringify(ai.data, null, 2)}</pre>` : ''}
+                            ${ai.error ? `<pre>Erro: ${JSON.stringify(ai.error, null, 2)}</pre>` : ''}
+                        </div>
+                    `;
+                }
+                
+                // Anúncios
+                if (data.results.ads) {
+                    const ads = data.results.ads;
+                    html += `
+                        <div class="section ${ads.success ? 'success' : 'error'}">
+                            <h3>📱 Anúncios</h3>
+                            <p><strong>Status:</strong> ${ads.success ? '✅ Sucesso' : '❌ Falha'}</p>
+                            <p><strong>Total:</strong> ${ads.count}</p>
+                            ${ads.ads.length > 0 ? `<pre>${JSON.stringify(ads.ads, null, 2)}</pre>` : ''}
+                            ${ads.error ? `<pre>Erro: ${JSON.stringify(ads.error, null, 2)}</pre>` : ''}
+                        </div>
+                    `;
+                }
+                
+                // Insights do anúncio
+                if (data.results.adInsights) {
+                    const adi = data.results.adInsights;
+                    html += `
+                        <div class="section ${adi.success && adi.hasData ? 'success' : 'warning'}">
+                            <h3>📊 Insights do Anúncio</h3>
+                            <p><strong>Anúncio:</strong> ${adi.adName} (${adi.adId})</p>
+                            <p><strong>Status:</strong> ${adi.success ? '✅ Sucesso' : '❌ Falha'}</p>
+                            <p><strong>Tem Dados:</strong> ${adi.hasData ? '✅ Sim' : '⚠️ Não'}</p>
+                            ${adi.data ? `<pre>${JSON.stringify(adi.data, null, 2)}</pre>` : ''}
+                            ${adi.error ? `<pre>Erro: ${JSON.stringify(adi.error, null, 2)}</pre>` : ''}
+                        </div>
+                    `;
+                }
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="section error">
+                        <h3>❌ Erro na Requisição</h3>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+    </script>
+</body>
+</html>

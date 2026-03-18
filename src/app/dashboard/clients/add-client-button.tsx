@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Crown } from "lucide-react";
+import { Plus, Crown, Shield, Lock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,8 @@ import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import { useFeatureGate } from "@/hooks/use-feature-gate";
 import { UpgradePrompt } from "@/components/subscription/upgrade-prompt";
+import { useUserAccessNew } from "@/hooks/use-user-access-new";
+import { UserType } from "@/lib/services/user-access-control";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -33,18 +35,92 @@ export function AddClientButton() {
   const [open, setOpen] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const { withinLimit, currentUsage, limit, loading, incrementUsage } = useFeatureGate('maxClients');
+  const { 
+    userType, 
+    canCreateClients, 
+    hasActiveSubscription, 
+    planLimits,
+    loading: accessLoading 
+  } = useUserAccessNew();
+
+  // Don't show button for common users
+  if (userType === UserType.COMMON_USER) {
+    return null;
+  }
 
   const handleAddClient = () => {
+    // Check access control first
+    if (!canCreateClients) {
+      if (!hasActiveSubscription) {
+        toast.error("Assinatura expirada. Renove seu plano para criar novos clientes.");
+        return;
+      }
+      setUpgradeOpen(true);
+      return;
+    }
+
+    // Legacy feature gate check for backward compatibility
     if (!withinLimit) {
       setUpgradeOpen(true);
       return;
     }
+    
     setOpen(true);
+  };
+
+  const getButtonText = () => {
+    if (userType === UserType.SUPER_ADMIN) {
+      return 'Adicionar Cliente';
+    }
+    
+    if (!hasActiveSubscription) {
+      return 'Renovar Plano';
+    }
+    
+    if (!canCreateClients) {
+      return 'Upgrade Necessário';
+    }
+    
+    return 'Adicionar Cliente';
+  };
+
+  const getButtonIcon = () => {
+    if (userType === UserType.SUPER_ADMIN) {
+      return <Crown className="w-4 h-4 mr-2" />;
+    }
+    
+    if (!hasActiveSubscription) {
+      return <Lock className="w-4 h-4 mr-2" />;
+    }
+    
+    if (!canCreateClients) {
+      return <Crown className="w-4 h-4 mr-2" />;
+    }
+    
+    return <Plus className="w-4 h-4 mr-2" />;
+  };
+
+  const getButtonVariant = () => {
+    if (userType === UserType.SUPER_ADMIN) {
+      return 'default';
+    }
+    
+    if (!hasActiveSubscription || !canCreateClients) {
+      return 'secondary';
+    }
+    
+    return 'default';
   };
 
   const formAction = async (formData: FormData) => {
     console.log("Iniciando ação do formulário com dados:", Object.fromEntries(formData));
     
+    // Check access control before adding
+    if (!canCreateClients) {
+      toast.error("Você não tem permissão para criar clientes ou atingiu o limite do seu plano.");
+      return;
+    }
+
     // Check limit one more time before adding
     if (!withinLimit) {
       toast.error("Limite de clientes atingido. Faça upgrade do seu plano.");
@@ -65,6 +141,15 @@ export function AddClientButton() {
     }
   };
 
+  if (accessLoading) {
+    return (
+      <Button disabled variant="outline">
+        <Plus className="w-4 h-4 mr-2" />
+        Carregando...
+      </Button>
+    );
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={(isOpen) => {
@@ -74,22 +159,27 @@ export function AddClientButton() {
         <DialogTrigger asChild>
           <Button 
             onClick={handleAddClient}
-            className={`${withinLimit ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-600 hover:bg-orange-700'}`}
-            disabled={loading}
+            variant={getButtonVariant()}
+            disabled={loading || accessLoading}
           >
-            {withinLimit ? (
-              <Plus className="w-4 h-4 mr-2" />
-            ) : (
-              <Crown className="w-4 h-4 mr-2" />
-            )}
-            {withinLimit ? 'Adicionar Cliente' : 'Upgrade Necessário'}
+            {getButtonIcon()}
+            {getButtonText()}
           </Button>
         </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Adicionar Novo Cliente</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {userType === UserType.SUPER_ADMIN && <Crown className="w-5 h-5 text-yellow-600" />}
+            {userType === UserType.ORG_ADMIN && <Shield className="w-5 h-5 text-blue-600" />}
+            Adicionar Novo Cliente
+          </DialogTitle>
           <DialogDescription>
             Preencha os detalhes do seu novo cliente aqui. Clique em salvar quando terminar.
+            {planLimits && planLimits.maxClients && (
+              <div className="mt-2 text-sm text-muted-foreground">
+                Uso atual: {planLimits.currentUsage.clients} de {planLimits.maxClients} clientes
+              </div>
+            )}
           </DialogDescription>
         </DialogHeader>
         <form action={formAction}>

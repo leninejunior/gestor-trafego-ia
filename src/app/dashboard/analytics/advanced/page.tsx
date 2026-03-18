@@ -54,17 +54,43 @@ export default async function AdvancedAnalyticsPage() {
     `)
     .eq("is_active", true);
 
-  // Simular dados de performance (em produção viria da API do Meta)
-  const mockPerformanceData = {
-    totalSpend: 45230.50,
-    totalImpressions: 2450000,
-    totalClicks: 89500,
-    totalConversions: 1250,
-    ctr: 3.65,
-    cpc: 0.51,
-    cpm: 18.45,
-    roas: 4.2,
-    conversionRate: 1.4
+  // Buscar dados reais de performance (últimos 30 dias)
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 30);
+
+  const { data: insights } = await supabase
+    .from('meta_campaign_insights')
+    .select('spend,impressions,clicks,conversions,date_start')
+    .gte('date_start', startDate.toISOString().split('T')[0])
+    .lte('date_start', endDate.toISOString().split('T')[0]);
+
+  const totals = (insights || []).reduce(
+    (acc, insight: any) => {
+      acc.spend += parseFloat(insight.spend || '0');
+      acc.impressions += parseInt(insight.impressions || '0', 10);
+      acc.clicks += parseInt(insight.clicks || '0', 10);
+      acc.conversions += parseFloat(insight.conversions || '0');
+      return acc;
+    },
+    {
+      spend: 0,
+      impressions: 0,
+      clicks: 0,
+      conversions: 0,
+    }
+  );
+
+  const performanceData = {
+    totalSpend: totals.spend,
+    totalImpressions: totals.impressions,
+    totalClicks: totals.clicks,
+    totalConversions: totals.conversions,
+    ctr: totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0,
+    cpc: totals.clicks > 0 ? totals.spend / totals.clicks : 0,
+    cpm: totals.impressions > 0 ? (totals.spend / totals.impressions) * 1000 : 0,
+    roas: totals.spend > 0 ? (totals.conversions * 50) / totals.spend : 0,
+    conversionRate: totals.clicks > 0 ? (totals.conversions / totals.clicks) * 100 : 0,
   };
 
   const activeCampaigns = campaigns?.length || 0;
@@ -115,7 +141,7 @@ export default async function AdvancedAnalyticsPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* KPIs Avançados */}
-        <AdvancedKPICards data={mockPerformanceData} />
+        <AdvancedKPICards data={performanceData} />
 
         {/* Tabs de Análises */}
         <Tabs defaultValue="performance" className="mt-8">
@@ -151,7 +177,7 @@ export default async function AdvancedAnalyticsPage() {
           </TabsContent>
 
           <TabsContent value="roi" className="mt-6">
-            <ROIAnalysis data={mockPerformanceData} />
+            <ROIAnalysis data={performanceData} />
           </TabsContent>
 
           <TabsContent value="audience" className="mt-6">
@@ -163,7 +189,7 @@ export default async function AdvancedAnalyticsPage() {
           </TabsContent>
 
           <TabsContent value="predictive" className="mt-6">
-            <PredictiveAnalytics data={mockPerformanceData} />
+            <PredictiveAnalytics data={performanceData} />
           </TabsContent>
 
           <TabsContent value="insights" className="mt-6">

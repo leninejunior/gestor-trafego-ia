@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
               .eq('ad_account_id', accountId)
 
             // Inserir novo registro
+            const now = new Date().toISOString()
             const { error: insertError } = await supabaseAdmin
               .from('ad_account_balances')
               .insert({
@@ -86,7 +87,10 @@ export async function POST(request: NextRequest) {
                 daily_spend: balance.daily_spend,
                 funding_source_type: balance.funding_source_type,
                 funding_source_display: balance.funding_source_display,
-                last_checked_at: new Date().toISOString()
+                projected_days_remaining: balance.projected_days,
+                last_checked_at: now,
+                created_at: now,
+                updated_at: now
               })
 
             if (insertError) {

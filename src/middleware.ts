@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateSession } from '@/lib/supabase/middleware'
 
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest) {
   // Skip middleware for API routes - let them handle their own authentication
   if (request.nextUrl.pathname.startsWith('/api/')) {
     return NextResponse.next()
@@ -9,37 +8,33 @@ export async function middleware(request: NextRequest) {
 
   // Skip authentication check for Meta OAuth flow pages
   if (request.nextUrl.pathname.startsWith('/meta/')) {
-    console.log('🔄 [MIDDLEWARE] Permitindo acesso ao fluxo OAuth Meta:', request.nextUrl.pathname);
     return NextResponse.next()
   }
 
   // Skip authentication check for Google OAuth flow pages
   if (request.nextUrl.pathname.startsWith('/google/')) {
-    console.log('🔄 [MIDDLEWARE] Permitindo acesso ao fluxo OAuth Google:', request.nextUrl.pathname);
     return NextResponse.next()
   }
 
-  // update user's auth session
-  const { supabase, response } = await updateSession(request) // Desestrutura supabase e response
+  // Check for auth cookie (simple check without Supabase client)
+  const authCookie = request.cookies.get('sb-doiogabdzybqxnyhktbv-auth-token')
+  const hasAuth = !!authCookie
 
-  const { data } = await supabase.auth.getUser() // Agora supabaseClient está definido
-
-  // Se o usuário não estiver logado e tentar acessar o dashboard, redirecione para o login
-  if (!data.user && request.nextUrl.pathname.startsWith('/dashboard')) {
-    console.log('🚫 [MIDDLEWARE] Usuário não autenticado tentando acessar dashboard');
+  // Se o usuário não estiver logado e tentar acessar áreas protegidas, redirecione para o login
+  if (!hasAuth && (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/admin'))) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
   // Se o usuário estiver logado e tentar acessar login/signup, redirecione para o dashboard
-  if (data.user && (request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/sign-up'))) {
+  if (hasAuth && (request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/sign-up'))) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
 
-  return response
+  return NextResponse.next()
 }
 
 export const config = {

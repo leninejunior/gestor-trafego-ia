@@ -184,7 +184,7 @@ export function PaymentMethodForm({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Falha ao adicionar método de pagamento');
+        throw new Error(errorData?.error || 'Falha ao adicionar método de pagamento');
       }
 
       const data = await response.json();
@@ -220,7 +220,7 @@ export function PaymentMethodForm({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Falha ao remover método de pagamento');
+        throw new Error(errorData?.error || 'Falha ao remover método de pagamento');
       }
 
       // Update payment methods list
@@ -252,7 +252,7 @@ export function PaymentMethodForm({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Falha ao definir método padrão');
+        throw new Error(errorData?.error || 'Falha ao definir método padrão');
       }
 
       // Update payment methods list

@@ -60,6 +60,7 @@ export interface MetaCampaign {
   daily_budget?: string;
   lifetime_budget?: string;
   budget_remaining?: string;
+  insights?: MetaCampaignInsights | null;
 }
 
 export interface MetaCampaignInsights {

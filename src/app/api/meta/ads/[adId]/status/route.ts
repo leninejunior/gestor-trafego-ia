@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { hasOrganizationAccess } from '@/lib/postgres/meta-connections-repository'
+import {
+  getAdStatusContextByExternalId,
+  updateMetaAdStatusByExternalId,
+} from '@/lib/postgres/meta-hierarchy-repository'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { adId: string } }
+  { params }: { params: Promise<{ adId: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { adId } = params
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    const { adId } = await params
     const { status } = await request.json()
 
     if (!status || !['ACTIVE', 'PAUSED'].includes(status)) {
@@ -16,42 +26,27 @@ export async function PATCH(
       }, { status: 400 })
     }
 
-    // Buscar o anúncio e sua conexão
-    const { data: ad, error: adError } = await supabase
-      .from('meta_ads')
-      .select(`
-        id,
-        external_id,
-        adset_id,
-        meta_adsets!inner (
-          id,
-          campaign_id,
-          meta_campaigns!inner (
-            id,
-            connection_id,
-            client_meta_connections!inner (
-              id,
-              client_id,
-              access_token,
-              is_active
-            )
-          )
-        )
-      `)
-      .eq('external_id', adId)
-      .single()
-
-    if (adError || !ad) {
+    // Buscar o anúncio e sua conexão (Postgres direto)
+    const adContext = await getAdStatusContextByExternalId(adId)
+    if (!adContext) {
       return NextResponse.json({
         error: 'Anúncio não encontrado'
       }, { status: 404 })
     }
 
-    const adset = ad.meta_adsets as any
-    const campaign = adset.meta_campaigns as any
-    const connection = campaign.client_meta_connections as any
+    if (!adContext.org_id || !(await hasOrganizationAccess(user.id, adContext.org_id))) {
+      return NextResponse.json({
+        error: 'Anúncio não encontrado'
+      }, { status: 404 })
+    }
 
-    if (!connection.is_active) {
+    if (!adContext.access_token) {
+      return NextResponse.json({
+        error: 'Token de acesso não encontrado para esta conexão'
+      }, { status: 400 })
+    }
+
+    if (!adContext.is_active) {
       return NextResponse.json({
         error: 'Conexão Meta Ads não está ativa'
       }, { status: 400 })
@@ -66,11 +61,11 @@ export async function PATCH(
       },
       body: JSON.stringify({
         status,
-        access_token: connection.access_token
+        access_token: adContext.access_token
       })
     })
 
-    const data = await response.json()
+    const data = await response.json() as { error?: { message?: string; [key: string]: unknown } }
 
     if (!response.ok || data.error) {
       console.error('Erro da Meta API:', data.error)
@@ -81,13 +76,7 @@ export async function PATCH(
     }
 
     // Atualizar no banco de dados local
-    await supabase
-      .from('meta_ads')
-      .update({
-        status,
-        updated_at: new Date().toISOString()
-      })
-      .eq('external_id', adId)
+    await updateMetaAdStatusByExternalId(adId, status)
 
     return NextResponse.json({
       success: true,

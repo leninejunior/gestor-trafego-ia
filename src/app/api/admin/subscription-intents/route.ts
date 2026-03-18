@@ -13,7 +13,7 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     
     // Verificar se é admin
     const { data: { user }, error: authError } = await supabase.auth.getUser();

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createSyncService } from '@/lib/meta/sync-service';
+import {
+  getActiveUserMetaToken,
+  insertSyncLog,
+  listConnectionsForSyncByUser,
+  listSyncLogsByUser,
+} from '@/lib/postgres/meta-sync-repository';
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,14 +30,8 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Buscar token de acesso do Meta
-    const { data: metaConnection } = await supabase
-      .from('user_meta_tokens')
-      .select('access_token')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single();
-
-    if (!metaConnection?.access_token) {
+    const accessToken = await getActiveUserMetaToken(user.id);
+    if (!accessToken) {
       return NextResponse.json(
         { error: 'Token do Meta Ads não encontrado. Conecte sua conta primeiro.' },
         { status: 400 }
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Criar serviço de sincronização
-    const syncService = createSyncService(metaConnection.access_token);
+    const syncService = createSyncService(accessToken);
 
     let results;
 
@@ -81,17 +81,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Registrar log de sincronização
-    await supabase
-      .from('sync_logs')
-      .insert({
-        user_id: user.id,
-        sync_type: syncType,
-        status: Array.isArray(results) 
-          ? (results.every(r => r.success) ? 'success' : 'partial_success')
-          : (results.success ? 'success' : 'error'),
-        results: JSON.stringify(results),
-        created_at: new Date().toISOString()
-      });
+    const status = Array.isArray(results)
+      ? (results.every((result: { success?: boolean }) => result.success) ? 'success' : 'partial_success')
+      : (results?.success ? 'success' : 'error');
+
+    await insertSyncLog({
+      userId: user.id,
+      syncType,
+      status,
+      results,
+    });
 
     return NextResponse.json({
       success: true,
@@ -130,32 +129,19 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
 
     // Buscar histórico de sincronizações
-    const { data: syncLogs, error } = await supabase
-      .from('sync_logs')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (error) {
-      throw error;
-    }
+    const syncLogs = await listSyncLogsByUser(user.id, limit, offset);
 
     // Buscar status das conexões
-    const { data: connections } = await supabase
-      .from('client_meta_connections')
-      .select(`
-        id,
-        account_id,
-        account_name,
-        is_active,
-        last_sync,
-        sync_status,
-        clients (
-          name
-        )
-      `)
-      .eq('created_by', user.id);
+    const rawConnections = await listConnectionsForSyncByUser(user.id);
+    const connections = rawConnections.map((connection) => ({
+      id: connection.id,
+      account_id: connection.account_id,
+      account_name: connection.account_name,
+      is_active: connection.is_active,
+      last_sync: connection.last_sync,
+      sync_status: connection.sync_status,
+      clients: connection.client_name ? { name: connection.client_name } : null,
+    }));
 
     return NextResponse.json({
       success: true,

@@ -9,6 +9,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getGoogleSyncService } from '@/lib/google/sync-service';
 import { validateCustomerId, logCustomerIdError } from '@/lib/google/customer-id-validator';
+import {
+  getClientOrganizationId,
+  hasOrgMembershipAccess,
+  isUserSuperAdmin,
+  listActiveGoogleConnectionsByClient,
+  listClientActiveSyncs,
+  listRecentActiveSyncsByConnectionIds,
+  listSyncHistoryByClient,
+} from '@/lib/postgres/google-sync-repository';
 import { z } from 'zod';
 
 // ============================================================================
@@ -105,28 +114,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify user has access to the client through organization
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select('org_id')
-      .eq('id', clientId)
-      .single();
+    const clientOrgId = await getClientOrganizationId(clientId);
 
-    if (clientError || !client) {
+    if (!clientOrgId) {
       return NextResponse.json(
-        { error: 'Cliente não encontrado' },
+        { error: 'Cliente não encontrado ou sem organização vinculada' },
         { status: 404 }
       );
     }
 
-    const { data: membership, error: membershipError } = await supabase
-      .from('memberships')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('organization_id', client.org_id)
-      .single();
+    const superAdmin = await isUserSuperAdmin(user.id);
+    const hasAccess =
+      superAdmin || (await hasOrgMembershipAccess(user.id, clientOrgId));
 
-    if (membershipError || !membership) {
+    if (!hasAccess) {
       return NextResponse.json(
         { error: 'Acesso negado ao cliente especificado' },
         { status: 403 }
@@ -148,19 +149,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Get connections for the client
-    let connectionsQuery = supabase
-      .from('google_ads_connections')
-      .select('id, customer_id, status, last_sync_at')
-      .eq('client_id', clientId)
-      .eq('status', 'active');
-
-    if (connectionId) {
-      connectionsQuery = connectionsQuery.eq('id', connectionId);
-    }
-
-    const { data: connections, error: connectionsError } = await connectionsQuery;
-
-    if (connectionsError || !connections || connections.length === 0) {
+    const connections = await listActiveGoogleConnectionsByClient(clientId, connectionId);
+    if (!connections || connections.length === 0) {
       return NextResponse.json(
         { error: 'Nenhuma conexão ativa encontrada para este cliente' },
         { status: 404 }
@@ -219,12 +209,10 @@ export async function POST(request: NextRequest) {
     });
 
     // Check if any sync is already in progress
-    const { data: activeSyncs } = await supabase
-      .from('google_ads_sync_logs')
-      .select('id, connection_id, sync_type, started_at')
-      .in('connection_id', connections.map(c => c.id))
-      .is('completed_at', null)
-      .gte('started_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()); // Last 30 minutes
+    const activeSyncs = await listRecentActiveSyncsByConnectionIds(
+      connections.map(c => c.id),
+      new Date(Date.now() - 30 * 60 * 1000).toISOString()
+    );
 
     if (activeSyncs && activeSyncs.length > 0) {
       return NextResponse.json(
@@ -406,66 +394,48 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify user has access to the client through organization
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select('org_id')
-      .eq('id', clientId)
-      .single();
+    const clientOrgId = await getClientOrganizationId(clientId);
 
-    if (clientError || !client) {
+    if (!clientOrgId) {
       return NextResponse.json(
-        { error: 'Cliente não encontrado' },
+        { error: 'Cliente não encontrado ou sem organização vinculada' },
         { status: 404 }
       );
     }
 
-    const { data: membership, error: membershipError } = await supabase
-      .from('memberships')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('organization_id', client.org_id)
-      .single();
+    const superAdmin = await isUserSuperAdmin(user.id);
+    const hasAccess =
+      superAdmin || (await hasOrgMembershipAccess(user.id, clientOrgId));
 
-    if (membershipError || !membership) {
+    if (!hasAccess) {
       return NextResponse.json(
         { error: 'Acesso negado ao cliente especificado' },
         { status: 403 }
       );
     }
 
-    // Build query for sync logs
-    let query = supabase
-      .from('google_ads_sync_logs')
-      .select(`
-        id,
-        sync_type,
-        status,
-        campaigns_synced,
-        metrics_updated,
-        error_message,
-        error_code,
-        started_at,
-        completed_at,
-        connection_id,
-        google_ads_connections!inner(
-          customer_id,
-          client_id
-        )
-      `)
-      .eq('google_ads_connections.client_id', clientId)
-      .order('started_at', { ascending: false })
-      .limit(limit);
-
-    if (connectionId) {
-      query = query.eq('connection_id', connectionId);
-    }
-
-    const { data: syncLogs, error: logsError } = await query;
-
-    if (logsError) {
+    let syncLogs = [];
+    try {
+      const rows = await listSyncHistoryByClient(clientId, limit, connectionId || undefined);
+      syncLogs = rows.map((row) => ({
+        id: row.id,
+        sync_type: row.sync_type,
+        status: row.status,
+        campaigns_synced: row.campaigns_synced,
+        metrics_updated: row.metrics_updated,
+        error_message: row.error_message,
+        error_code: row.error_code,
+        started_at: row.started_at,
+        completed_at: row.completed_at,
+        connection_id: row.connection_id,
+        google_ads_connections: {
+          customer_id: row.customer_id,
+          client_id: row.client_id,
+        },
+      }));
+    } catch (logsError: any) {
       console.error('[Google Sync GET] Error fetching sync logs:', {
-        error: logsError.message || String(logsError),
+        error: logsError?.message || String(logsError),
         errorCode: (logsError as any).code,
         errorDetails: (logsError as any).details,
         clientId,
@@ -480,21 +450,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Get current sync status
-    const { data: activeSyncs } = await supabase
-      .from('google_ads_sync_logs')
-      .select(`
-        id,
-        sync_type,
-        started_at,
-        connection_id,
-        google_ads_connections!inner(
-          customer_id,
-          client_id
-        )
-      `)
-      .eq('google_ads_connections.client_id', clientId)
-      .is('completed_at', null)
-      .gte('started_at', new Date(Date.now() - 30 * 60 * 1000).toISOString());
+    const activeSyncRows = await listClientActiveSyncs(
+      clientId,
+      new Date(Date.now() - 30 * 60 * 1000).toISOString()
+    );
+    const activeSyncs = activeSyncRows.map((row) => ({
+      id: row.id,
+      sync_type: row.sync_type,
+      started_at: row.started_at,
+      connection_id: row.connection_id,
+      google_ads_connections: {
+        customer_id: row.customer_id,
+        client_id: row.client_id,
+      },
+    }));
 
     return NextResponse.json({
       clientId,

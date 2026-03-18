@@ -172,7 +172,7 @@ describe('System Integration Validation', () => {
     it('should handle complete payment workflow with encryption', async () => {
       // 1. Encrypt provider credentials
       const credentials = {
-        apiKey: 'sk_test_12345',
+        apiKey: 'sk_mock_12345',
         secretKey: 'secret_67890'
       };
 

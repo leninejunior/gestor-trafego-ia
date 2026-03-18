@@ -66,7 +66,7 @@ describe('StripeProvider', () => {
         isActive: true,
         priority: 1,
         credentials: {
-          secretKey: 'sk_test_123456789',
+          secretKey: 'sk_mock_123456789',
           webhookSecret: 'whsec_test_123'
         },
         settings: {},
@@ -102,7 +102,7 @@ describe('StripeProvider', () => {
         isActive: true,
         priority: 1,
         credentials: {
-          secretKey: 'sk_test_123456789'
+          secretKey: 'sk_mock_123456789'
         },
         settings: {},
         createdAt: new Date(),
@@ -129,7 +129,7 @@ describe('StripeProvider', () => {
         isActive: true,
         priority: 1,
         credentials: {
-          secretKey: 'sk_test_123456789'
+          secretKey: 'sk_mock_123456789'
         },
         settings: {},
         createdAt: new Date(),
@@ -159,7 +159,7 @@ describe('StripeProvider', () => {
         isActive: true,
         priority: 1,
         credentials: {
-          secretKey: 'sk_test_123456789',
+          secretKey: 'sk_mock_123456789',
           webhookSecret: 'whsec_test_123'
         },
         settings: {},
@@ -254,7 +254,7 @@ describe('StripeProvider', () => {
         isActive: true,
         priority: 1,
         credentials: {
-          secretKey: 'sk_test_123456789',
+          secretKey: 'sk_mock_123456789',
           webhookSecret: 'whsec_test_123'
         },
         settings: {},
@@ -384,7 +384,7 @@ describe('StripeProvider', () => {
         isActive: true,
         priority: 1,
         credentials: {
-          secretKey: 'sk_test_123456789',
+          secretKey: 'sk_mock_123456789',
           webhookSecret: 'whsec_test_123'
         },
         settings: {},
@@ -449,7 +449,7 @@ describe('StripeProvider', () => {
         isActive: true,
         priority: 1,
         credentials: {
-          secretKey: 'sk_test_123456789'
+          secretKey: 'sk_mock_123456789'
         },
         settings: {},
         createdAt: new Date(),

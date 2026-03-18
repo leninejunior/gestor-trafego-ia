@@ -61,7 +61,7 @@ describe('Core Fixes Validation', () => {
 
     it('should handle credentials encryption correctly', async () => {
       const credentials = {
-        apiKey: 'sk_test_12345',
+        apiKey: 'sk_mock_12345',
         secretKey: 'secret_67890'
       };
 

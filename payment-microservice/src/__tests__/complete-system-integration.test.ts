@@ -824,7 +824,7 @@ describe('Complete System Integration Validation', () => {
       // 3. Process with full encryption and audit trail
       const encryptedCredentials = await cryptographyManager.encryptProviderCredentials(
         'stripe',
-        { apiKey: 'sk_test_integration', secretKey: 'secret_integration' }
+        { apiKey: 'sk_mock_integration', secretKey: 'secret_integration' }
       );
 
       expect(encryptedCredentials).toBeDefined();

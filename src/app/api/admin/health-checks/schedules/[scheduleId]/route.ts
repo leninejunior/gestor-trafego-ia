@@ -10,11 +10,11 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { scheduleId: string } }
+  { params }: { params: Promise<{ scheduleId: string }> }
 ) {
   try {
     const supabase = createClient()
-    const { scheduleId } = params
+    const { scheduleId } = await params
 
     // Buscar agendamento
     const { data: schedule, error: scheduleError } = await supabase
@@ -73,11 +73,11 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { scheduleId: string } }
+  { params }: { params: Promise<{ scheduleId: string }> }
 ) {
   try {
     const supabase = createClient()
-    const { scheduleId } = params
+    const { scheduleId } = await params
     const body = await request.json()
 
     // Verificar se o agendamento existe
@@ -189,11 +189,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { scheduleId: string } }
+  { params }: { params: Promise<{ scheduleId: string }> }
 ) {
   try {
     const supabase = createClient()
-    const { scheduleId } = params
+    const { scheduleId } = await params
 
     // Verificar se o agendamento existe
     const { data: existing, error: existingError } = await supabase
@@ -251,11 +251,11 @@ export async function DELETE(
 // Endpoint para executar um health check manualmente
 export async function POST(
   request: NextRequest,
-  { params }: { params: { scheduleId: string } }
+  { params }: { params: Promise<{ scheduleId: string }> }
 ) {
   try {
     const supabase = createClient()
-    const { scheduleId } = params
+    const { scheduleId } = await params
 
     // Buscar agendamento
     const { data: schedule, error: scheduleError } = await supabase

@@ -29,27 +29,43 @@ export async function GET(request: NextRequest) {
     
     console.log('✅ [GOOGLE CAMPAIGNS API] Usuário autenticado:', user.email);
 
-    // Verificar se há conexão ativa primeiro
-    const { data: activeConnection } = await supabase
+    // Buscar conexões ativas (pode haver mais de uma por cliente)
+    const { data: activeConnections, error: activeConnectionsError } = await supabase
       .from('google_ads_connections')
       .select('id, customer_id, status')
       .eq('client_id', clientId)
       .eq('status', 'active')
-      .maybeSingle();
-    
+      .order('updated_at', { ascending: false });
+
+    if (activeConnectionsError) {
+      console.error('❌ [GOOGLE CAMPAIGNS API] Erro ao buscar conexões ativas:', activeConnectionsError);
+      return NextResponse.json({
+        error: 'Erro ao validar conexões Google Ads',
+        details: activeConnectionsError.message
+      }, { status: 500 });
+    }
+
     // Se não encontrar conexão ativa, tenta buscar qualquer conexão
-    let connectionToUse = activeConnection;
-    if (!activeConnection) {
+    let connectionsToUse = activeConnections || [];
+    if (connectionsToUse.length === 0) {
       console.log('⚠️ [GOOGLE CAMPAIGNS API] Nenhuma conexão ativa encontrada, buscando qualquer conexão...');
-      const { data: anyConnection } = await supabase
+      const { data: anyConnections, error: anyConnectionsError } = await supabase
         .from('google_ads_connections')
         .select('id, customer_id, status')
         .eq('client_id', clientId)
-        .maybeSingle();
-      
-      if (anyConnection) {
-        console.log('✅ [GOOGLE CAMPAIGNS API] Conexão encontrada (não ativa):', anyConnection.id);
-        connectionToUse = anyConnection;
+        .order('updated_at', { ascending: false });
+
+      if (anyConnectionsError) {
+        console.error('❌ [GOOGLE CAMPAIGNS API] Erro ao buscar conexões fallback:', anyConnectionsError);
+        return NextResponse.json({
+          error: 'Erro ao validar conexões Google Ads',
+          details: anyConnectionsError.message
+        }, { status: 500 });
+      }
+
+      if (anyConnections && anyConnections.length > 0) {
+        console.log('✅ [GOOGLE CAMPAIGNS API] Conexões fallback encontradas:', anyConnections.length);
+        connectionsToUse = anyConnections;
       } else {
         console.log('⚠️ [GOOGLE CAMPAIGNS API] Nenhuma conexão encontrada');
         return NextResponse.json({
@@ -83,9 +99,10 @@ export async function GET(request: NextRequest) {
     // Filtrar por conexão específica se fornecido
     if (connectionId) {
       query = query.eq('connection_id', connectionId);
-    } else if (connectionToUse) {
-      // Se não especificou, usar a conexão encontrada (ativa ou não)
-      query = query.eq('connection_id', connectionToUse.id);
+    } else {
+      // Sem connectionId explícito: buscar dados de todas as conexões disponíveis do cliente
+      const connectionIds = connectionsToUse.map(conn => conn.id);
+      query = query.in('connection_id', connectionIds);
     }
 
     query = query.order('created_at', { ascending: false });

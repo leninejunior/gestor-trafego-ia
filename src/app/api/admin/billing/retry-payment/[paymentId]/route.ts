@@ -42,52 +42,15 @@ export async function POST(
       );
     }
 
-    // In a real implementation, this would integrate with Stripe or another payment processor
-    // For now, we'll simulate a retry attempt
-    
-    // Simulate payment processing (in real implementation, this would call Stripe API)
-    const paymentSuccess = Math.random() > 0.3; // 70% success rate for simulation
-
-    if (paymentSuccess) {
-      // Update invoice status to paid
-      const { error: updateError } = await supabase
-        .from('subscription_invoices')
-        .update({
-          status: 'paid',
-          paid_at: new Date().toISOString()
-        })
-        .eq('id', paymentId);
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      // Update subscription status if it was past_due
-      const { error: subscriptionError } = await supabase
-        .from('subscriptions')
-        .update({ status: 'active' })
-        .eq('id', invoice.subscription_id)
-        .eq('status', 'past_due');
-
-      if (subscriptionError) {
-        console.error('Error updating subscription status:', subscriptionError);
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: 'Payment retry successful'
-      });
-    } else {
-      // Payment failed again - in real implementation, you might want to:
-      // 1. Increment retry count
-      // 2. Schedule next retry
-      // 3. Send notification to customer
-      
-      return NextResponse.json({
+    return NextResponse.json(
+      {
         success: false,
-        error: 'Payment retry failed. Customer will be notified.'
-      });
-    }
+        error: 'Retry de pagamento não implementado sem integração real com gateway.',
+        invoiceId: invoice.id,
+        subscriptionId: invoice.subscription_id,
+      },
+      { status: 501 }
+    );
 
   } catch (error) {
     console.error('Error retrying payment:', error);

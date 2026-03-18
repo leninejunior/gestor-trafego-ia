@@ -1,3 +1,4 @@
+
 # Google Ads - Migrações e Schema
 
 ## ⚠️ IMPORTANTE: Sempre Aplicar Migrações no Supabase

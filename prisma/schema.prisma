@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  MASTER
+  REGULAR
+  CLIENT
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+  UNKNOWN
+}
+
+model User {
+  id             String       @id @default(cuid())
+  supabaseUserId String       @unique @map("supabase_user_id")
+  email          String       @unique
+  fullName       String?      @map("full_name")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  memberships    Membership[]
+
+  @@map("users")
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  memberships Membership[]
+  clients     Client[]
+
+  @@map("organizations")
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String       @map("user_id")
+  organizationId String       @map("organization_id")
+  role           UserRole     @default(REGULAR)
+  isActive       Boolean      @default(true) @map("is_active")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId], map: "uq_membership_user_org")
+  @@index([organizationId], map: "idx_membership_org")
+  @@map("memberships")
+}
+
+model Client {
+  id             String          @id @default(cuid())
+  organizationId String          @map("organization_id")
+  name           String
+  externalId     String?         @map("external_id")
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connections    MetaConnection[]
+  campaigns      Campaign[]
+
+  @@index([organizationId], map: "idx_client_org")
+  @@unique([organizationId, externalId], map: "uq_client_org_external")
+  @@map("clients")
+}
+
+model MetaConnection {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  clientId       String?  @map("client_id")
+  provider       String   @default("meta")
+  accountId      String   @map("account_id")
+  accountName    String?  @map("account_name")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, provider, accountId], map: "uq_conn_org_provider_account")
+  @@index([organizationId], map: "idx_conn_org")
+  @@index([clientId], map: "idx_conn_client")
+  @@map("meta_connections")
+}
+
+model Campaign {
+  id             String         @id @default(cuid())
+  organizationId String         @map("organization_id")
+  clientId       String?        @map("client_id")
+  externalId     String         @map("external_id")
+  name           String
+  status         CampaignStatus @default(UNKNOWN)
+  spend          Decimal?       @db.Decimal(14, 2)
+  impressions    Int?
+  clicks         Int?
+  leads          Int?
+  snapshotDate   DateTime       @map("snapshot_date")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId], map: "idx_campaign_org")
+  @@index([clientId], map: "idx_campaign_client")
+  @@unique([organizationId, externalId, snapshotDate], map: "uq_campaign_snapshot")
+  @@map("campaigns")
+}

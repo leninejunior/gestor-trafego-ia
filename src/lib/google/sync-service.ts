@@ -1208,7 +1208,12 @@ export class GoogleSyncService {
       // Create sync log entry
       const syncLogId = await this.repository.createSyncLog({
         connection_id: options.connectionId,
-        sync_type: options.syncType === 'campaigns' ? 'incremental' : 'full',
+        sync_type:
+          options.syncType === 'campaigns'
+            ? 'incremental'
+            : options.syncType === 'metrics'
+              ? 'metrics'
+              : 'full',
         status: 'success', // Will be updated
         campaigns_synced: 0,
         metrics_updated: 0,
@@ -1286,7 +1291,12 @@ export class GoogleSyncService {
           break;
         case 'full':
         default:
-          result = await this.syncClient(options.clientId);
+          // Important: keep the explicit connection from the request.
+          // Using syncClient(clientId) can pick a different connection (or fail with multiple active ones).
+          result = await this.syncCampaigns({
+            ...syncOptions,
+            syncMetrics: true,
+          });
           break;
       }
 

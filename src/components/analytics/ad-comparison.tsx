@@ -156,7 +156,7 @@ export function AdComparison({
         <CardHeader>
           <CardTitle>Comparação de Anúncios</CardTitle>
           <CardDescription>
-            Campanha: {campaignName} • Conjunto: {adsetName} • {ads.length} anúncio{ads.length > 1 ? 's' : ''}
+            Campanha: {campaignName} • Conjunto: {adsetName}
           </CardDescription>
         </CardHeader>
       </Card>

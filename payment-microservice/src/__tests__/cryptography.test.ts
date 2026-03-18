@@ -83,7 +83,7 @@ describe('Cryptography System', () => {
 
     it('should encrypt and decrypt credentials object', async () => {
       const credentials = {
-        apiKey: 'sk_test_12345',
+        apiKey: 'sk_mock_12345',
         secretKey: 'secret_67890',
         webhookSecret: 'whsec_abcdef'
       };
@@ -352,7 +352,7 @@ describe('Cryptography System', () => {
       const providerName = 'stripe';
       const credentials = {
         publishableKey: 'pk_test_12345',
-        secretKey: 'sk_test_67890'
+        secretKey: 'sk_mock_67890'
       };
 
       const encrypted = await cryptographyManager.encryptProviderCredentials(providerName, credentials);

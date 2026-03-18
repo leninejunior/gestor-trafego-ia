@@ -20,7 +20,7 @@ export async function PATCH(
     // Buscar organização do usuário atual
     const { data: currentMembership } = await supabase
       .from("memberships")
-      .select("org_id, role")
+      .select("organization_id, role")
       .eq("user_id", user.id)
       .single();
 
@@ -38,7 +38,7 @@ export async function PATCH(
       .from("memberships")
       .select("*")
       .eq("id", memberId)
-      .eq("org_id", currentMembership.org_id)
+      .eq("organization_id", currentMembership.organization_id)
       .single();
 
     if (!targetMember) {
@@ -55,7 +55,7 @@ export async function PATCH(
       const { data: ownerCount } = await supabase
         .from("memberships")
         .select("id")
-        .eq("org_id", currentMembership.org_id)
+        .eq("organization_id", currentMembership.organization_id)
         .eq("role", "owner");
 
       if (ownerCount && ownerCount.length <= 1) {
@@ -124,7 +124,7 @@ export async function DELETE(
     // Buscar organização do usuário atual
     const { data: currentMembership } = await supabase
       .from("memberships")
-      .select("org_id, role")
+      .select("organization_id, role")
       .eq("user_id", user.id)
       .single();
 
@@ -142,7 +142,7 @@ export async function DELETE(
       .from("memberships")
       .select("*")
       .eq("id", memberId)
-      .eq("org_id", currentMembership.org_id)
+      .eq("organization_id", currentMembership.organization_id)
       .single();
 
     if (!targetMember) {
@@ -159,7 +159,7 @@ export async function DELETE(
       const { data: ownerCount } = await supabase
         .from("memberships")
         .select("id")
-        .eq("org_id", currentMembership.org_id)
+        .eq("organization_id", currentMembership.organization_id)
         .eq("role", "owner");
 
       if (ownerCount && ownerCount.length <= 1) {

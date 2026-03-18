@@ -24,7 +24,8 @@ import {
   XCircle,
   X,
   Edit,
-  Plus
+  Plus,
+  UserPlus
 } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { useFeatureMatrix } from "@/hooks/use-feature-gate";
@@ -92,6 +93,12 @@ const navigationSections: NavigationSection[] = [
         name: "Meta Ads",
         href: "/dashboard/meta",
         icon: Target,
+        platform: 'meta',
+      },
+      {
+        name: "Leads Meta",
+        href: "/dashboard/meta/leads",
+        icon: UserPlus,
         platform: 'meta',
       },
       {
@@ -182,6 +189,12 @@ const navigationSections: NavigationSection[] = [
         name: "Painel Admin",
         href: "/admin",
         icon: Lock,
+        adminOnly: true,
+      },
+      {
+        name: "Super Admin",
+        href: "/admin/super-admin",
+        icon: Crown,
         adminOnly: true,
       },
       {

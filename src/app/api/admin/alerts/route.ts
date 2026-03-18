@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    // Gerar alertas simulados (em produção, viria do banco de dados)
+    // Gerar alertas a partir dos dados reais do banco
     const alerts = await generateSystemAlerts(supabase, {
       resolved: resolved === 'false' ? false : resolved === 'true' ? true : undefined,
       severity,

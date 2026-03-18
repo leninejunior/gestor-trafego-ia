@@ -34,7 +34,7 @@ Content-Type: application/json
 **Response:**
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "accessToken": "<jwt_token_here>",
   "tokenType": "Bearer",
   "expiresIn": 3600,
   "refreshToken": "refresh_token_here"

@@ -6,6 +6,19 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Play, Pause, ExternalLink } from "lucide-react";
 
+interface AdInsights {
+  impressions: string;
+  clicks: string;
+  spend: string;
+  reach: string;
+  ctr: string;
+  cpc: string;
+  cpm: string;
+  frequency: string;
+  actions?: any[];
+  cost_per_action_type?: any[];
+}
+
 interface MetaAd {
   id: string;
   name: string;
@@ -22,6 +35,7 @@ interface MetaAd {
   };
   created_time: string;
   effective_status?: string;
+  insights?: AdInsights | null;
 }
 
 interface AdsListProps {
@@ -29,54 +43,81 @@ interface AdsListProps {
   adsetName: string;
   clientId?: string;
   adAccountId?: string;
+  dateRange?: { since: string; until: string };
 }
 
-export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListProps) {
+export function AdsList({ adsetId, adsetName, clientId, adAccountId, dateRange }: AdsListProps) {
   const [ads, setAds] = useState<MetaAd[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [showOnlyWithResults, setShowOnlyWithResults] = useState(false);
 
   useEffect(() => {
     fetchAds();
-  }, [adsetId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adsetId, dateRange?.since, dateRange?.until]);
 
   const fetchAds = async () => {
     setIsLoading(true);
     console.log('🔍 [ADS LIST] Buscando anúncios para conjunto:', adsetId);
+    console.log('🔍 [ADS LIST] Parâmetros:', { clientId, adAccountId, dateRange });
+    
     try {
       let url = `/api/meta/ads?adsetId=${adsetId}`;
       if (clientId && adAccountId) {
         url += `&clientId=${clientId}&adAccountId=${adAccountId}`;
       }
-      console.log('🔗 [ADS LIST] URL:', url);
+      if (dateRange) {
+        url += `&since=${dateRange.since}&until=${dateRange.until}`;
+      }
+      console.log('🔗 [ADS LIST] URL completa:', url);
       
       const response = await fetch(url);
       const data = await response.json();
       
-      console.log('📊 [ADS LIST] Resposta:', { status: response.status, data });
+      console.log('📊 [ADS LIST] Resposta completa:', { 
+        status: response.status, 
+        ok: response.ok,
+        dataKeys: Object.keys(data),
+        adsCount: data.ads?.length || 0,
+        data 
+      });
 
       if (response.ok) {
-        setAds(data.ads || []);
-        console.log('✅ [ADS LIST] Anúncios carregados:', data.ads?.length || 0);
-        // Log detalhado do primeiro anúncio
-        if (data.ads?.[0]) {
-          console.log('🔍 [ADS LIST] Primeiro anúncio:', {
-            id: data.ads[0].id,
-            name: data.ads[0].name,
-            creative: data.ads[0].creative,
-            hasTitle: !!data.ads[0].creative?.title,
-            hasBody: !!data.ads[0].creative?.body,
-            title: data.ads[0].creative?.title,
-            bodyPreview: data.ads[0].creative?.body?.substring(0, 50)
+        const adsData = data.ads || [];
+        setAds(adsData);
+        console.log('✅ [ADS LIST] Anúncios carregados:', adsData.length);
+        
+        // Debug detalhado de cada anúncio
+        adsData.forEach((ad: any, index: number) => {
+          console.log(`🔍 [ADS LIST] Anúncio ${index + 1}:`, {
+            id: ad.id,
+            name: ad.name,
+            status: ad.status,
+            hasCreative: !!ad.creative,
+            creativeId: ad.creative?.id,
+            hasTitle: !!ad.creative?.title,
+            hasBody: !!ad.creative?.body,
+            hasImage: !!ad.creative?.image_url,
+            hasVideo: !!ad.creative?.video_id,
+            title: ad.creative?.title,
+            bodyPreview: ad.creative?.body?.substring(0, 50),
+            hasInsights: !!ad.insights,
+            insightsKeys: ad.insights ? Object.keys(ad.insights) : [],
+            spend: ad.insights?.spend,
+            impressions: ad.insights?.impressions,
+            clicks: ad.insights?.clicks
           });
-        }
+        });
       } else {
-        console.error('❌ [ADS LIST] Erro:', data.error);
+        console.error('❌ [ADS LIST] Erro na resposta:', data.error);
         toast.error(data.error || 'Erro ao carregar anúncios');
+        setAds([]);
       }
     } catch (error) {
       console.error('💥 [ADS LIST] Erro na requisição:', error);
       toast.error('Erro ao carregar anúncios');
+      setAds([]);
     } finally {
       setIsLoading(false);
     }
@@ -134,6 +175,30 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
     return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>;
   };
 
+  const formatCurrency = (value: string | undefined) => {
+    if (value === undefined || value === null || value === '') return 'R$ 0,00';
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) return 'R$ 0,00';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(numValue);
+  };
+
+  const formatNumber = (value: string | undefined) => {
+    if (value === undefined || value === null || value === '') return '0';
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) return '0';
+    return new Intl.NumberFormat('pt-BR').format(numValue);
+  };
+
+  const formatPercent = (value: string | undefined) => {
+    if (value === undefined || value === null || value === '') return '0,00%';
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) return '0,00%';
+    return `${numValue.toFixed(2)}%`;
+  };
+
   if (isLoading) {
     return (
       <div className="ml-8 mt-2 border-l-2 border-border pl-4">
@@ -154,14 +219,35 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
     );
   }
 
+  // Filtrar anúncios com resultados se necessário
+  const filteredAds = showOnlyWithResults 
+    ? ads.filter(ad => {
+        const insights = ad.insights;
+        return insights && (
+          parseFloat(insights.impressions || '0') > 0 ||
+          parseFloat(insights.clicks || '0') > 0 ||
+          parseFloat(insights.spend || '0') > 0
+        );
+      })
+    : ads;
+
   return (
     <div className="ml-8 mt-2 border-l-2 border-border pl-4">
-      <div className="mb-3 text-sm font-medium text-muted-foreground">
-        Anúncios ({adsetName}) - {ads.length} {ads.length === 1 ? 'anúncio' : 'anúncios'}
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm font-medium text-muted-foreground">
+          Anúncios ({filteredAds.length}{showOnlyWithResults ? ` de ${ads.length}` : ''}) - {adsetName}
+        </div>
+        <Button
+          onClick={() => setShowOnlyWithResults(!showOnlyWithResults)}
+          variant={showOnlyWithResults ? "default" : "outline"}
+          size="sm"
+        >
+          {showOnlyWithResults ? "Mostrar Todos" : "Apenas com Resultados"}
+        </Button>
       </div>
       
       <div className="space-y-3">
-        {ads.map((ad) => (
+        {filteredAds.map((ad) => (
           <div 
             key={ad.id} 
             className="bg-card border border-border rounded-lg p-4 hover:shadow-md transition-shadow"
@@ -274,6 +360,72 @@ export function AdsList({ adsetId, adsetName, clientId, adAccountId }: AdsListPr
                     Criativo não disponível
                   </div>
                 )}
+
+                {/* Métricas do anúncio */}
+                <div className="grid grid-cols-6 gap-3 mt-3 pt-3 border-t border-border">
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">Gasto</div>
+                    <div className="font-semibold text-sm">
+                      {ad.insights && parseFloat(ad.insights.spend || '0') > 0 ? (
+                        formatCurrency(ad.insights.spend)
+                      ) : (
+                        <span className="text-muted-foreground text-xs" title="Sem dados no período selecionado. Tente um período maior ou verifique se o anúncio está ativo.">
+                          Sem dados
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">Impressões</div>
+                    <div className="font-semibold text-sm">
+                      {ad.insights && parseFloat(ad.insights.impressions || '0') > 0 ? (
+                        formatNumber(ad.insights.impressions)
+                      ) : (
+                        <span className="text-muted-foreground text-xs" title="Sem dados no período selecionado">-</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">Cliques</div>
+                    <div className="font-semibold text-sm">
+                      {ad.insights && parseFloat(ad.insights.clicks || '0') > 0 ? (
+                        formatNumber(ad.insights.clicks)
+                      ) : (
+                        <span className="text-muted-foreground text-xs" title="Sem dados no período selecionado">-</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">CTR</div>
+                    <div className="font-semibold text-sm">
+                      {ad.insights && parseFloat(ad.insights.ctr || '0') > 0 ? (
+                        formatPercent(ad.insights.ctr)
+                      ) : (
+                        <span className="text-muted-foreground text-xs" title="Sem dados no período selecionado">-</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">CPC</div>
+                    <div className="font-semibold text-sm">
+                      {ad.insights && parseFloat(ad.insights.cpc || '0') > 0 ? (
+                        formatCurrency(ad.insights.cpc)
+                      ) : (
+                        <span className="text-muted-foreground text-xs" title="Sem dados no período selecionado">-</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground">Alcance</div>
+                    <div className="font-semibold text-sm">
+                      {ad.insights && parseFloat(ad.insights.reach || '0') > 0 ? (
+                        formatNumber(ad.insights.reach)
+                      ) : (
+                        <span className="text-muted-foreground text-xs" title="Sem dados no período selecionado">-</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
                 {/* Rodapé com data e ações */}
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">

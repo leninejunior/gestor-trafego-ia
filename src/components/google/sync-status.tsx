@@ -46,22 +46,52 @@ export function GoogleSyncStatus({
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  const getErrorMessageFromResponse = async (
+    response: Response,
+    fallbackMessage: string
+  ): Promise<string> => {
+    try {
+      const raw = await response.text();
+
+      if (!raw) return fallbackMessage;
+
+      try {
+        const data = JSON.parse(raw);
+        const details = Array.isArray(data?.details) ? data.details.join(', ') : '';
+        return details
+          ? `${data?.error || data?.message || fallbackMessage}: ${details}`
+          : data?.error || data?.message || fallbackMessage;
+      } catch {
+        return raw.slice(0, 240);
+      }
+    } catch {
+      return fallbackMessage;
+    }
+  };
+
   const fetchSyncStatus = async () => {
     try {
       const response = await fetch(`/api/google/sync/status?clientId=${clientId}`);
       
       if (!response.ok) {
-        throw new Error('Falha ao carregar status de sincronização');
+        const errorMessage = await getErrorMessageFromResponse(
+          response,
+          'Falha ao carregar status de sincronização'
+        );
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
       setSyncStatus(data);
     } catch (error) {
       console.error('Erro ao carregar status:', error);
+      const message = error instanceof Error
+        ? error.message
+        : 'Não foi possível carregar o status de sincronização';
       setSyncStatus(prev => ({
         ...prev,
         status: 'error',
-        error: 'Não foi possível carregar o status de sincronização'
+        error: message
       }));
     } finally {
       setLoading(false);
@@ -84,7 +114,11 @@ export function GoogleSyncStatus({
       });
 
       if (!response.ok) {
-        throw new Error('Falha ao iniciar sincronização');
+        const errorMessage = await getErrorMessageFromResponse(
+          response,
+          'Falha ao iniciar sincronização'
+        );
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -113,9 +147,12 @@ export function GoogleSyncStatus({
 
     } catch (error) {
       console.error('Erro ao iniciar sync:', error);
+      const message = error instanceof Error
+        ? error.message
+        : 'Não foi possível iniciar a sincronização manual.';
       toast({
         title: 'Erro na Sincronização',
-        description: 'Não foi possível iniciar a sincronização manual.',
+        description: message,
         variant: 'destructive',
       });
     } finally {

@@ -8,14 +8,15 @@ import { createClient } from '@/lib/supabase/server';
 import { getSubscriptionIntentService } from '@/lib/services/subscription-intent-service';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     intentId: string;
-  };
+  }>;
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const supabase = await createClient();
+    const { intentId } = await params;
     
     // Verificar se é admin
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           last_sign_in_at
         )
       `)
-      .eq('id', params.intentId)
+      .eq('id', intentId)
       .single();
 
     if (error || !intent) {
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: webhookLogs } = await supabase
       .from('webhook_logs')
       .select('*')
-      .eq('subscription_intent_id', params.intentId)
+      .eq('subscription_intent_id', intentId)
       .order('created_at', { ascending: false })
       .limit(10);
 
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: stateTransitions } = await supabase
       .from('subscription_intent_transitions')
       .select('*')
-      .eq('subscription_intent_id', params.intentId)
+      .eq('subscription_intent_id', intentId)
       .order('created_at', { ascending: false });
 
     return NextResponse.json({
@@ -97,6 +98,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const supabase = await createClient();
+    const { intentId } = await params;
     
     // Verificar se é admin
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -124,7 +126,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       case 'activate':
         // Ativar manualmente uma assinatura (transição para completed)
         const activatedIntent = await intentService.executeStateTransition(
-          params.intentId,
+          intentId,
           'completed',
           {
             reason: 'Manual activation by admin',
@@ -140,7 +142,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       case 'cancel':
         // Cancelar uma intenção (transição para expired)
-        const cancelledIntent = await intentService.deleteIntent(params.intentId);
+        const cancelledIntent = await intentService.deleteIntent(intentId);
         return NextResponse.json({ 
           success: true, 
           deleted: cancelledIntent,
@@ -157,7 +159,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         }
         
         const updatedIntent = await intentService.updateIntent(
-          params.intentId, 
+          intentId, 
           { status: updateData.status },
           {
             reason: updateData.reason || 'Admin status update',
@@ -190,6 +192,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const supabase = await createClient();
+    const { intentId } = await params;
     
     // Verificar se é admin
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -212,7 +215,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { error } = await supabase
       .from('subscription_intents')
       .delete()
-      .eq('id', params.intentId);
+      .eq('id', intentId);
 
     if (error) {
       console.error('Error deleting subscription intent:', error);

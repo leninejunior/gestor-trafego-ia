@@ -14,10 +14,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Search, User, LogOut, Settings, Menu, Shield, Home } from "lucide-react";
+import { Bell, Search, User, LogOut, Settings, Menu, Shield, Home, Crown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import Link from "next/link";
+import { UserTypeBadge } from "@/components/ui/user-access-indicator";
+import { useUserType } from "@/hooks/use-user-access";
 
 export function DashboardHeader() {
   const [isLoading, setIsLoading] = useState(false);
@@ -25,6 +27,7 @@ export function DashboardHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
+  const { userType, isSuperAdmin } = useUserType();
 
   const isAdminPage = pathname ? pathname.startsWith('/admin') : false;
 
@@ -86,17 +89,20 @@ export function DashboardHeader() {
             <Menu className="w-5 h-5" />
           </Button>
 
-          {/* Page title with admin badge */}
+          {/* Page title with admin badge and user type */}
           <div className="flex items-center space-x-3">
             <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">
               {getPageTitle()}
             </h1>
-            {isAdminPage && (
-              <Badge variant="destructive" className="hidden sm:flex items-center space-x-1">
-                <Shield className="w-3 h-3" />
-                <span>ADMIN</span>
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {isAdminPage && (
+                <Badge variant="destructive" className="hidden sm:flex items-center space-x-1">
+                  <Shield className="w-3 h-3" />
+                  <span>ADMIN</span>
+                </Badge>
+              )}
+              <UserTypeBadge />
+            </div>
           </div>
         </div>
 
@@ -115,14 +121,23 @@ export function DashboardHeader() {
         {/* Right side */}
         <div className="flex items-center space-x-2 sm:space-x-4">
           {/* Quick navigation for admin */}
-          {isAdminPage && (
+          {(isAdminPage || isSuperAdmin) && (
             <div className="hidden sm:flex items-center space-x-2">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/dashboard">
-                  <Home className="w-4 h-4 mr-1" />
-                  Dashboard
-                </Link>
-              </Button>
+              {isAdminPage ? (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/dashboard">
+                    <Home className="w-4 h-4 mr-1" />
+                    Dashboard
+                  </Link>
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/admin">
+                    <Crown className="w-4 h-4 mr-1" />
+                    Admin
+                  </Link>
+                </Button>
+              )}
             </div>
           )}
 
@@ -148,16 +163,19 @@ export function DashboardHeader() {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">Super Admin</p>
+                  <p className="text-sm font-medium leading-none">
+                    {isSuperAdmin ? 'Super Admin' : 'Usuário'}
+                  </p>
                   <p className="text-xs leading-none text-muted-foreground">
                     admin@adsmanager.com
                   </p>
+                  <UserTypeBadge />
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               
               {/* Navigation shortcuts */}
-              {!isAdminPage && (
+              {!isAdminPage && isSuperAdmin && (
                 <>
                   <DropdownMenuItem asChild>
                     <Link href="/admin">

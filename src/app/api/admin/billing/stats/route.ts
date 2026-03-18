@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient();
 
-    // Default mock stats for when tables don't exist
+    // Default zeroed stats when billing tables are unavailable
     let stats = {
       totalRevenue: 0,
       monthlyRevenue: 0,
@@ -101,8 +101,7 @@ export async function GET(request: NextRequest) {
         };
       }
     } catch (dbError) {
-      console.log('Database tables not ready, returning mock data');
-      // Return mock data if tables don't exist
+      console.log('Database tables not ready, returning empty billing stats');
     }
 
     return NextResponse.json({
