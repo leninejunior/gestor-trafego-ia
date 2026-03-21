@@ -1,0 +1,9 @@
+node_modules
+**/node_modules
+.next
+.git
+.local
+.npm-cache
+engrene-memory-bridge/node_modules
+engrene-memory-bridge/.next
+*.log
