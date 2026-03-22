@@ -39,8 +39,14 @@ type RunFormState = {
   publicationConfigJson: string
 }
 
+type OrganizationSummary = {
+  id: string
+  name: string
+}
+
 export default function CampaignSquadRunsPage() {
   const { toast } = useToast()
+  const [organizations, setOrganizations] = useState<OrganizationSummary[]>([])
   const [clients, setClients] = useState<ClientSummary[]>([])
   const [loadingClients, setLoadingClients] = useState(false)
 
@@ -67,8 +73,13 @@ export default function CampaignSquadRunsPage() {
   const [approvalFeedback, setApprovalFeedback] = useState('')
   const [whatsappPhone, setWhatsappPhone] = useState('')
   const [whatsappMessage, setWhatsappMessage] = useState('')
+  const [conversationIdea, setConversationIdea] = useState('')
+  const [conversationMessage, setConversationMessage] = useState('')
 
   const [submittingRun, setSubmittingRun] = useState(false)
+  const [startingConversationalRun, setStartingConversationalRun] = useState(false)
+  const [sendingConversationMessage, setSendingConversationMessage] = useState(false)
+  const [processingPlanApproval, setProcessingPlanApproval] = useState(false)
   const [refreshingRun, setRefreshingRun] = useState(false)
   const [processingApproval, setProcessingApproval] = useState(false)
   const [sharingWhatsapp, setSharingWhatsapp] = useState(false)
@@ -80,27 +91,65 @@ export default function CampaignSquadRunsPage() {
     return channels
   }, [runForm.includeGoogle, runForm.includeMeta])
 
+  const clientsForSelectedOrganization = useMemo(
+    () => clients.filter((client) => client.organization_id === runForm.organizationId),
+    [clients, runForm.organizationId]
+  )
+
   const loadClients = useCallback(async () => {
     setLoadingClients(true)
     try {
       const data = await requestJson<{
-        clients: Array<{ id: string; name: string }>
+        clients: Array<{
+          id: string
+          name: string
+          organization_id?: string | null
+          organization_name?: string | null
+        }>
+        organizations?: Array<{ id: string; name: string }>
         organizationId?: string | null
       }>('/api/dashboard/clients')
 
       const fetchedClients = Array.isArray(data.clients) ? data.clients : []
       setClients(fetchedClients)
 
+      const fetchedOrganizations = Array.isArray(data.organizations) ? data.organizations : []
+      const derivedOrganizations = fetchedOrganizations.length > 0
+        ? fetchedOrganizations
+        : Array.from(
+            new Map(
+              fetchedClients
+                .filter((client) => client.organization_id && client.organization_name)
+                .map((client) => [client.organization_id as string, { id: client.organization_id as string, name: client.organization_name as string }])
+            ).values()
+          )
+      setOrganizations(derivedOrganizations)
+
       const suggestedOrg = typeof data.organizationId === 'string' && data.organizationId.trim().length > 0
         ? data.organizationId
         : null
-      if (suggestedOrg) {
-        setRunForm((prev) => ({ ...prev, organizationId: prev.organizationId === 'default' ? suggestedOrg : prev.organizationId }))
-      }
+      setRunForm((prev) => {
+        const organizationIds = new Set(derivedOrganizations.map((organization) => organization.id))
+        const fallbackOrganizationId = derivedOrganizations[0]?.id || ''
 
-      if (fetchedClients.length > 0) {
-        setRunForm((prev) => ({ ...prev, clientId: prev.clientId || fetchedClients[0].id }))
-      }
+        let nextOrganizationId = prev.organizationId
+        if (!nextOrganizationId || nextOrganizationId === 'default') {
+          nextOrganizationId = suggestedOrg && organizationIds.has(suggestedOrg) ? suggestedOrg : fallbackOrganizationId
+        } else if (!organizationIds.has(nextOrganizationId)) {
+          nextOrganizationId = suggestedOrg && organizationIds.has(suggestedOrg) ? suggestedOrg : fallbackOrganizationId
+        }
+
+        const clientsInOrganization = fetchedClients.filter((client) => client.organization_id === nextOrganizationId)
+        const nextClientId = clientsInOrganization.some((client) => client.id === prev.clientId)
+          ? prev.clientId
+          : (clientsInOrganization[0]?.id || '')
+
+        return {
+          ...prev,
+          organizationId: nextOrganizationId,
+          clientId: nextClientId
+        }
+      })
     } catch (error) {
       toast({
         title: 'Falha ao carregar clientes',
@@ -113,7 +162,7 @@ export default function CampaignSquadRunsPage() {
   }, [toast])
 
   const loadLlmConfigs = useCallback(async (organizationId: string) => {
-    if (!organizationId.trim()) return
+    if (!organizationId.trim() || organizationId === 'default') return
     setLoadingLlmConfigs(true)
     try {
       const query = new URLSearchParams({ organizationId }).toString()
@@ -155,6 +204,28 @@ export default function CampaignSquadRunsPage() {
   useEffect(() => {
     loadLlmConfigs(runForm.organizationId)
   }, [loadLlmConfigs, runForm.organizationId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const runIdFromQuery = new URLSearchParams(window.location.search).get('runId')?.trim()
+    if (!runIdFromQuery) return
+    setTrackedRunId(runIdFromQuery)
+    void refreshRun(runIdFromQuery)
+  }, [refreshRun])
+
+  useEffect(() => {
+    setRunForm((prev) => {
+      const clientsInOrganization = clients.filter((client) => client.organization_id === prev.organizationId)
+      if (clientsInOrganization.length === 0) {
+        if (!prev.clientId) return prev
+        return { ...prev, clientId: '' }
+      }
+
+      const hasSelectedClient = clientsInOrganization.some((client) => client.id === prev.clientId)
+      if (hasSelectedClient) return prev
+      return { ...prev, clientId: clientsInOrganization[0].id }
+    })
+  }, [clients, runForm.organizationId])
 
   const handleCreateRun = async () => {
     if (!runForm.organizationId.trim() || !runForm.clientId.trim() || !runForm.campaignName.trim()) {
@@ -209,6 +280,103 @@ export default function CampaignSquadRunsPage() {
       })
     } finally {
       setSubmittingRun(false)
+    }
+  }
+
+  const handleStartConversationalRun = async () => {
+    if (!runForm.organizationId.trim() || !runForm.clientId.trim()) {
+      toast({ title: 'Selecione conta e cliente para iniciar conversa', variant: 'destructive' })
+      return
+    }
+    if (!conversationIdea.trim()) {
+      toast({ title: 'Descreva a ideia inicial da campanha', variant: 'destructive' })
+      return
+    }
+
+    setStartingConversationalRun(true)
+    try {
+      const created = await requestJson<SquadRun>('/api/campaign-squad/runs', {
+        method: 'POST',
+        body: JSON.stringify({
+          organizationId: runForm.organizationId.trim(),
+          clientId: runForm.clientId.trim(),
+          mode: 'conversational',
+          idea: conversationIdea.trim(),
+          llmConfigId: runForm.llmConfigId || undefined
+        })
+      })
+
+      setRunData(created)
+      setTrackedRunId(created.id)
+      setConversationMessage('')
+      toast({
+        title: 'Run conversacional iniciado',
+        description: `ID: ${created.id}`
+      })
+    } catch (error) {
+      toast({
+        title: 'Falha ao iniciar run conversacional',
+        description: error instanceof Error ? error.message : 'Erro inesperado',
+        variant: 'destructive'
+      })
+    } finally {
+      setStartingConversationalRun(false)
+    }
+  }
+
+  const handleSendConversationMessage = async () => {
+    if (!runData?.id) return
+    if (!conversationMessage.trim()) return
+
+    setSendingConversationMessage(true)
+    try {
+      const updated = await requestJson<SquadRun>(`/api/campaign-squad/runs/${runData.id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({
+          content: conversationMessage.trim()
+        })
+      })
+      setRunData(updated)
+      setTrackedRunId(updated.id)
+      setConversationMessage('')
+    } catch (error) {
+      toast({
+        title: 'Falha ao enviar mensagem',
+        description: error instanceof Error ? error.message : 'Erro inesperado',
+        variant: 'destructive'
+      })
+    } finally {
+      setSendingConversationMessage(false)
+    }
+  }
+
+  const handlePlanApproval = async (action: 'approve' | 'revise') => {
+    if (!runData?.id) return
+    setProcessingPlanApproval(true)
+    try {
+      const updated = await requestJson<SquadRun>(`/api/campaign-squad/runs/${runData.id}/plan-approval`, {
+        method: 'POST',
+        body: JSON.stringify({
+          action,
+          feedback: approvalFeedback.trim() || undefined
+        })
+      })
+      setRunData(updated)
+      setTrackedRunId(updated.id)
+      toast({
+        title: action === 'approve' ? 'Plano aprovado' : 'Revisao solicitada',
+        description: action === 'approve'
+          ? 'Execucao automatica iniciada.'
+          : 'O run voltou para etapa de briefing.'
+      })
+    } catch (error) {
+      toast({
+        title: 'Falha ao processar plano',
+        description: error instanceof Error ? error.message : 'Erro inesperado',
+        variant: 'destructive'
+      })
+    } finally {
+      setProcessingPlanApproval(false)
     }
   }
 
@@ -282,8 +450,8 @@ export default function CampaignSquadRunsPage() {
 
   return (
     <CampaignSquadShell
-      title="Runs e Aprovação"
-      description="Dispare campanhas sob demanda, acompanhe o run e publique após aprovação."
+      title="Runs conversacionais"
+      description="Inicie pela conversa. O formulário legado permanece como compatibilidade secundária."
       actions={(
         <>
           <Button variant="outline" onClick={() => loadLlmConfigs(runForm.organizationId)} disabled={loadingLlmConfigs}>
@@ -298,29 +466,60 @@ export default function CampaignSquadRunsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Rocket className="h-5 w-5" />
-              Start manual de campanha
+              Modo conversacional
             </CardTitle>
-            <CardDescription>Planejamento, criativos e fluxo de aprovação em execução imediata.</CardDescription>
+            <CardDescription>Planejamento, criativos e aprovação seguem o fluxo principal por conversa.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border border-dashed bg-muted/20 p-4 space-y-3">
+              <p className="text-sm font-semibold">CS-11</p>
+              <p className="text-xs text-muted-foreground">
+                Descreva o objetivo e deixe o squad conduzir briefing, plano e próximos passos. A aprovação manual de peças fica fora desse fluxo.
+              </p>
+              <Textarea
+                placeholder="Ex.: Quero campanha de captacao para clinica odontologica, foco em implante, publico 30+ em Cuiaba."
+                value={conversationIdea}
+                onChange={(event) => setConversationIdea(event.target.value)}
+              />
+              <Button onClick={handleStartConversationalRun} disabled={startingConversationalRun}>
+                {startingConversationalRun ? 'Iniciando conversa...' : 'Iniciar run conversacional'}
+              </Button>
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="mb-3 text-sm font-semibold">Compatibilidade CS-13: formulário legado</p>
+            </div>
+
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="run-org">Organização</Label>
-                <Input id="run-org" value={runForm.organizationId} onChange={(event) => setRunForm((prev) => ({ ...prev, organizationId: event.target.value }))} />
+                <Select value={runForm.organizationId || undefined} onValueChange={(value) => setRunForm((prev) => ({ ...prev, organizationId: value }))}>
+                  <SelectTrigger id="run-org">
+                    <SelectValue placeholder="Selecione uma organização" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizations.map((organization) => (
+                      <SelectItem key={organization.id} value={organization.id}>
+                        {organization.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="run-client">Cliente</Label>
-                <Input
-                  id="run-client"
-                  list="campaign-squad-clients-runs"
-                  value={runForm.clientId}
-                  onChange={(event) => setRunForm((prev) => ({ ...prev, clientId: event.target.value }))}
-                />
-                <datalist id="campaign-squad-clients-runs">
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>{client.name}</option>
-                  ))}
-                </datalist>
+                <Select value={runForm.clientId || undefined} onValueChange={(value) => setRunForm((prev) => ({ ...prev, clientId: value }))}>
+                  <SelectTrigger id="run-client">
+                    <SelectValue placeholder="Selecione um cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clientsForSelectedOrganization.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {loadingClients ? <p className="text-xs text-muted-foreground">Carregando clientes...</p> : null}
               </div>
               <div className="space-y-2 md:col-span-2">
@@ -429,6 +628,64 @@ export default function CampaignSquadRunsPage() {
                   <Badge variant="outline">Criativos prontos: {runData.readyCreatives?.length || 0}</Badge>
                 </div>
 
+                {runData.mode === 'conversational' ? (
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <p className="text-sm font-medium">Conversa do run</p>
+                    <div className="max-h-56 space-y-2 overflow-auto rounded-md border p-2">
+                      {(runData.messages || []).length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Nenhuma mensagem registrada.</p>
+                      ) : (
+                        (runData.messages || []).map((message) => (
+                          <div key={message.id} className="rounded-md border p-2">
+                            <p className="text-xs font-semibold uppercase">{message.role} {message.phase ? `| ${message.phase}` : ''}</p>
+                            <p className="text-sm">{message.content}</p>
+                            <p className="text-[11px] text-muted-foreground">{new Date(message.createdAt).toLocaleString('pt-BR')}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
+                      <Input
+                        placeholder="Envie uma mensagem para briefing/ajustes"
+                        value={conversationMessage}
+                        onChange={(event) => setConversationMessage(event.target.value)}
+                      />
+                      <Button onClick={handleSendConversationMessage} disabled={sendingConversationMessage || !conversationMessage.trim()}>
+                        {sendingConversationMessage ? 'Enviando...' : 'Enviar'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {runData.mode === 'conversational' && runData.stage === 'awaiting_plan_approval' ? (
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <p className="text-sm font-medium">Plano aguardando aprovacao</p>
+                    {runData.planDraft ? (
+                      <pre className="max-h-56 overflow-auto rounded-md border bg-muted/40 p-3 text-xs">
+                        {JSON.stringify(runData.planDraft, null, 2)}
+                      </pre>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Plano ainda indisponivel.</p>
+                    )}
+                    <Textarea
+                      placeholder="Feedback opcional para aprovar ou solicitar revisao"
+                      value={approvalFeedback}
+                      onChange={(event) => setApprovalFeedback(event.target.value)}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button onClick={() => handlePlanApproval('approve')} disabled={processingPlanApproval}>
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Aprovar plano
+                      </Button>
+                      <Button variant="destructive" onClick={() => handlePlanApproval('revise')} disabled={processingPlanApproval}>
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Solicitar revisao
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
+
                 {runData.creativeBatch?.assets && runData.creativeBatch.assets.length > 0 ? (
                   <div className="rounded-lg border p-4">
                     <p className="text-sm font-medium">Peças geradas (iteração {runData.creativeBatch.iteration})</p>
@@ -445,7 +702,7 @@ export default function CampaignSquadRunsPage() {
                   </div>
                 ) : null}
 
-                {runData.approvalId && runData.status === 'awaiting_approval' ? (
+                {runData.mode !== 'conversational' && runData.approvalId && runData.status === 'awaiting_approval' ? (
                   <div className="rounded-lg border p-4 space-y-3">
                     <p className="text-sm font-medium">Aguardando aprovação do usuário</p>
                     <Textarea

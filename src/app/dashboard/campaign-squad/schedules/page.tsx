@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -46,8 +46,14 @@ type ScheduleFormState = {
   publicationConfigJson: string
 }
 
+type OrganizationSummary = {
+  id: string
+  name: string
+}
+
 export default function CampaignSquadSchedulesPage() {
   const { toast } = useToast()
+  const [organizations, setOrganizations] = useState<OrganizationSummary[]>([])
   const [clients, setClients] = useState<ClientSummary[]>([])
   const [loadingClients, setLoadingClients] = useState(false)
   const [readyCreatives, setReadyCreatives] = useState<ReadyCreativeInput[]>([])
@@ -79,28 +85,77 @@ export default function CampaignSquadSchedulesPage() {
   const [submittingSchedule, setSubmittingSchedule] = useState(false)
   const [triggeringDueSchedules, setTriggeringDueSchedules] = useState(false)
   const [togglingScheduleId, setTogglingScheduleId] = useState<string | null>(null)
+  const hasSelectedOrganization =
+    scheduleForm.organizationId.trim().length > 0 && scheduleForm.organizationId !== 'default'
+  const hasSelectedClient = scheduleForm.clientId.trim().length > 0
+
+  const clientsForSelectedOrganization = useMemo(
+    () => clients.filter((client) => client.organization_id === scheduleForm.organizationId),
+    [clients, scheduleForm.organizationId]
+  )
+  const organizationNameById = useMemo(
+    () => new Map(organizations.map((organization) => [organization.id, organization.name])),
+    [organizations]
+  )
+  const clientNameById = useMemo(
+    () => new Map(clients.map((client) => [client.id, client.name])),
+    [clients]
+  )
 
   const loadClients = useCallback(async () => {
     setLoadingClients(true)
     try {
       const data = await requestJson<{
-        clients: Array<{ id: string; name: string }>
+        clients: Array<{
+          id: string
+          name: string
+          organization_id?: string | null
+          organization_name?: string | null
+        }>
+        organizations?: Array<{ id: string; name: string }>
         organizationId?: string | null
       }>('/api/dashboard/clients')
 
       const fetchedClients = Array.isArray(data.clients) ? data.clients : []
       setClients(fetchedClients)
 
+      const fetchedOrganizations = Array.isArray(data.organizations) ? data.organizations : []
+      const derivedOrganizations = fetchedOrganizations.length > 0
+        ? fetchedOrganizations
+        : Array.from(
+            new Map(
+              fetchedClients
+                .filter((client) => client.organization_id && client.organization_name)
+                .map((client) => [client.organization_id as string, { id: client.organization_id as string, name: client.organization_name as string }])
+            ).values()
+          )
+      setOrganizations(derivedOrganizations)
+
       const suggestedOrg = typeof data.organizationId === 'string' && data.organizationId.trim().length > 0
         ? data.organizationId
         : null
-      if (suggestedOrg) {
-        setScheduleForm((prev) => ({ ...prev, organizationId: prev.organizationId === 'default' ? suggestedOrg : prev.organizationId }))
-      }
+      setScheduleForm((prev) => {
+        const organizationIds = new Set(derivedOrganizations.map((organization) => organization.id))
+        const fallbackOrganizationId = derivedOrganizations[0]?.id || ''
 
-      if (fetchedClients.length > 0) {
-        setScheduleForm((prev) => ({ ...prev, clientId: prev.clientId || fetchedClients[0].id }))
-      }
+        let nextOrganizationId = prev.organizationId
+        if (!nextOrganizationId || nextOrganizationId === 'default') {
+          nextOrganizationId = suggestedOrg && organizationIds.has(suggestedOrg) ? suggestedOrg : fallbackOrganizationId
+        } else if (!organizationIds.has(nextOrganizationId)) {
+          nextOrganizationId = suggestedOrg && organizationIds.has(suggestedOrg) ? suggestedOrg : fallbackOrganizationId
+        }
+
+        const clientsInOrganization = fetchedClients.filter((client) => client.organization_id === nextOrganizationId)
+        const nextClientId = clientsInOrganization.some((client) => client.id === prev.clientId)
+          ? prev.clientId
+          : (clientsInOrganization[0]?.id || '')
+
+        return {
+          ...prev,
+          organizationId: nextOrganizationId,
+          clientId: nextClientId
+        }
+      })
     } catch (error) {
       toast({
         title: 'Falha ao carregar clientes',
@@ -113,7 +168,7 @@ export default function CampaignSquadSchedulesPage() {
   }, [toast])
 
   const loadLlmConfigs = useCallback(async (organizationId: string) => {
-    if (!organizationId.trim()) return
+    if (!organizationId.trim() || organizationId === 'default') return
     setLoadingLlmConfigs(true)
     try {
       const query = new URLSearchParams({ organizationId }).toString()
@@ -131,7 +186,10 @@ export default function CampaignSquadSchedulesPage() {
   }, [toast])
 
   const loadSchedules = useCallback(async (organizationId: string) => {
-    if (!organizationId.trim()) return
+    if (!organizationId.trim() || organizationId === 'default') {
+      setSchedules([])
+      return
+    }
     setLoadingSchedules(true)
     try {
       const query = new URLSearchParams({ organizationId }).toString()
@@ -157,9 +215,23 @@ export default function CampaignSquadSchedulesPage() {
     loadSchedules(scheduleForm.organizationId)
   }, [loadLlmConfigs, loadSchedules, scheduleForm.organizationId])
 
+  useEffect(() => {
+    setScheduleForm((prev) => {
+      const clientsInOrganization = clients.filter((client) => client.organization_id === prev.organizationId)
+      if (clientsInOrganization.length === 0) {
+        if (!prev.clientId) return prev
+        return { ...prev, clientId: '' }
+      }
+
+      const hasSelectedClient = clientsInOrganization.some((client) => client.id === prev.clientId)
+      if (hasSelectedClient) return prev
+      return { ...prev, clientId: clientsInOrganization[0].id }
+    })
+  }, [clients, scheduleForm.organizationId])
+
   const handleCreateSchedule = async () => {
-    if (!scheduleForm.organizationId.trim() || !scheduleForm.clientId.trim()) {
-      toast({ title: 'Informe organização e cliente para o agendamento', variant: 'destructive' })
+    if (!hasSelectedOrganization || !hasSelectedClient) {
+      toast({ title: 'Informe conta e cliente pela lista para criar o agendamento', variant: 'destructive' })
       return
     }
 
@@ -301,17 +373,43 @@ export default function CampaignSquadSchedulesPage() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="schedule-org">Organização</Label>
-                <Input id="schedule-org" value={scheduleForm.organizationId} onChange={(event) => setScheduleForm((prev) => ({ ...prev, organizationId: event.target.value }))} />
+                <Select value={scheduleForm.organizationId || undefined} onValueChange={(value) => setScheduleForm((prev) => ({ ...prev, organizationId: value }))}>
+                  <SelectTrigger id="schedule-org" disabled={loadingClients || organizations.length === 0}>
+                    <SelectValue placeholder="Selecione uma organização" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizations.map((organization) => (
+                      <SelectItem key={organization.id} value={organization.id}>
+                        {organization.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!loadingClients && organizations.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nenhuma conta disponivel para seu usuario.</p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="schedule-client">Cliente</Label>
-                <Input id="schedule-client" list="campaign-squad-clients-schedules" value={scheduleForm.clientId} onChange={(event) => setScheduleForm((prev) => ({ ...prev, clientId: event.target.value }))} />
-                <datalist id="campaign-squad-clients-schedules">
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>{client.name}</option>
-                  ))}
-                </datalist>
+                <Select value={scheduleForm.clientId || undefined} onValueChange={(value) => setScheduleForm((prev) => ({ ...prev, clientId: value }))}>
+                  <SelectTrigger
+                    id="schedule-client"
+                    disabled={loadingClients || !hasSelectedOrganization || clientsForSelectedOrganization.length === 0}
+                  >
+                    <SelectValue placeholder="Selecione um cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clientsForSelectedOrganization.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {loadingClients ? <p className="text-xs text-muted-foreground">Carregando clientes...</p> : null}
+                {!loadingClients && hasSelectedOrganization && clientsForSelectedOrganization.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nenhum cliente encontrado para a conta selecionada.</p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="schedule-cadence">Cadência</Label>
@@ -457,7 +555,7 @@ export default function CampaignSquadSchedulesPage() {
                       Próximo disparo: {schedule.nextRunAt ? new Date(schedule.nextRunAt).toLocaleString('pt-BR') : 'não definido'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Cliente: {schedule.clientId} • Timezone: {schedule.timezone} • Hora: {String(schedule.hour).padStart(2, '0')}:{String(schedule.minute).padStart(2, '0')}
+                      Conta: {organizationNameById.get(schedule.organizationId) || 'Conta não carregada'} | Cliente: {clientNameById.get(schedule.clientId) || 'Cliente não carregado'} | Timezone: {schedule.timezone} | Hora: {String(schedule.hour).padStart(2, '0')}:{String(schedule.minute).padStart(2, '0')}
                     </p>
                   </div>
                 ))}
