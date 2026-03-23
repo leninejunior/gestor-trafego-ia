@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
 
@@ -31,6 +32,11 @@ type GroupBinding = {
 type BindingsApiResponse = {
   success: boolean;
   data?: GroupBinding[];
+  error?: string;
+};
+
+type ClientsApiResponse = {
+  clients?: ClientSummary[];
   error?: string;
 };
 
@@ -75,6 +81,26 @@ function safeBindings(payload: unknown): GroupBinding[] {
   return Array.isArray(data) ? data : [];
 }
 
+function safeClients(payload: unknown): ClientSummary[] {
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  const data = (payload as ClientsApiResponse).clients;
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data
+    .filter((item): item is ClientSummary => {
+      return Boolean(item && typeof item.id === "string");
+    })
+    .map((item) => ({
+      id: item.id,
+      name: item.name ?? null,
+    }));
+}
+
 function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -86,7 +112,9 @@ function formatDate(value: string): string {
 export function GroupBindingsManager() {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [bindings, setBindings] = useState<GroupBinding[]>([]);
+  const [clients, setClients] = useState<ClientSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isClientsLoading, setIsClientsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [search, setSearch] = useState("");
   const { toast } = useToast();
@@ -123,8 +151,39 @@ export function GroupBindingsManager() {
     }
   };
 
+  const loadClients = async () => {
+    setIsClientsLoading(true);
+    try {
+      const response = await fetch("/api/clients", {
+        method: "GET",
+        credentials: "include",
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as ClientsApiResponse;
+      if (!response.ok) {
+        throw new Error(payload.error || "Nao foi possivel carregar os clientes.");
+      }
+
+      setClients(
+        safeClients(payload).sort((a, b) => {
+          const nameA = (a.name || "").toLowerCase();
+          const nameB = (b.name || "").toLowerCase();
+          return nameA.localeCompare(nameB);
+        })
+      );
+    } catch (error) {
+      toast({
+        title: "Erro ao carregar clientes",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsClientsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    void loadBindings();
+    void Promise.all([loadBindings(), loadClients()]);
   }, []);
 
   const sortedBindings = useMemo(() => {
@@ -165,7 +224,7 @@ export function GroupBindingsManager() {
     if (!form.groupId.trim() || !form.clientId.trim()) {
       toast({
         title: "Campos obrigatorios",
-        description: "Informe groupId e clientId.",
+        description: "Informe groupId e selecione um cliente.",
         variant: "destructive",
       });
       return;
@@ -287,13 +346,30 @@ export function GroupBindingsManager() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="clientId">Client ID (UUID)</Label>
-              <Input
-                id="clientId"
-                placeholder="e3ab33da-79f9-45e9-a43f-6ce76ceb9751"
-                value={form.clientId}
-                onChange={(event) => onChange("clientId", event.target.value)}
-              />
+              <Label htmlFor="clientId">Cliente</Label>
+              <Select value={form.clientId || undefined} onValueChange={(value) => onChange("clientId", value)}>
+                <SelectTrigger id="clientId">
+                  <SelectValue
+                    placeholder={isClientsLoading ? "Carregando clientes..." : "Selecione o cliente"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.length === 0 ? (
+                    <SelectItem value="__no_clients__" disabled>
+                      Nenhum cliente disponivel
+                    </SelectItem>
+                  ) : (
+                    clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name?.trim() || client.id}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {form.clientId ? (
+                <p className="text-xs text-muted-foreground">ID: {form.clientId}</p>
+              ) : null}
             </div>
           </div>
 
@@ -420,7 +496,8 @@ export function GroupBindingsManager() {
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {binding.group_name || "Sem nome de grupo"} | cliente: {binding.client_id}
+                        {binding.group_name || "Sem nome de grupo"} | cliente:{" "}
+                        {binding.clients?.name?.trim() || binding.client_id}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         whitelist:{" "}
