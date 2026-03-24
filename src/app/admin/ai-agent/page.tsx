@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { 
-  Bot, 
+  Cpu, 
   Brain, 
   MessageSquare, 
   Send, 
@@ -269,7 +269,7 @@ export default function AIAgentPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center">
-            <Bot className="h-8 w-8 mr-3 text-blue-600" />
+            <Cpu className="h-8 w-8 mr-3 text-blue-600" />
             Agente de IA
           </h1>
           <p className="text-muted-foreground">
@@ -362,7 +362,7 @@ export default function AIAgentPage() {
               <div className="flex-1 overflow-y-auto space-y-4 mb-4 p-4 bg-gray-50 rounded-lg">
                 {messages.length === 0 && (
                   <div className="text-center text-muted-foreground py-8">
-                    <Bot className="h-12 w-12 mx-auto mb-4 text-blue-600" />
+                    <Cpu className="h-12 w-12 mx-auto mb-4 text-blue-600" />
                     <p className="text-lg font-medium">Olá! Sou seu assistente de campanhas.</p>
                     <p>Posso ajudar você a analisar performance, otimizar campanhas e identificar oportunidades.</p>
                     <div className="mt-4 space-y-2 text-sm">
@@ -390,7 +390,7 @@ export default function AIAgentPage() {
                     >
                       {message.type === 'ai' && (
                         <div className="flex items-center mb-2">
-                          <Bot className="h-4 w-4 mr-2 text-blue-600" />
+                          <Cpu className="h-4 w-4 mr-2 text-blue-600" />
                           <span className="text-sm font-medium text-blue-600">AI Assistant</span>
                           {message.metadata?.confidence && (
                             <Badge variant="outline" className="ml-2 text-xs">
@@ -411,7 +411,7 @@ export default function AIAgentPage() {
                   <div className="flex justify-start">
                     <div className="bg-white border shadow-sm p-3 rounded-lg">
                       <div className="flex items-center">
-                        <Bot className="h-4 w-4 mr-2 text-blue-600" />
+                        <Cpu className="h-4 w-4 mr-2 text-blue-600" />
                         <span className="text-sm font-medium text-blue-600">AI Assistant</span>
                       </div>
                       <div className="flex items-center mt-2">
