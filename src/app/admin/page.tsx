@@ -183,6 +183,9 @@ export default async function AdminDashboard() {
             </div>
             <div className="flex space-x-3">
               <Button asChild variant="outline">
+                <Link href="/admin/api-docs">API IA Docs</Link>
+              </Button>
+              <Button asChild variant="outline">
                 <Link href="/dashboard">Dashboard Normal</Link>
               </Button>
               <Badge variant="destructive" className="px-3 py-1">

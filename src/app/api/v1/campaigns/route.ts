@@ -1,50 +1,68 @@
-/**
- * API Pública v1 - Campanhas
- * Endpoints para acessar dados de campanhas via API
- * Requirements: 5.3, 5.4 - Controle de acesso a campanhas por cliente
- */
-
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { apiAuthService } from '../auth/route'
-import { createAccessControl } from '@/lib/middleware/user-access-middleware'
-import { UserAccessControlService } from '@/lib/services/user-access-control'
-
-/**
- * GET /api/v1/campaigns
- * Lista campanhas da organização
- * Requirements: 5.3, 5.4 - Filtrar campanhas por acesso do usuário
- */
-const getCampaigns = createAccessControl.readCampaigns(false, 'Acesso negado para visualizar campanhas')
+import { NextRequest } from 'next/server'
+import { createServiceClient } from '@/lib/supabase/server'
+import {
+  createApiError,
+  createApiSuccess,
+  requireApiKey,
+  resolveDateRange,
+  toNumber,
+  validateClientScope
+} from '../_lib/api-v1-utils'
 
 export async function GET(request: NextRequest) {
-  return getCampaigns(async (request: NextRequest, context: any) => {
-    const auth = await apiAuthService.authenticateApiRequest(request, 'campaigns:read')
-    
-    if (!auth.success) {
-      return NextResponse.json(
-        { error: auth.error },
-        { status: 401 }
-      )
+  const authResult = await requireApiKey(request, 'campaigns:read')
+  if (authResult.ok === false) {
+    return authResult.response
+  }
+
+  const { searchParams } = request.nextUrl
+  const clientId = searchParams.get('client_id')?.trim()
+
+  if (!clientId) {
+    return createApiError(400, 'MISSING_CLIENT_ID', 'Query parameter client_id is required')
+  }
+
+  const limitRaw = searchParams.get('limit')
+  const offsetRaw = searchParams.get('offset')
+  const statusFilter = searchParams.get('status')?.trim().toUpperCase()
+
+  const limit = limitRaw ? Number.parseInt(limitRaw, 10) : 50
+  const offset = offsetRaw ? Number.parseInt(offsetRaw, 10) : 0
+
+  if (!Number.isFinite(limit) || limit < 1 || limit > 100) {
+    return createApiError(422, 'INVALID_LIMIT', 'limit must be an integer between 1 and 100')
+  }
+
+  if (!Number.isFinite(offset) || offset < 0) {
+    return createApiError(422, 'INVALID_OFFSET', 'offset must be an integer greater than or equal to 0')
+  }
+
+  let dateRange
+  try {
+    dateRange = resolveDateRange(searchParams)
+  } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_DATE_FORMAT') {
+      return createApiError(422, 'INVALID_DATE_FORMAT', 'Use date format YYYY-MM-DD for date_from and date_to')
     }
 
-    const { searchParams } = request.nextUrl
-    
-    // Parâmetros de query
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100)
-    const offset = parseInt(searchParams.get('offset') || '0')
-    const status = searchParams.get('status')
-    const accountId = searchParams.get('account_id')
-    const startDate = searchParams.get('start_date')
-    const endDate = searchParams.get('end_date')
+    if (error instanceof Error && error.message === 'INVALID_DATE_RANGE') {
+      return createApiError(422, 'INVALID_DATE_RANGE', 'date_from must be before or equal to date_to')
+    }
 
-    try {
-      const supabase = await createClient()
-      
-      // Para usuários comuns, filtrar apenas campanhas de clientes autorizados
-      let query = supabase
-        .from('meta_campaigns')
-        .select(`
+    return createApiError(422, 'INVALID_DATE_RANGE_INPUT', 'Invalid date range')
+  }
+
+  try {
+    const scopedClient = await validateClientScope(clientId, authResult.auth.organizationId)
+    if (!scopedClient.ok) {
+      return scopedClient.response
+    }
+
+    const supabase = createServiceClient()
+    let campaignsQuery = supabase
+      .from('meta_campaigns')
+      .select(
+        `
           id,
           name,
           status,
@@ -59,191 +77,129 @@ export async function GET(request: NextRequest) {
           connection_id,
           client_meta_connections!inner(
             client_id,
-            account_name
+            account_name,
+            ad_account_id
           )
-        `)
-        .range(offset, offset + limit - 1)
-        .order('created_time', { ascending: false })
+        `,
+        { count: 'exact' }
+      )
+      .eq('client_meta_connections.client_id', clientId)
+      .order('updated_time', { ascending: false })
+      .range(offset, offset + limit - 1)
 
-      // Se não for super admin, filtrar por clientes acessíveis
-      if (context.userType !== 'super_admin') {
-        const accessControl = new UserAccessControlService()
-        const accessibleClients = await accessControl.getUserAccessibleClients(context.user.id)
-        const clientIds = accessibleClients.map(c => c.id)
+    if (statusFilter) {
+      campaignsQuery = campaignsQuery.eq('status', statusFilter)
+    }
 
-        if (clientIds.length === 0) {
-          return NextResponse.json({
-            data: [],
-            pagination: {
-              limit,
-              offset,
-              total: 0,
-              has_more: false
-            }
-          })
+    const { data: campaigns, error: campaignsError, count } = await campaignsQuery
+
+    if (campaignsError) {
+      console.error('[v1/campaigns] fetch error:', campaignsError)
+      return createApiError(500, 'CAMPAIGNS_FETCH_FAILED', 'Failed to fetch campaigns')
+    }
+
+    const campaignIds = (campaigns ?? []).map((campaign: any) => campaign.id)
+    let insightsByCampaignId = new Map<
+      string,
+      {
+        impressions: number
+        clicks: number
+        spend: number
+        conversions: number
+      }
+    >()
+
+    if (campaignIds.length > 0) {
+      const { data: insights, error: insightsError } = await supabase
+        .from('meta_campaign_insights')
+        .select('campaign_id, impressions, clicks, spend, conversions')
+        .in('campaign_id', campaignIds)
+        .gte('date_start', dateRange.dateFrom)
+        .lte('date_start', dateRange.dateTo)
+
+      if (insightsError) {
+        console.error('[v1/campaigns] insights error:', insightsError)
+        return createApiError(500, 'INSIGHTS_FETCH_FAILED', 'Failed to fetch campaign insights')
+      }
+
+      insightsByCampaignId = (insights ?? []).reduce((acc: any, row: any) => {
+        const current = acc.get(row.campaign_id) ?? {
+          impressions: 0,
+          clicks: 0,
+          spend: 0,
+          conversions: 0
         }
 
-        query = query.in('client_meta_connections.client_id', clientIds)
+        current.impressions += toNumber(row.impressions)
+        current.clicks += toNumber(row.clicks)
+        current.spend += toNumber(row.spend)
+        current.conversions += toNumber(row.conversions)
+        acc.set(row.campaign_id, current)
+        return acc
+      }, new Map())
+    }
+
+    const items = (campaigns ?? []).map((campaign: any) => {
+      const totals = insightsByCampaignId.get(campaign.id) ?? {
+        impressions: 0,
+        clicks: 0,
+        spend: 0,
+        conversions: 0
       }
 
-      // Filtros opcionais
-      if (status) {
-        query = query.eq('status', status.toUpperCase())
-      }
-      
-      if (accountId) {
-        query = query.eq('account_id', accountId)
-      }
-      
-      if (startDate) {
-        query = query.gte('created_time', startDate)
-      }
-      
-      if (endDate) {
-        query = query.lte('created_time', endDate)
-      }
+      const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0
+      const cpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0
+      const cpm = totals.impressions > 0 ? (totals.spend / totals.impressions) * 1000 : 0
 
-      const { data: campaigns, error, count } = await query
-
-      if (error) {
-        console.error('Error fetching campaigns:', error)
-        return NextResponse.json(
-          { error: 'Failed to fetch campaigns' },
-          { status: 500 }
-        )
-      }
-
-      // Buscar insights recentes para cada campanha
-      const campaignIds = campaigns?.map(c => c.id) || []
-      let insights = []
-      
-      if (campaignIds.length > 0) {
-        const { data: insightsData } = await supabase
-          .from('meta_campaign_insights')
-          .select('campaign_id, impressions, clicks, spend, ctr, cpc, cpm')
-          .in('campaign_id', campaignIds)
-          .gte('date_start', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-          .order('date_start', { ascending: false })
-
-        insights = insightsData || []
-      }
-
-      // Agregar insights por campanha
-      const campaignsWithInsights = campaigns?.map(campaign => {
-        const campaignInsights = insights.filter(i => i.campaign_id === campaign.id)
-        
-        const totalInsights = campaignInsights.reduce((acc, insight) => ({
-          impressions: acc.impressions + (insight.impressions || 0),
-          clicks: acc.clicks + (insight.clicks || 0),
-          spend: acc.spend + (insight.spend || 0)
-        }), { impressions: 0, clicks: 0, spend: 0 })
-
-        return {
-          ...campaign,
-          insights: {
-            impressions: totalInsights.impressions,
-            clicks: totalInsights.clicks,
-            spend: totalInsights.spend,
-            ctr: totalInsights.clicks > 0 ? (totalInsights.clicks / totalInsights.impressions * 100) : 0,
-            cpc: totalInsights.clicks > 0 ? (totalInsights.spend / totalInsights.clicks) : 0
-          }
+      return {
+        id: campaign.id,
+        name: campaign.name,
+        status: campaign.status,
+        objective: campaign.objective,
+        account_id: campaign.account_id,
+        account_name: campaign.client_meta_connections?.account_name ?? null,
+        ad_account_id: campaign.client_meta_connections?.ad_account_id ?? null,
+        daily_budget: campaign.daily_budget,
+        lifetime_budget: campaign.lifetime_budget,
+        start_time: campaign.start_time,
+        stop_time: campaign.stop_time,
+        updated_time: campaign.updated_time,
+        metrics: {
+          impressions: Math.round(totals.impressions),
+          clicks: Math.round(totals.clicks),
+          conversions: Number(totals.conversions.toFixed(2)),
+          spend: Number(totals.spend.toFixed(2)),
+          ctr: Number(ctr.toFixed(2)),
+          cpc: Number(cpc.toFixed(4)),
+          cpm: Number(cpm.toFixed(4))
         }
-      })
+      }
+    })
 
-      return NextResponse.json({
-        data: campaignsWithInsights,
+    return createApiSuccess(
+      {
+        client_id: clientId,
+        client_name: scopedClient.client.name ?? null,
+        campaigns: items
+      },
+      {
         pagination: {
           limit,
           offset,
-          total: count || 0,
-          has_more: (count || 0) > offset + limit
-        }
-      })
-    } catch (error) {
-      console.error('Error in campaigns API:', error)
-      return NextResponse.json(
-        { error: 'Internal server error' },
-        { status: 500 }
-      )
-    }
-  })(request)
+          total: count ?? 0,
+          has_more: (count ?? 0) > offset + limit
+        },
+        date_range: {
+          date_from: dateRange.dateFrom,
+          date_to: dateRange.dateTo,
+          date_default_applied: dateRange.dateDefaultApplied
+        },
+        warnings: dateRange.warnings
+      }
+    )
+  } catch (error) {
+    console.error('[v1/campaigns] unexpected error:', error)
+    return createApiError(500, 'INTERNAL_SERVER_ERROR', 'Internal server error')
+  }
 }
 
-/**
- * POST /api/v1/campaigns
- * Cria uma nova campanha (requer integração Meta Ads)
- * Requirements: 6.2, 6.4 - Bloquear criação por usuários comuns
- */
-const createCampaign = createAccessControl.writeCampaigns(false, 'Usuários comuns não podem criar campanhas')
-
-export async function POST(request: NextRequest) {
-  return createCampaign(async (request: NextRequest, context: any) => {
-    const auth = await apiAuthService.authenticateApiRequest(request, 'campaigns:write')
-    
-    if (!auth.success) {
-      return NextResponse.json(
-        { error: auth.error },
-        { status: 401 }
-      )
-    }
-
-    try {
-      const body = await request.json()
-      const { name, objective, account_id, daily_budget, client_id } = body
-
-      // Validação básica
-      if (!name || !objective || !account_id || !client_id) {
-        return NextResponse.json(
-          { error: 'Missing required fields: name, objective, account_id, client_id' },
-          { status: 400 }
-        )
-      }
-
-      // Verificar se o usuário tem acesso ao cliente
-      const supabase = await createClient()
-      const hasAccess = await context.hasClientAccess(context.user.id, client_id)
-      
-      if (!hasAccess) {
-        return NextResponse.json(
-          { 
-            error: 'Acesso negado: você não tem permissão para criar campanhas para este cliente',
-            code: 'CLIENT_ACCESS_DENIED'
-          },
-          { status: 403 }
-        )
-      }
-
-      // Validar limites de plano se não for super admin
-      if (context.userType !== 'super_admin' && context.organizationId) {
-        const validation = await context.validateActionAgainstLimits(
-          context.organizationId,
-          'create_campaign'
-        )
-
-        if (!validation.valid) {
-          return NextResponse.json(
-            {
-              error: validation.reason || 'Limite de campanhas atingido',
-              code: 'PLAN_LIMIT_EXCEEDED',
-              currentUsage: validation.currentUsage,
-              limit: validation.limit,
-              upgradeRequired: true
-            },
-            { status: 402 }
-          )
-        }
-      }
-
-      return NextResponse.json({
-        error: 'Campaign creation is not available without a real Meta Ads integration',
-        code: 'FEATURE_UNAVAILABLE'
-      }, { status: 501 })
-    } catch (error) {
-      console.error('Error creating campaign:', error)
-      return NextResponse.json(
-        { error: 'Failed to create campaign' },
-        { status: 500 }
-      )
-    }
-  })(request)
-}
