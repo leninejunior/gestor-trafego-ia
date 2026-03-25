@@ -24,7 +24,9 @@ import {
   XCircle,
   X,
   Edit,
-  Plus
+  Plus,
+  Wand2,
+  KeyRound
 } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { useFeatureMatrix } from "@/hooks/use-feature-gate";
@@ -61,6 +63,11 @@ const navigationSections: NavigationSection[] = [
         href: "/dashboard/campaigns",
         icon: Target,
         platform: 'meta',
+      },
+      {
+        name: "Campaign Squad",
+        href: "/dashboard/campaign-squad",
+        icon: Wand2,
       },
       {
         name: "Clientes",
@@ -230,6 +237,18 @@ const navigationSections: NavigationSection[] = [
         name: "Monitoramento",
         href: "/admin/monitoring",
         icon: Eye,
+        adminOnly: true,
+      },
+      {
+        name: "API IA",
+        href: "/admin/api-docs",
+        icon: Database,
+        adminOnly: true,
+      },
+      {
+        name: "API Keys",
+        href: "/admin/api-keys",
+        icon: KeyRound,
         adminOnly: true,
       },
     ]
