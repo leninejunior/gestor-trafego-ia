@@ -77,7 +77,8 @@ export async function PATCH(
       updateFields.lifetime_budget = String(cents)
     }
 
-    const { response, data } = await callMetaCampaignUpdate(campaignId, campaign.connection.access_token, payload)
+    const metaCampaignId = campaign.external_id ?? campaign.id
+    const { response, data } = await callMetaCampaignUpdate(metaCampaignId, campaign.connection.access_token, payload)
     if (!response.ok || (data && typeof data === 'object' && 'error' in data)) {
       return createApiError(502, 'META_API_ERROR', 'Failed to update campaign budget in Meta API', data)
     }
@@ -86,7 +87,7 @@ export async function PATCH(
     await supabase
       .from('meta_campaigns')
       .update(updateFields as never)
-      .eq('id', campaignId)
+      .eq('id', campaign.id)
 
     return createApiSuccess(
       {

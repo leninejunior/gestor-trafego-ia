@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 export type ScopedCampaign = {
   id: string
+  external_id: string | null
   name: string | null
   status: string | null
   objective: string | null
@@ -27,6 +28,7 @@ export async function resolveScopedCampaign(clientId: string, campaignId: string
     .select(
       `
         id,
+        external_id,
         name,
         status,
         objective,
@@ -59,6 +61,7 @@ export async function resolveScopedCampaign(clientId: string, campaignId: string
   const connection = data.client_meta_connections as any
   return {
     id: data.id,
+    external_id: data.external_id,
     name: data.name,
     status: data.status,
     objective: data.objective,

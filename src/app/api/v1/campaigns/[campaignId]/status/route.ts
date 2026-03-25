@@ -54,7 +54,8 @@ export async function PATCH(
       )
     }
 
-    const { response, data } = await callMetaCampaignUpdate(campaignId, campaign.connection.access_token, { status })
+    const metaCampaignId = campaign.external_id ?? campaign.id
+    const { response, data } = await callMetaCampaignUpdate(metaCampaignId, campaign.connection.access_token, { status })
     if (!response.ok || (data && typeof data === 'object' && 'error' in data)) {
       return createApiError(502, 'META_API_ERROR', 'Failed to update campaign status in Meta API', data)
     }
@@ -66,7 +67,7 @@ export async function PATCH(
         status,
         updated_time: new Date().toISOString()
       } as never)
-      .eq('id', campaignId)
+      .eq('id', campaign.id)
 
     return createApiSuccess(
       {

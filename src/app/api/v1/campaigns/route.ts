@@ -73,7 +73,6 @@ export async function GET(request: NextRequest) {
           stop_time,
           daily_budget,
           lifetime_budget,
-          account_id,
           connection_id,
           client_meta_connections!inner(
             client_id,
@@ -156,7 +155,7 @@ export async function GET(request: NextRequest) {
         name: campaign.name,
         status: campaign.status,
         objective: campaign.objective,
-        account_id: campaign.account_id,
+        account_id: campaign.client_meta_connections?.ad_account_id ?? null,
         account_name: campaign.client_meta_connections?.account_name ?? null,
         ad_account_id: campaign.client_meta_connections?.ad_account_id ?? null,
         daily_budget: campaign.daily_budget,
