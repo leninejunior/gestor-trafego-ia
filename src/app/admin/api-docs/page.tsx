@@ -23,6 +23,15 @@ const endpoints: EndpointDoc[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/clients/{client_id}/context',
+    permission: 'campaigns:read',
+    description:
+      'Contexto oficial do cliente (tom de voz, publico, ofertas, restricoes etc) para a IA entender com quem esta falando.',
+    curl: `curl -X GET \"$BASE_URL/api/v1/clients/$CLIENT_ID/context\" \\
+  -H \"Authorization: Bearer $API_KEY\"`
+  },
+  {
+    method: 'GET',
     path: '/api/v1/campaigns',
     permission: 'campaigns:read',
     description:
@@ -102,12 +111,20 @@ export default function AdminApiDocsPage() {
             Escopo obrigatorio: <code>client_id</code> deve pertencer a organizacao da API key.
           </p>
           <p>
+            Recomendacao operacional para agentes: consultar primeiro{' '}
+            <code>/api/v1/clients/{'{client_id}'}/context</code> e so depois executar comandos de campanha.
+          </p>
+          <p>
             Datas: quando <code>date_from</code> e <code>date_to</code> nao sao enviados, a API usa automaticamente o
             mes atual e retorna aviso em <code>meta.warnings</code>.
           </p>
           <p>
             Permissoes por chave: <code>balance:read</code>, <code>campaigns:read</code>, <code>campaigns:write</code>{' '}
             ou <code>*</code>.
+          </p>
+          <p>
+            Fallback sem tabela <code>api_keys</code>: configure <code>API_V1_FALLBACK_KEY</code>,{' '}
+            <code>API_V1_FALLBACK_ORGANIZATION_ID</code> e <code>API_V1_FALLBACK_PERMISSIONS</code> no ambiente.
           </p>
           <p>
             Observacao: <code>WHATSAPP_WEBHOOK_SECRET</code> e usado apenas nos webhooks WhatsApp/OpenClaw, nao na API
