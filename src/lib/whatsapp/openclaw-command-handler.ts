@@ -377,7 +377,7 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function extractClientIdHintFromPayload(payload: RawPayload): string | null {
+function extractClientIdentifierHintFromPayload(payload: RawPayload): string | null {
   const sources: unknown[] = [
     payload.client_id,
     payload.clientId,
@@ -428,12 +428,17 @@ function extractClientIdHintFromPayload(payload: RawPayload): string | null {
 
   for (const candidate of sources) {
     const parsed = asString(candidate);
-    if (parsed && isUuid(parsed)) {
+    if (parsed) {
       return parsed;
     }
   }
 
   return null;
+}
+
+function extractClientIdHintFromPayload(payload: RawPayload): string | null {
+  const identifier = extractClientIdentifierHintFromPayload(payload);
+  return identifier && isUuid(identifier) ? identifier : null;
 }
 
 function extractMetaAccountIdHintFromPayload(payload: RawPayload): string | null {
@@ -486,6 +491,32 @@ function extractGroupNameHintFromPayload(payload: RawPayload): string | null {
   return null;
 }
 
+function extractGroupAliasHintFromPayload(payload: RawPayload): string | null {
+  const direct = asString(payload.group_alias) ?? asString(payload.groupAlias);
+  if (direct) {
+    return direct;
+  }
+
+  if (payload.data && typeof payload.data === 'object') {
+    const data = payload.data as Record<string, unknown>;
+    const nested = asString(data.group_alias) ?? asString(data.groupAlias);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  return null;
+}
+
+function normalizeClientLookupValue(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
 async function clientExists(clientId: string): Promise<boolean> {
   const supabase = createServiceClient();
   const { data, error } = await supabase
@@ -499,6 +530,51 @@ async function clientExists(clientId: string): Promise<boolean> {
   }
 
   return Array.isArray(data) && data.length > 0;
+}
+
+async function resolveClientIdByNameHint(nameHint: string): Promise<string | null> {
+  const normalizedHint = normalizeClientLookupValue(nameHint);
+  if (!normalizedHint) {
+    return null;
+  }
+
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from('clients')
+    .select('id, name')
+    .limit(1000);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+  const matches = rows
+    .map((row) => {
+      if (!row || typeof row !== 'object') {
+        return null;
+      }
+
+      const candidate = row as { id?: unknown; name?: unknown };
+      const id = asString(candidate.id);
+      const name = asString(candidate.name);
+      if (!id || !name || !isUuid(id)) {
+        return null;
+      }
+
+      return {
+        id,
+        normalizedName: normalizeClientLookupValue(name)
+      };
+    })
+    .filter((row): row is { id: string; normalizedName: string } => row !== null)
+    .filter((row) => row.normalizedName === normalizedHint);
+
+  if (matches.length === 1) {
+    return matches[0].id;
+  }
+
+  return null;
 }
 
 function buildMetaAccountCandidates(metaAccountId: string): string[] {
@@ -546,12 +622,39 @@ async function resolveClientIdHint(payload: RawPayload): Promise<string | null> 
     return directClientId;
   }
 
-  const metaAccountId = extractMetaAccountIdHintFromPayload(payload);
-  if (!metaAccountId) {
-    return null;
+  const directIdentifier = extractClientIdentifierHintFromPayload(payload);
+  if (directIdentifier) {
+    const clientIdByName = await resolveClientIdByNameHint(directIdentifier);
+    if (clientIdByName) {
+      return clientIdByName;
+    }
   }
 
-  return resolveClientIdByMetaAccountId(metaAccountId);
+  const metaAccountId = extractMetaAccountIdHintFromPayload(payload);
+  if (metaAccountId) {
+    const clientIdByMetaAccount = await resolveClientIdByMetaAccountId(metaAccountId);
+    if (clientIdByMetaAccount) {
+      return clientIdByMetaAccount;
+    }
+  }
+
+  const groupAlias = extractGroupAliasHintFromPayload(payload);
+  if (groupAlias) {
+    const clientIdByGroupAlias = await resolveClientIdByNameHint(groupAlias);
+    if (clientIdByGroupAlias) {
+      return clientIdByGroupAlias;
+    }
+  }
+
+  const groupName = extractGroupNameHintFromPayload(payload);
+  if (groupName) {
+    const clientIdByGroupName = await resolveClientIdByNameHint(groupName);
+    if (clientIdByGroupName) {
+      return clientIdByGroupName;
+    }
+  }
+
+  return null;
 }
 
 async function tryAutoBindGroup(groupId: string, payload: RawPayload): Promise<GroupBindingRow | null> {

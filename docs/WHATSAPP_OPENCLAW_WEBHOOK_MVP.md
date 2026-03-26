@@ -15,6 +15,10 @@ If `WHATSAPP_WEBHOOK_SECRET` is set, send one of these headers:
 - `x-openclaw-secret: <secret>`
 - `Authorization: Bearer <secret>`
 
+Fallback:
+
+- `Authorization: Bearer sk_...` (active API key) is also accepted when secret does not match.
+
 ## Accepted Payload (MVP)
 
 Simple format:
@@ -66,7 +70,9 @@ Implemented compatibility:
 - `sender.jid` used for sender whitelist.
 - `intent` + `parameters` mapped to supported commands.
 - `client.id` (UUID) used for auto-bind.
+- `client.id` textual alias is accepted and resolved by `clients.name` (exact normalized match).
 - `client.meta_account_id` can resolve `client_id` through `client_meta_connections.ad_account_id` when `client.id` is absent.
+- `group_alias` / `group_name` can auto-resolve `client_id` by `clients.name` when `client.id` is absent.
 
 Intent mapping:
 
@@ -124,11 +130,12 @@ Without manual group registration:
 Accepted hint fields:
 
 - `client_id` or `clientId` at root.
-- `client.id` (UUID).
+- `client.id` (UUID or textual alias).
 - `context.client_id` / `context.clientId`.
 - `data.client_id` / `data.clientId`.
 - `metadata.client_id` / `metadata.clientId`.
 - `client.meta_account_id` (resolved by Meta account id).
+- `group_alias` / `group_name` (resolved by `clients.name`).
 
 Example:
 
