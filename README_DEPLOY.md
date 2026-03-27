@@ -31,6 +31,11 @@ Lista de comandos Ãºteis para deploy e manutenÃ§Ã£o.
 - Comandos Git
 - Troubleshooting
 
+### 5. **DEPLOY_VPS.md** (VPS Manual)
+Guia para publicar manualmente em `edith.engrene.com` via SSH.
+- Script pronto: `scripts/deploy-vps.ps1`
+- Reinicio por `pm2`, `systemd` ou `docker`
+
 ---
 
 ## âš¡ Deploy em 3 Comandos

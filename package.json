@@ -39,7 +39,8 @@
     "validate:google-ads-v22": "node scripts/validate-google-ads-v22.js",
     "test:google-config": "node scripts/test-google-ads-config.js",
     "test:google-oauth": "node scripts/test-oauth-flow-e2e.js",
-    "test:google-sync": "node scripts/test-sync-now.js"
+    "test:google-sync": "node scripts/test-sync-now.js",
+    "deploy:vps": "powershell -ExecutionPolicy Bypass -File .\\scripts\\deploy-vps.ps1"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
