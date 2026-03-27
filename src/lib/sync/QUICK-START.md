@@ -1,4 +1,4 @@
-# Quick Start Guide - Multi-Platform Sync Engine
+﻿# Quick Start Guide - Multi-Platform Sync Engine
 
 ## Setup
 
@@ -28,9 +28,9 @@ Ensure these tables exist (should be created by `database/historical-data-cache-
 - `sync_logs` - Tracks sync execution history
 - `campaign_insights_history` - Stores cached campaign data
 
-### 3. Vercel Cron Jobs
+### 3. plataforma de deploy Cron Jobs
 
-The cron jobs are automatically configured in `vercel.json`:
+The cron jobs are automatically configured in `deploy.json`:
 
 - **Sync Scheduler**: Every 5 minutes
 - **Sync Executor**: Every minute
@@ -79,7 +79,7 @@ console.log(`Duration: ${result.duration_ms}ms`);
 ### Check Queue Status
 
 ```bash
-curl -X POST https://your-app.vercel.app/api/cron/sync-executor \
+curl -X POST https://your-app.seu-dominio.com/api/cron/sync-executor \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"action": "status"}'
@@ -114,7 +114,7 @@ Response:
 ### Retry Failed Jobs
 
 ```bash
-curl -X POST https://your-app.vercel.app/api/cron/sync-executor \
+curl -X POST https://your-app.seu-dominio.com/api/cron/sync-executor \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"action": "retry_failed"}'
@@ -124,7 +124,7 @@ curl -X POST https://your-app.vercel.app/api/cron/sync-executor \
 
 ```bash
 # Cleanup specific client
-curl -X POST https://your-app.vercel.app/api/cron/data-cleanup \
+curl -X POST https://your-app.seu-dominio.com/api/cron/data-cleanup \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{
@@ -222,7 +222,7 @@ ORDER BY sc.updated_at DESC;
 
 ### Sync Not Running
 
-1. Check if cron jobs are configured in Vercel dashboard
+1. Check if cron jobs are configured in plataforma de deploy dashboard
 2. Verify `CRON_SECRET` is set in environment variables
 3. Check sync configuration status:
    ```sql
@@ -266,18 +266,18 @@ ORDER BY started_at DESC;
 
 ```bash
 # Check queue status
-curl -X POST https://your-app.vercel.app/api/cron/sync-executor \
+curl -X POST https://your-app.seu-dominio.com/api/cron/sync-executor \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"action": "status"}'
 
 # Stop and clear queue if needed
-curl -X POST https://your-app.vercel.app/api/cron/sync-executor \
+curl -X POST https://your-app.seu-dominio.com/api/cron/sync-executor \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"action": "stop"}'
 
-curl -X POST https://your-app.vercel.app/api/cron/sync-executor \
+curl -X POST https://your-app.seu-dominio.com/api/cron/sync-executor \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"action": "clear"}'
@@ -347,5 +347,6 @@ Set up alerts for:
 For issues or questions:
 1. Check the comprehensive documentation: `README-multi-platform-sync.md`
 2. Review sync logs in database
-3. Check Vercel function logs
+3. Check plataforma de deploy function logs
 4. Contact development team
+

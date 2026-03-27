@@ -1,28 +1,28 @@
-# Google Ads Logging and Monitoring System
+﻿# Google Ads Logging and Monitoring System
 
-Este documento descreve o sistema completo de logging e monitoring para a integração do Google Ads.
+Este documento descreve o sistema completo de logging e monitoring para a integraÃ§Ã£o do Google Ads.
 
 ## Componentes Principais
 
 ### 1. Logger Estruturado (`logger.ts`)
 
-O `GoogleAdsLogger` fornece logging estruturado para todas as operações do Google Ads:
+O `GoogleAdsLogger` fornece logging estruturado para todas as operaÃ§Ãµes do Google Ads:
 
 ```typescript
 import { googleAdsLogger } from '@/lib/google/logger';
 
-// Log de operações básicas
+// Log de operaÃ§Ãµes bÃ¡sicas
 googleAdsLogger.info('Operation completed', { clientId: 'abc123' });
 googleAdsLogger.error('API call failed', error, { connectionId: 'conn123' });
 
-// Log de eventos específicos
+// Log de eventos especÃ­ficos
 const requestId = googleAdsLogger.apiRequestStart('GET', '/campaigns');
 googleAdsLogger.apiRequestComplete(requestId, 200, 1500);
 
 const syncId = googleAdsLogger.syncStart('campaigns');
 googleAdsLogger.syncComplete(syncId, result, duration);
 
-// Log de autenticação
+// Log de autenticaÃ§Ã£o
 googleAdsLogger.authEvent('token_refresh', { connectionId: 'conn123' });
 
 // Log de performance
@@ -35,7 +35,7 @@ googleAdsLogger.performance('sync_campaigns', {
 
 ### 2. Monitor de Performance (`performance-monitor.ts`)
 
-O `GoogleAdsPerformanceMonitor` rastreia métricas de performance em tempo real:
+O `GoogleAdsPerformanceMonitor` rastreia mÃ©tricas de performance em tempo real:
 
 ```typescript
 import { googleAdsPerformanceMonitor } from '@/lib/google/performance-monitor';
@@ -47,7 +47,7 @@ const operationId = googleAdsPerformanceMonitor.startOperation(
   { clientId: 'abc123' }
 );
 
-// Atualizar métricas durante a operação
+// Atualizar mÃ©tricas durante a operaÃ§Ã£o
 googleAdsPerformanceMonitor.updateOperation(operationId, {
   recordsProcessed: 50,
   apiCalls: 5
@@ -59,27 +59,27 @@ await googleAdsPerformanceMonitor.finishOperation(operationId, {
   clientId: 'abc123'
 });
 
-// Obter estatísticas
+// Obter estatÃ­sticas
 const stats = await googleAdsPerformanceMonitor.getPerformanceStats('sync_campaigns', 24);
 ```
 
-### 3. Serviço de Monitoring (`monitoring.ts`)
+### 3. ServiÃ§o de Monitoring (`monitoring.ts`)
 
-O `GoogleAdsMonitoringService` coleta métricas agregadas e verifica alertas:
+O `GoogleAdsMonitoringService` coleta mÃ©tricas agregadas e verifica alertas:
 
 ```typescript
 import { googleAdsMonitoring } from '@/lib/google/monitoring';
 
-// Coletar métricas
+// Coletar mÃ©tricas
 const metrics = await googleAdsMonitoring.collectMetrics('24h');
 
 // Verificar alertas
 const alerts = await googleAdsMonitoring.checkAlerts();
 
-// Verificar saúde do sistema
+// Verificar saÃºde do sistema
 const health = await googleAdsMonitoring.getHealthStatus();
 
-// Armazenar métricas
+// Armazenar mÃ©tricas
 await googleAdsMonitoring.storeMetrics(metrics);
 ```
 
@@ -87,10 +87,10 @@ await googleAdsMonitoring.storeMetrics(metrics);
 
 ### Tabelas de Monitoring
 
-1. **`google_ads_metrics_history`** - Métricas agregadas por período
+1. **`google_ads_metrics_history`** - MÃ©tricas agregadas por perÃ­odo
 2. **`google_ads_alerts`** - Alertas ativos e resolvidos
 3. **`google_ads_performance_logs`** - Logs detalhados de performance
-4. **`google_ads_api_logs`** - Logs de requisições da API
+4. **`google_ads_api_logs`** - Logs de requisiÃ§Ãµes da API
 
 ### Aplicar Schema
 
@@ -100,26 +100,26 @@ node scripts/apply-google-monitoring-schema.js
 
 ## APIs de Monitoring
 
-### Métricas
-- `GET /api/google/monitoring/metrics` - Obter métricas atuais
-- `POST /api/google/monitoring/metrics` - Coletar métricas manualmente
+### MÃ©tricas
+- `GET /api/google/monitoring/metrics` - Obter mÃ©tricas atuais
+- `POST /api/google/monitoring/metrics` - Coletar mÃ©tricas manualmente
 
 ### Alertas
 - `GET /api/google/monitoring/alerts` - Listar alertas
 - `POST /api/google/monitoring/alerts` - Verificar alertas manualmente
 - `PATCH /api/google/monitoring/alerts` - Resolver/reativar alertas
 
-### Saúde do Sistema
-- `GET /api/google/monitoring/health` - Status de saúde do sistema
+### SaÃºde do Sistema
+- `GET /api/google/monitoring/health` - Status de saÃºde do sistema
 
 ## Cron Jobs
 
-### Monitoring Automático
-- **Frequência**: A cada 15 minutos
+### Monitoring AutomÃ¡tico
+- **FrequÃªncia**: A cada 15 minutos
 - **Endpoint**: `/api/cron/google-monitoring`
-- **Função**: Coleta métricas e verifica alertas
+- **FunÃ§Ã£o**: Coleta mÃ©tricas e verifica alertas
 
-### Configuração Vercel
+### ConfiguraÃ§Ã£o plataforma de deploy
 ```json
 {
   "crons": [
@@ -141,75 +141,75 @@ import { GoogleAdsMonitoringDashboard } from '@/components/google/monitoring-das
 <GoogleAdsMonitoringDashboard />
 ```
 
-### Página do Dashboard
+### PÃ¡gina do Dashboard
 - **URL**: `/dashboard/google/monitoring`
 - **Funcionalidades**:
-  - Status de saúde do sistema
-  - Métricas de performance
+  - Status de saÃºde do sistema
+  - MÃ©tricas de performance
   - Alertas ativos
-  - Estatísticas de operações
+  - EstatÃ­sticas de operaÃ§Ãµes
 
 ## Tipos de Alertas
 
 ### 1. Error Rate (`error_rate`)
 - **Threshold**: 10% de taxa de erro
 - **Severidade**: High/Critical
-- **Ação**: Investigar logs de erro
+- **AÃ§Ã£o**: Investigar logs de erro
 
 ### 2. Sync Failure (`sync_failure`)
 - **Threshold**: 20% de falhas de sync
 - **Severidade**: High/Critical
-- **Ação**: Verificar conexões e tokens
+- **AÃ§Ã£o**: Verificar conexÃµes e tokens
 
 ### 3. Token Expiry (`token_expiry`)
 - **Threshold**: Tokens expirados detectados
 - **Severidade**: Medium
-- **Ação**: Renovar tokens OAuth
+- **AÃ§Ã£o**: Renovar tokens OAuth
 
 ### 4. Rate Limit (`rate_limit`)
 - **Threshold**: Muitos hits de rate limit
 - **Severidade**: Medium/High
-- **Ação**: Implementar backoff mais agressivo
+- **AÃ§Ã£o**: Implementar backoff mais agressivo
 
 ### 5. Performance (`performance`)
-- **Threshold**: Operações muito lentas
+- **Threshold**: OperaÃ§Ãµes muito lentas
 - **Severidade**: Medium
-- **Ação**: Otimizar queries e operações
+- **AÃ§Ã£o**: Otimizar queries e operaÃ§Ãµes
 
-## Integração com Serviços
+## IntegraÃ§Ã£o com ServiÃ§os
 
 ### Sync Service
-O sistema de monitoring está integrado automaticamente no `GoogleAdsSyncService`:
+O sistema de monitoring estÃ¡ integrado automaticamente no `GoogleAdsSyncService`:
 
 ```typescript
-// Performance monitoring é iniciado automaticamente
+// Performance monitoring Ã© iniciado automaticamente
 const result = await syncService.syncCampaigns(options);
 
-// Métricas são coletadas e armazenadas
-// Alertas são verificados após cada sync
+// MÃ©tricas sÃ£o coletadas e armazenadas
+// Alertas sÃ£o verificados apÃ³s cada sync
 ```
 
 ### Error Handler
-Erros são automaticamente categorizados e podem gerar alertas:
+Erros sÃ£o automaticamente categorizados e podem gerar alertas:
 
 ```typescript
-// Erros críticos geram alertas automaticamente
+// Erros crÃ­ticos geram alertas automaticamente
 googleAdsLogger.error('Critical sync failure', error, context);
 ```
 
-## Configuração de Ambiente
+## ConfiguraÃ§Ã£o de Ambiente
 
-### Variáveis Necessárias
+### VariÃ¡veis NecessÃ¡rias
 ```env
 # Para cron jobs
 CRON_SECRET=your-secret-key
 
-# Supabase (já existentes)
+# Supabase (jÃ¡ existentes)
 NEXT_PUBLIC_SUPABASE_URL=your-url
 SUPABASE_SERVICE_ROLE_KEY=your-key
 ```
 
-## Thresholds Configuráveis
+## Thresholds ConfigurÃ¡veis
 
 ### Performance Monitor
 ```typescript
@@ -232,52 +232,52 @@ const alertThresholds = {
 };
 ```
 
-## Retenção de Dados
+## RetenÃ§Ã£o de Dados
 
-### Políticas Automáticas
-- **Métricas históricas**: 90 dias
+### PolÃ­ticas AutomÃ¡ticas
+- **MÃ©tricas histÃ³ricas**: 90 dias
 - **Logs de performance**: 30 dias
 - **Logs de API**: 30 dias
 - **Alertas resolvidos**: 30 dias
 
-### Limpeza Automática
-Executada diariamente às 2:00 AM via cron job.
+### Limpeza AutomÃ¡tica
+Executada diariamente Ã s 2:00 AM via cron job.
 
 ## Troubleshooting
 
-### Logs Não Aparecem
+### Logs NÃ£o Aparecem
 1. Verificar se as tabelas de monitoring existem
-2. Verificar permissões RLS
-3. Verificar se o service role está configurado
+2. Verificar permissÃµes RLS
+3. Verificar se o service role estÃ¡ configurado
 
-### Alertas Não Funcionam
+### Alertas NÃ£o Funcionam
 1. Verificar thresholds de alerta
-2. Verificar se há dados suficientes para análise
+2. Verificar se hÃ¡ dados suficientes para anÃ¡lise
 3. Verificar logs do cron job
 
 ### Performance Lenta
-1. Verificar índices do banco de dados
-2. Verificar retenção de dados
-3. Executar limpeza manual se necessário
+1. Verificar Ã­ndices do banco de dados
+2. Verificar retenÃ§Ã£o de dados
+3. Executar limpeza manual se necessÃ¡rio
 
-## Próximos Passos
+## PrÃ³ximos Passos
 
-1. **Integração com Serviços Externos**:
+1. **IntegraÃ§Ã£o com ServiÃ§os Externos**:
    - Slack/Discord para alertas
-   - Datadog/New Relic para métricas
-   - PagerDuty para incidentes críticos
+   - Datadog/New Relic para mÃ©tricas
+   - PagerDuty para incidentes crÃ­ticos
 
-2. **Dashboard Avançado**:
-   - Gráficos de tendência
-   - Comparação histórica
+2. **Dashboard AvanÃ§ado**:
+   - GrÃ¡ficos de tendÃªncia
+   - ComparaÃ§Ã£o histÃ³rica
    - Drill-down por cliente
 
 3. **Alertas Inteligentes**:
-   - Machine learning para detecção de anomalias
+   - Machine learning para detecÃ§Ã£o de anomalias
    - Alertas preditivos
-   - Auto-resolução de problemas comuns
+   - Auto-resoluÃ§Ã£o de problemas comuns
 
-4. **Otimizações**:
-   - Cache de métricas
-   - Agregações em tempo real
-   - Compressão de dados históricos
+4. **OtimizaÃ§Ãµes**:
+   - Cache de mÃ©tricas
+   - AgregaÃ§Ãµes em tempo real
+   - CompressÃ£o de dados histÃ³ricos

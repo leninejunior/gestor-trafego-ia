@@ -9,10 +9,12 @@ import {
   SyncConfig,
   SyncResult,
   DateRange,
+  Campaign,
   CampaignInsight
 } from '@/lib/types/sync';
 import { BaseSyncAdapter } from './base-sync-adapter';
 import { GoogleAdsSyncAdapter } from './google-ads-sync-adapter';
+import { MetaAdsSyncAdapter } from './meta-ads-sync-adapter';
 import { HistoricalDataRepository } from '@/lib/repositories/historical-data-repository';
 import { PlanConfigurationService } from '@/lib/services/plan-configuration-service';
 import { createClient } from '@/lib/supabase/server';
@@ -57,7 +59,9 @@ export class MultiPlatformSyncEngine {
       }
       return new GoogleAdsSyncAdapter(config, developerToken);
     });
-    // Meta adapter will be registered when implemented
+    this.registerAdapter(AdPlatform.META, (config: SyncConfig) => {
+      return new MetaAdsSyncAdapter(config);
+    });
   }
 
   /**
@@ -155,28 +159,17 @@ export class MultiPlatformSyncEngine {
         planLimits?.data_retention_days || 90
       );
 
-      // Fetch and store insights for each campaign
-      const allInsights: CampaignInsight[] = [];
-
-      for (const campaign of campaigns) {
-        try {
-          const insights = await adapter.fetchInsights(
-            campaign.id,
-            dateRange
-          );
-          allInsights.push(...insights);
-        } catch (err) {
-          console.error(
-            `Failed to fetch insights for campaign ${campaign.id}:`,
-            err
-          );
-          recordsFailed++;
-        }
-      }
+      // Fetch and store insights for each campaign using bounded concurrency
+      const syncData = await this.fetchInsightsForCampaigns(
+        adapter,
+        campaigns,
+        dateRange
+      );
+      recordsFailed += syncData.failed;
 
       // Store insights in batch
-      if (allInsights.length > 0) {
-        recordsSynced = await this.repository.storeInsights(allInsights);
+      if (syncData.insights.length > 0) {
+        recordsSynced = await this.repository.storeInsights(syncData.insights);
       }
 
       // Update sync configuration
@@ -233,6 +226,51 @@ export class MultiPlatformSyncEngine {
       duration_ms: durationMs,
       error
     };
+  }
+
+  /**
+   * Fetch insights for campaigns with bounded concurrency.
+   * Improves sync throughput while avoiding unbounded parallel requests.
+   */
+  private async fetchInsightsForCampaigns(
+    adapter: BaseSyncAdapter,
+    campaigns: Campaign[],
+    dateRange: DateRange
+  ): Promise<{ insights: CampaignInsight[]; failed: number }> {
+    const allInsights: CampaignInsight[] = [];
+    let failed = 0;
+    const maxConcurrency = 5;
+
+    for (let i = 0; i < campaigns.length; i += maxConcurrency) {
+      const batch = campaigns.slice(i, i + maxConcurrency);
+
+      const batchResults = await Promise.all(
+        batch.map(async campaign => {
+          try {
+            const insights = await adapter.fetchInsights(
+              campaign.id,
+              dateRange
+            );
+            return { insights, failed: false };
+          } catch (err) {
+            console.error(
+              `Failed to fetch insights for campaign ${campaign.id}:`,
+              err
+            );
+            return { insights: [] as CampaignInsight[], failed: true };
+          }
+        })
+      );
+
+      for (const result of batchResults) {
+        allInsights.push(...result.insights);
+        if (result.failed) {
+          failed++;
+        }
+      }
+    }
+
+    return { insights: allInsights, failed };
   }
 
   /**

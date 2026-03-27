@@ -1,0 +1,67 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Consultar Status de Pagamento" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Informe seu email ou CPF para consultar o status dos seus pagamentos
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - heading "Buscar Pagamentos" [level=3] [ref=e9]:
+          - img [ref=e10]
+          - text: Buscar Pagamentos
+        - paragraph [ref=e13]: Escolha o tipo de busca e informe os dados para consultar
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - button "Por Email" [ref=e17] [cursor=pointer]:
+            - img
+            - text: Por Email
+          - button "Por CPF" [ref=e18] [cursor=pointer]:
+            - img
+            - text: Por CPF
+        - generic [ref=e19]:
+          - text: Email
+          - textbox "Email" [ref=e20]:
+            - /placeholder: seu@email.com
+        - button "Buscar Pagamentos" [ref=e21] [cursor=pointer]:
+          - img
+          - text: Buscar Pagamentos
+    - generic [ref=e22]:
+      - heading "Precisa de Ajuda?" [level=3] [ref=e24]
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - generic [ref=e27]:
+            - heading "Status dos Pagamentos" [level=4] [ref=e28]
+            - list [ref=e29]:
+              - listitem [ref=e30]:
+                - text: •
+                - strong [ref=e31]: "Aguardando:"
+                - text: Pagamento ainda não processado
+              - listitem [ref=e32]:
+                - text: •
+                - strong [ref=e33]: "Processando:"
+                - text: Confirmando o pagamento
+              - listitem [ref=e34]:
+                - text: •
+                - strong [ref=e35]: "Confirmado:"
+                - text: Pagamento aprovado e assinatura ativa
+              - listitem [ref=e36]:
+                - text: •
+                - strong [ref=e37]: "Falhou:"
+                - text: Problema com o pagamento
+              - listitem [ref=e38]:
+                - text: •
+                - strong [ref=e39]: "Expirado:"
+                - text: Link de pagamento vencido
+          - generic [ref=e40]:
+            - heading "Dúvidas Frequentes" [level=4] [ref=e41]
+            - list [ref=e42]:
+              - listitem [ref=e43]: • Pagamentos podem levar até 24h para processar
+              - listitem [ref=e44]: • Você receberá email de confirmação quando aprovado
+              - listitem [ref=e45]: • Links de pagamento expiram em 7 dias
+              - listitem [ref=e46]: • Entre em contato se precisar de ajuda
+        - button "Fazer Novo Checkout" [ref=e48] [cursor=pointer]
+  - region "Notifications alt+T"
+  - alert [ref=e49]
+```

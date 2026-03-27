@@ -7,7 +7,7 @@
  * - Notificações in-app
  */
 
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 
 interface PushSubscription {
   endpoint: string
@@ -38,11 +38,16 @@ interface EmailTemplate {
 }
 
 export class PushService {
-  private supabase = createClient()
+  private supabase = createServiceClient()
   private vapidKeys = {
     publicKey: process.env.VAPID_PUBLIC_KEY || '',
     privateKey: process.env.VAPID_PRIVATE_KEY || '',
     subject: process.env.VAPID_SUBJECT || 'mailto:admin@yourapp.com'
+  }
+
+  private async loadOptionalModule<T = unknown>(specifier: string): Promise<T> {
+    const dynamicImport = new Function('modulePath', 'return import(modulePath)') as (modulePath: string) => Promise<T>
+    return dynamicImport(specifier)
   }
 
   /**
@@ -194,7 +199,7 @@ export class PushService {
     data?: Record<string, any>
   ): Promise<boolean> {
     try {
-      const { Resend } = await import('resend')
+      const { Resend } = await this.loadOptionalModule<{ Resend: new (apiKey?: string) => any }>('resend')
       const resend = new Resend(process.env.RESEND_API_KEY)
 
       // Substituir variáveis no template
@@ -234,8 +239,9 @@ export class PushService {
     message: string
   ): Promise<boolean> {
     try {
-      const twilio = await import('twilio')
-      const client = twilio.default(
+      const twilioModule = await this.loadOptionalModule<any>('twilio')
+      const twilioFactory = twilioModule.default || twilioModule
+      const client = twilioFactory(
         process.env.TWILIO_ACCOUNT_SID,
         process.env.TWILIO_AUTH_TOKEN
       )
@@ -257,6 +263,7 @@ export class PushService {
    * Cria conexão Server-Sent Events para notificações em tempo real
    */
   createSSEConnection(userId: string, organizationId: string): ReadableStream {
+    const supabase = this.supabase
     return new ReadableStream({
       start(controller) {
         // Configurar heartbeat
@@ -265,7 +272,7 @@ export class PushService {
         }, 30000)
 
         // Escutar notificações do Supabase
-        const channel = this.supabase
+        const channel = supabase
           .channel(`notifications:${organizationId}`)
           .on(
             'postgres_changes',

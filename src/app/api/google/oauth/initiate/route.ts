@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { google } from 'googleapis';
 import { createClient } from '@/lib/supabase/server';
+import { getCanonicalGoogleRedirectUri } from '@/lib/google/redirect-uri';
 
 export async function GET(request: NextRequest) {
   const timestamp = new Date().toISOString();
@@ -88,10 +89,12 @@ export async function GET(request: NextRequest) {
     console.log('[Google OAuth Initiate] ✅ STATE SALVO NO BANCO:', savedState.id);
 
     // Configurar OAuth2 client
+    const redirectUri = getCanonicalGoogleRedirectUri();
+
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/google/callback`
+      redirectUri
     );
 
     const scopes = [
@@ -107,6 +110,7 @@ export async function GET(request: NextRequest) {
     });
 
     console.log('[Google OAuth Initiate] ✅ URL GERADA');
+    console.log('[Google OAuth Initiate] - Redirect URI usado:', new URL(authorizationUrl).searchParams.get('redirect_uri'));
     console.log('[Google OAuth Initiate] 🎯 REDIRECIONANDO PARA GOOGLE...');
     console.log('='.repeat(100));
 

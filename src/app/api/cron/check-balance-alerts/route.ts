@@ -2,7 +2,7 @@
  * Cron Job: Verificar Alertas de Saldo
  * Executa 1x por dia para verificar saldos e disparar alertas
  * 
- * Configurar no Vercel:
+ * Configurar no serviço de agendamento:
  * - Path: /api/cron/check-balance-alerts
  * - Schedule: 0 2 * * * (diariamente às 2h AM UTC)
  * 
@@ -17,7 +17,7 @@ export const maxDuration = 300 // 5 minutos
 
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autorização (Vercel Cron ou chave de API)
+    // Verificar autorização (cron service ou chave de API)
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
 

@@ -99,11 +99,23 @@ export async function requireApiKey(
 
 export async function validateClientScope(clientId: string, organizationId: string) {
   const supabase = createServiceClient()
-  const { data: client, error } = await supabase
+  let { data: client, error } = await supabase
     .from('clients')
     .select('id, name, organization_id')
     .eq('id', clientId)
     .maybeSingle()
+
+  // Legacy schema compatibility: some environments still use clients.org_id.
+  if (error && error.code === '42703') {
+    const fallback = await supabase
+      .from('clients')
+      .select('id, name, org_id')
+      .eq('id', clientId)
+      .maybeSingle()
+
+    client = fallback.data as typeof client
+    error = fallback.error
+  }
 
   if (error) {
     throw error
@@ -116,7 +128,19 @@ export async function validateClientScope(clientId: string, organizationId: stri
     }
   }
 
-  if (client.organization_id !== organizationId) {
+  const clientOrganizationId =
+    (client as { organization_id?: string | null }).organization_id ??
+    (client as { org_id?: string | null }).org_id ??
+    null
+
+  if (!clientOrganizationId) {
+    return {
+      ok: false as const,
+      response: createApiError(500, 'CLIENT_ORG_NOT_FOUND', 'Client organization scope is not configured')
+    }
+  }
+
+  if (clientOrganizationId !== organizationId) {
     return {
       ok: false as const,
       response: createApiError(403, 'CLIENT_SCOPE_DENIED', 'Client does not belong to API key organization')

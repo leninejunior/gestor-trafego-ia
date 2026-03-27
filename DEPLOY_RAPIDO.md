@@ -1,7 +1,7 @@
-# 🚀 Deploy Rápido - Guia de 5 Minutos
+﻿# ðŸš€ Deploy RÃ¡pido - Guia de 5 Minutos
 
-## Pré-requisitos
-- Conta Vercel
+## PrÃ©-requisitos
+- Conta plataforma de deploy
 - Projeto Supabase configurado
 - Meta Developer App criado
 
@@ -19,29 +19,29 @@ Se passar, continue. Se falhar, corrija os erros.
 2. Copie e execute: `database/complete-schema.sql`
 3. Copie e execute: `database/google-ads-schema.sql` (se usar Google Ads)
 
-## Passo 3: Deploy na Vercel (2 minutos)
+## Passo 3: Deploy na plataforma de deploy (2 minutos)
 
 ### Via CLI:
 ```bash
-# Instalar Vercel CLI (se não tiver)
-npm install -g vercel
+# Instalar plataforma de deploy CLI (se nÃ£o tiver)
+npm install -g deploy
 
 # Login
-vercel login
+deploy login
 
 # Deploy
-vercel --prod
+deploy --prod
 ```
 
 ### Via Dashboard:
-1. Acesse: https://vercel.com/new
-2. Importe seu repositório
-3. Configure variáveis de ambiente (veja abaixo)
+1. Acesse: https://provedor-deploy.com/new
+2. Importe seu repositÃ³rio
+3. Configure variÃ¡veis de ambiente (veja abaixo)
 4. Clique em "Deploy"
 
-## Passo 4: Configurar Variáveis de Ambiente (1 minuto)
+## Passo 4: Configurar VariÃ¡veis de Ambiente (1 minuto)
 
-No Vercel Dashboard > Settings > Environment Variables, adicione:
+No plataforma de deploy Dashboard > Settings > Environment Variables, adicione:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
@@ -49,7 +49,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anon
 SUPABASE_SERVICE_ROLE_KEY=sua_chave_service_role
 META_APP_ID=seu_meta_app_id
 META_APP_SECRET=seu_meta_app_secret
-NEXT_PUBLIC_APP_URL=https://seu-app.vercel.app
+NEXT_PUBLIC_APP_URL=https://seu-app.seu-dominio.com
 ```
 
 **Google Ads (opcional):**
@@ -67,8 +67,8 @@ https://developers.facebook.com/apps/SEU_APP/fb-login/settings/
 
 **Valid OAuth Redirect URIs:**
 ```
-https://seu-app.vercel.app/meta/callback
-https://seu-app.vercel.app/api/meta/callback
+https://seu-app.seu-dominio.com/meta/callback
+https://seu-app.seu-dominio.com/api/meta/callback
 ```
 
 ### Google Cloud Console (se usar):
@@ -76,27 +76,28 @@ https://console.cloud.google.com/apis/credentials
 
 **Authorized redirect URIs:**
 ```
-https://seu-app.vercel.app/google/callback
-https://seu-app.vercel.app/api/google/callback
+https://seu-app.seu-dominio.com/google/callback
+https://seu-app.seu-dominio.com/api/google/callback
 ```
 
-## ✅ Pronto!
+## âœ… Pronto!
 
-Acesse: `https://seu-app.vercel.app`
+Acesse: `https://seu-app.seu-dominio.com`
 
-### Teste Rápido:
-1. Faça login
+### Teste RÃ¡pido:
+1. FaÃ§a login
 2. Crie um cliente
 3. Conecte uma conta Meta/Google
 4. Verifique se campanhas aparecem
 
 ---
 
-## 🆘 Problemas?
+## ðŸ†˜ Problemas?
 
 Consulte: `DEPLOY_PRODUCAO.md` para guia completo
 
 **Erros comuns:**
-- "Failed to fetch" → Verificar callbacks
-- "Database error" → Verificar credenciais Supabase
-- "RLS policy" → Executar `database/fix-rls-policies.sql`
+- "Failed to fetch" â†’ Verificar callbacks
+- "Database error" â†’ Verificar credenciais Supabase
+- "RLS policy" â†’ Executar `database/fix-rls-policies.sql`
+

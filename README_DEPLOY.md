@@ -1,63 +1,63 @@
-# 🚀 Deploy em Produção - Início Rápido
+﻿# ðŸš€ Deploy em ProduÃ§Ã£o - InÃ­cio RÃ¡pido
 
-## 📚 Documentação Disponível
+## ðŸ“š DocumentaÃ§Ã£o DisponÃ­vel
 
-Escolha o guia adequado ao seu tempo e experiência:
+Escolha o guia adequado ao seu tempo e experiÃªncia:
 
-### 1. **DEPLOY_RAPIDO.md** ⚡ (5 minutos)
-Para quem já conhece Vercel e quer deploy rápido.
+### 1. **DEPLOY_RAPIDO.md** âš¡ (5 minutos)
+Para quem jÃ¡ conhece plataforma de deploy e quer deploy rÃ¡pido.
 ```bash
 # Verificar e fazer deploy
 node scripts\pre-deploy-check.js
-vercel --prod
+deploy --prod
 ```
 
-### 2. **DEPLOY_PRODUCAO.md** 📖 (20 minutos)
+### 2. **DEPLOY_PRODUCAO.md** ðŸ“– (20 minutos)
 Guia completo passo a passo com troubleshooting.
-- Preparação do banco de dados
-- Configuração detalhada
-- Testes de produção
+- PreparaÃ§Ã£o do banco de dados
+- ConfiguraÃ§Ã£o detalhada
+- Testes de produÃ§Ã£o
 - Monitoramento
 
-### 3. **DEPLOY_SUMMARY.md** 📊 (Leitura)
+### 3. **DEPLOY_SUMMARY.md** ðŸ“Š (Leitura)
 Resumo executivo do que foi preparado.
 - Status do sistema
-- Checklist de prontidão
-- Métricas de sucesso
+- Checklist de prontidÃ£o
+- MÃ©tricas de sucesso
 
-### 4. **COMANDOS_DEPLOY.md** 🛠️ (Referência)
-Lista de comandos úteis para deploy e manutenção.
-- Comandos Vercel
+### 4. **COMANDOS_DEPLOY.md** ðŸ› ï¸ (ReferÃªncia)
+Lista de comandos Ãºteis para deploy e manutenÃ§Ã£o.
+- Comandos plataforma de deploy
 - Comandos Git
 - Troubleshooting
 
 ---
 
-## ⚡ Deploy em 3 Comandos
+## âš¡ Deploy em 3 Comandos
 
-Se você já tem tudo configurado:
+Se vocÃª jÃ¡ tem tudo configurado:
 
 ```bash
 # 1. Verificar
 node scripts\pre-deploy-check.js
 
 # 2. Deploy
-vercel --prod
+deploy --prod
 
 # 3. Verificar logs
-vercel logs --follow
+deploy logs --follow
 ```
 
 ---
 
-## 🎯 Primeira Vez? Siga Esta Ordem
+## ðŸŽ¯ Primeira Vez? Siga Esta Ordem
 
-### Passo 1: Preparação (5 min)
-1. Crie conta na [Vercel](https://vercel.com)
+### Passo 1: PreparaÃ§Ã£o (5 min)
+1. Crie conta na [plataforma de deploy](https://provedor-deploy.com)
 2. Tenha seu projeto [Supabase](https://supabase.com) pronto
 3. Configure [Meta Developer App](https://developers.facebook.com)
 
-### Passo 2: Verificação (1 min)
+### Passo 2: VerificaÃ§Ã£o (1 min)
 ```bash
 node scripts\pre-deploy-check.js
 ```
@@ -69,34 +69,34 @@ Acesse Supabase SQL Editor e execute:
 
 ### Passo 4: Deploy (2 min)
 ```bash
-vercel login
-vercel --prod
+deploy login
+deploy --prod
 ```
 
-### Passo 5: Configuração (5 min)
-1. Configure variáveis de ambiente na Vercel
+### Passo 5: ConfiguraÃ§Ã£o (5 min)
+1. Configure variÃ¡veis de ambiente na plataforma de deploy
 2. Configure callbacks no Meta/Google Console
-3. Teste a aplicação
+3. Teste a aplicaÃ§Ã£o
 
 **Guia detalhado:** `DEPLOY_RAPIDO.md`
 
 ---
 
-## 📋 Checklist Mínimo
+## ðŸ“‹ Checklist MÃ­nimo
 
 Antes de fazer deploy, certifique-se:
 
 - [ ] Projeto Supabase criado e configurado
 - [ ] Meta Developer App criado
 - [ ] Schemas aplicados no Supabase
-- [ ] Variáveis de ambiente preparadas
+- [ ] VariÃ¡veis de ambiente preparadas
 - [ ] Pre-deploy check passou
 
 ---
 
-## 🔑 Variáveis de Ambiente Obrigatórias
+## ðŸ”‘ VariÃ¡veis de Ambiente ObrigatÃ³rias
 
-Configure na Vercel Dashboard > Settings > Environment Variables:
+Configure na plataforma de deploy Dashboard > Settings > Environment Variables:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
@@ -104,56 +104,58 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=xxx
 SUPABASE_SERVICE_ROLE_KEY=xxx
 META_APP_ID=xxx
 META_APP_SECRET=xxx
-NEXT_PUBLIC_APP_URL=https://seu-app.vercel.app
+NEXT_PUBLIC_APP_URL=https://seu-app.seu-dominio.com
+CRON_SECRET=xxx
 ```
 
 **Template completo:** `.env.production.example`
 
 ---
 
-## 🆘 Problemas Comuns
+## ðŸ†˜ Problemas Comuns
 
 ### "Failed to fetch"
-→ Verificar callbacks no Meta/Google Console
+â†’ Verificar callbacks no Meta/Google Console
 
 ### "Database error"
-→ Verificar credenciais Supabase
+â†’ Verificar credenciais Supabase
 
 ### "RLS policy violation"
-→ Executar `database/fix-rls-policies.sql`
+â†’ Executar `database/fix-rls-policies.sql`
 
 ### Build falha
-→ Verificar logs: `vercel logs --build`
+â†’ Verificar logs: `deploy logs --build`
 
-**Troubleshooting completo:** `DEPLOY_PRODUCAO.md` seção "Troubleshooting"
+**Troubleshooting completo:** `DEPLOY_PRODUCAO.md` seÃ§Ã£o "Troubleshooting"
 
 ---
 
-## 📞 Onde Buscar Ajuda
+## ðŸ“ž Onde Buscar Ajuda
 
-1. **Documentação de Deploy:**
-   - `DEPLOY_RAPIDO.md` - Guia rápido
+1. **DocumentaÃ§Ã£o de Deploy:**
+   - `DEPLOY_RAPIDO.md` - Guia rÃ¡pido
    - `DEPLOY_PRODUCAO.md` - Guia completo
-   - `COMANDOS_DEPLOY.md` - Referência de comandos
+   - `COMANDOS_DEPLOY.md` - ReferÃªncia de comandos
 
-2. **Documentação de Integrações:**
+2. **DocumentaÃ§Ã£o de IntegraÃ§Ãµes:**
    - `docs/META_INTEGRATION.md` - Meta Ads
    - `GOOGLE_ADS_CONNECTION_FIX_DOCUMENTATION.md` - Google Ads
 
 3. **Logs:**
-   - Vercel: `vercel logs --follow`
+   - plataforma de deploy: `deploy logs --follow`
    - Supabase: Dashboard > Logs
 
 ---
 
-## ✅ Sistema Está Pronto!
+## âœ… Sistema EstÃ¡ Pronto!
 
-Todos os componentes foram testados e documentados. O sistema está 100% pronto para deploy em produção.
+Todos os componentes foram testados e documentados. O sistema estÃ¡ 100% pronto para deploy em produÃ§Ã£o.
 
-**Próxima ação:** Escolha um guia acima e comece o deploy!
+**PrÃ³xima aÃ§Ã£o:** Escolha um guia acima e comece o deploy!
 
 ---
 
-**Versão:** 0.1.1  
-**Última atualização:** 2025-11-27  
+**VersÃ£o:** 0.1.1  
+**Ãšltima atualizaÃ§Ã£o:** 2025-11-27  
 **Preparado por:** Kiro AI
+

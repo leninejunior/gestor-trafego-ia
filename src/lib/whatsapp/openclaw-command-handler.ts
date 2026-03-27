@@ -28,6 +28,38 @@ type InsightRow = {
   spend: string | number | null;
 };
 
+type BalanceRow = {
+  ad_account_id: string | null;
+  ad_account_name: string | null;
+  currency: string | null;
+  balance: string | number | null;
+  daily_spend: string | number | null;
+  spend_cap: string | number | null;
+  status: string | null;
+  last_checked_at: string | null;
+};
+
+type ClientBalanceSnapshot = {
+  totalAccounts: number;
+  totalBalance: number;
+  totalDailySpend: number;
+  criticalAccounts: number;
+  warningAccounts: number;
+  healthyAccounts: number;
+  currency: string;
+  lastCheckedAt: string | null;
+  accounts: Array<{
+    adAccountId: string;
+    adAccountName: string | null;
+    currency: string;
+    balance: number;
+    dailySpend: number;
+    spendCap: number;
+    status: string;
+    lastCheckedAt: string | null;
+  }>;
+};
+
 type IncomingMessage = {
   groupId: string;
   senderId: string;
@@ -53,6 +85,7 @@ export type WhatsAppWebhookResult = {
   replyText: string;
   reason?: string;
   campaignId?: string;
+  accountBalance?: ClientBalanceSnapshot;
 };
 
 function asString(value: unknown): string | null {
@@ -335,8 +368,13 @@ function isMissingRelationError(error: unknown): boolean {
   return msg.includes('relation') && msg.includes('does not exist');
 }
 
+function formatCurrency(value: number, currency = 'BRL'): string {
+  const normalizedCurrency = /^[A-Z]{3}$/.test(currency) ? currency : 'BRL';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: normalizedCurrency }).format(value);
+}
+
 function formatCurrencyBRL(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  return formatCurrency(value, 'BRL');
 }
 
 async function writeAuditLog(payload: {
@@ -829,6 +867,81 @@ async function getCampaignInsightsSummary(clientId: string): Promise<{
   };
 }
 
+async function getClientBalanceSnapshot(clientId: string): Promise<ClientBalanceSnapshot> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from('ad_account_balances')
+    .select('ad_account_id, ad_account_name, currency, balance, daily_spend, spend_cap, status, last_checked_at')
+    .eq('client_id', clientId)
+    .order('balance', { ascending: true })
+    .limit(50);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const rows = (Array.isArray(data) ? data : []) as BalanceRow[];
+  const accounts = rows
+    .map((row) => {
+      const adAccountId = asString(row.ad_account_id);
+      if (!adAccountId) {
+        return null;
+      }
+
+      const currency = asString(row.currency)?.toUpperCase() ?? 'BRL';
+      return {
+        adAccountId,
+        adAccountName: asString(row.ad_account_name),
+        currency,
+        balance: Number(toNumber(row.balance).toFixed(2)),
+        dailySpend: Number(toNumber(row.daily_spend).toFixed(2)),
+        spendCap: Number(toNumber(row.spend_cap).toFixed(2)),
+        status: asString(row.status)?.toLowerCase() ?? 'unknown',
+        lastCheckedAt: asString(row.last_checked_at)
+      };
+    })
+    .filter(
+      (
+        row
+      ): row is {
+        adAccountId: string;
+        adAccountName: string | null;
+        currency: string;
+        balance: number;
+        dailySpend: number;
+        spendCap: number;
+        status: string;
+        lastCheckedAt: string | null;
+      } => row !== null
+    );
+
+  const currency = accounts[0]?.currency ?? 'BRL';
+
+  return {
+    totalAccounts: accounts.length,
+    totalBalance: Number(accounts.reduce((acc, row) => acc + row.balance, 0).toFixed(2)),
+    totalDailySpend: Number(accounts.reduce((acc, row) => acc + row.dailySpend, 0).toFixed(2)),
+    criticalAccounts: accounts.filter((row) => row.status === 'critical').length,
+    warningAccounts: accounts.filter((row) => row.status === 'warning').length,
+    healthyAccounts: accounts.filter((row) => row.status === 'healthy').length,
+    currency,
+    lastCheckedAt: accounts[0]?.lastCheckedAt ?? null,
+    accounts
+  };
+}
+
+function buildBalanceSummaryLines(balanceSnapshot: ClientBalanceSnapshot): string[] {
+  if (balanceSnapshot.totalAccounts === 0) {
+    return ['- saldo de conta: sem dados sincronizados'];
+  }
+
+  return [
+    `- saldo total em conta: ${formatCurrency(balanceSnapshot.totalBalance, balanceSnapshot.currency)}`,
+    `- gasto diário estimado: ${formatCurrency(balanceSnapshot.totalDailySpend, balanceSnapshot.currency)}`,
+    `- contas monitoradas: ${balanceSnapshot.totalAccounts} (saudáveis: ${balanceSnapshot.healthyAccounts}, alerta: ${balanceSnapshot.warningAccounts}, críticas: ${balanceSnapshot.criticalAccounts})`
+  ];
+}
+
 async function ensureCampaignBelongsToClient(clientId: string, campaignId: string): Promise<boolean> {
   const campaigns = await getClientCampaigns(clientId);
   return campaigns.some((campaign) => campaign.id === campaignId);
@@ -870,14 +983,14 @@ async function updateCampaignStatus(clientId: string, campaignId: string, status
     .eq('id', campaignId);
 }
 
-function buildStatusMessage(campaigns: CampaignRow[]): string {
+function buildStatusMessage(campaigns: CampaignRow[], balanceSnapshot: ClientBalanceSnapshot): string {
   if (campaigns.length === 0) {
-    return 'Nenhuma campanha encontrada para este cliente.';
+    return ['Nenhuma campanha encontrada para este cliente.', '', ...buildBalanceSummaryLines(balanceSnapshot)].join('\n');
   }
 
   const active = campaigns.filter((campaign) => (campaign.status ?? '').toUpperCase() === 'ACTIVE');
   if (active.length === 0) {
-    return 'Nenhuma campanha ativa no momento.';
+    return ['Nenhuma campanha ativa no momento.', '', ...buildBalanceSummaryLines(balanceSnapshot)].join('\n');
   }
 
   const header = `Campanhas ativas: ${active.length}`;
@@ -887,7 +1000,7 @@ function buildStatusMessage(campaigns: CampaignRow[]): string {
   });
 
   const suffix = active.length > 10 ? `\n... e mais ${active.length - 10} campanhas` : '';
-  return [header, ...lines].join('\n') + suffix;
+  return [header, ...lines, '', ...buildBalanceSummaryLines(balanceSnapshot)].join('\n') + suffix;
 }
 
 function buildInsightsMessage(summary: {
@@ -896,9 +1009,9 @@ function buildInsightsMessage(summary: {
   clicks: number;
   spend: number;
   ctr: number;
-}): string {
+}, balanceSnapshot: ClientBalanceSnapshot): string {
   if (summary.campaignsCount === 0) {
-    return 'Sem campanhas vinculadas para gerar insights.';
+    return ['Sem campanhas vinculadas para gerar insights.', '', ...buildBalanceSummaryLines(balanceSnapshot)].join('\n');
   }
 
   return [
@@ -907,7 +1020,9 @@ function buildInsightsMessage(summary: {
     `- impressões: ${Math.round(summary.impressions).toLocaleString('pt-BR')}`,
     `- cliques: ${Math.round(summary.clicks).toLocaleString('pt-BR')}`,
     `- investimento: ${formatCurrencyBRL(summary.spend)}`,
-    `- CTR: ${summary.ctr.toFixed(2)}%`
+    `- CTR: ${summary.ctr.toFixed(2)}%`,
+    '',
+    ...buildBalanceSummaryLines(balanceSnapshot)
   ].join('\n');
 }
 
@@ -1127,8 +1242,11 @@ export async function processWhatsAppWebhookEvent(payload: RawPayload): Promise<
     }
 
     if (parsed.type === 'campaign_status') {
-      const campaigns = await getClientCampaigns(binding.client_id);
-      const message = withAutoBindNotice(buildStatusMessage(campaigns));
+      const [campaigns, balanceSnapshot] = await Promise.all([
+        getClientCampaigns(binding.client_id),
+        getClientBalanceSnapshot(binding.client_id)
+      ]);
+      const message = withAutoBindNotice(buildStatusMessage(campaigns, balanceSnapshot));
 
       await writeAuditLog({
         groupId: incoming.groupId,
@@ -1151,13 +1269,17 @@ export async function processWhatsAppWebhookEvent(payload: RawPayload): Promise<
         groupId: incoming.groupId,
         senderId: incoming.senderId,
         clientId: binding.client_id,
-        replyText: message
+        replyText: message,
+        accountBalance: balanceSnapshot
       };
     }
 
     if (parsed.type === 'campaign_insights') {
-      const summary = await getCampaignInsightsSummary(binding.client_id);
-      const message = withAutoBindNotice(buildInsightsMessage(summary));
+      const [summary, balanceSnapshot] = await Promise.all([
+        getCampaignInsightsSummary(binding.client_id),
+        getClientBalanceSnapshot(binding.client_id)
+      ]);
+      const message = withAutoBindNotice(buildInsightsMessage(summary, balanceSnapshot));
 
       await writeAuditLog({
         groupId: incoming.groupId,
@@ -1180,7 +1302,8 @@ export async function processWhatsAppWebhookEvent(payload: RawPayload): Promise<
         groupId: incoming.groupId,
         senderId: incoming.senderId,
         clientId: binding.client_id,
-        replyText: message
+        replyText: message,
+        accountBalance: balanceSnapshot
       };
     }
 

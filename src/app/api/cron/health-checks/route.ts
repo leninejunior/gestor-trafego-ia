@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   try {
     // Verificar autorização do cron job
     const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET
+    const cronSecret = process.env.CRON_SECRET
     
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
   try {
     // Verificar autorização
     const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET
+    const cronSecret = process.env.CRON_SECRET
     
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({

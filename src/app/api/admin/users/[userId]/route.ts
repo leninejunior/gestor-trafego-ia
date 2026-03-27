@@ -1,349 +1,506 @@
-import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { createServiceClient } from "@/lib/supabase/server";
+import {
+  ensureOrganizationExists,
+  requireAdminAccess,
+  resolveRole,
+  type AdminAccessContext,
+} from "@/lib/access/admin-rbac";
 
-async function checkSuperAdmin(supabase: any, userId: string) {
-  // Primeiro verificar tabela super_admins
-  try {
-    const { data: superAdmin, error: superError } = await supabase
-      .from("super_admins")
-      .select("id, is_active")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .single();
-    
-    if (superAdmin && !superError) {
-      return true;
-    }
-  } catch (error) {
-    console.log('Super admin table check failed:', error);
-  }
-  
-  // Fallback: verificar memberships do usuário
-  const { data: memberships } = await supabase
-    .from("memberships")
-    .select(`
-      role,
-      role_id,
-      user_roles (
-        name
-      )
-    `)
-    .eq("user_id", userId)
-    .eq("status", "active");
+type MembershipRow = {
+  id?: string;
+  user_id?: string | null;
+  organization_id?: string | null;
+  org_id?: string | null;
+  role?: string | null;
+  role_id?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  accepted_at?: string | null;
+};
 
-  if (!memberships || memberships.length === 0) {
-    return false;
-  }
+type UserProfileRow = {
+  user_id: string;
+  [key: string]: unknown;
+};
 
-  // Verificar se alguma membership tem super_admin ou owner
-  return memberships.some(membership => 
-    membership.role === 'super_admin' || 
-    membership.role === 'owner' ||
-    membership.user_roles?.name === 'super_admin'
-  );
+const MEMBERSHIP_SELECT_CANDIDATES = [
+  "id,user_id,organization_id,org_id,role,role_id,status,created_at,accepted_at",
+  "id,user_id,organization_id,org_id,role,role_id,created_at,accepted_at",
+  "id,user_id,organization_id,role,role_id,status,created_at,accepted_at",
+  "id,user_id,org_id,role,role_id,status,created_at,accepted_at",
+  "id,user_id,org_id,role,role_id,created_at,accepted_at",
+] as const;
+
+const PROFILE_SELECT_CANDIDATES = [
+  "user_id,first_name,last_name,email,created_at,last_sign_in_at,is_suspended,suspended_at,suspended_by,suspension_reason",
+  "user_id,first_name,last_name,email,created_at,last_sign_in_at,is_suspended",
+  "user_id,first_name,last_name,email,created_at,is_suspended",
+  "user_id,email,created_at",
+] as const;
+
+function normalizeString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-async function getAuthenticatedUser(request: NextRequest, supabase: any) {
-  // Tentar via cookies primeiro
-  const { data: { user: cookieUser } } = await supabase.auth.getUser();
-  if (cookieUser) {
-    return cookieUser;
+function resolveOrganizationId(membership: MembershipRow): string | null {
+  return normalizeString(membership.organization_id) ?? normalizeString(membership.org_id);
+}
+
+async function loadMembershipsForUser(
+  serviceSupabase: ReturnType<typeof createServiceClient>,
+  userId: string
+): Promise<MembershipRow[]> {
+  for (const selectClause of MEMBERSHIP_SELECT_CANDIDATES) {
+    const { data, error } = await serviceSupabase
+      .from("memberships")
+      .select(selectClause)
+      .eq("user_id", userId);
+
+    if (!error && Array.isArray(data)) {
+      return data as MembershipRow[];
+    }
   }
-  
-  // Tentar via header Authorization
-  const authHeader = request.headers.get('authorization');
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
-    const authSupabase = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      }
-    );
-    
-    const { data: { user: headerUser } } = await authSupabase.auth.getUser();
-    return headerUser;
+
+  return [];
+}
+
+async function loadProfileForUser(
+  serviceSupabase: ReturnType<typeof createServiceClient>,
+  userId: string
+): Promise<UserProfileRow | null> {
+  for (const selectClause of PROFILE_SELECT_CANDIDATES) {
+    const { data, error } = await serviceSupabase
+      .from("user_profiles")
+      .select(selectClause)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (!error && data) {
+      return data as UserProfileRow;
+    }
   }
-  
+
   return null;
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
-  try {
-    const supabase = await createClient();
-    const { userId } = await params;
-    
-    // Verificar autenticação
-    const user = await getAuthenticatedUser(request, supabase);
-    if (!user) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
-
-    // Verificar se é super admin (usar service client para bypass RLS)
-    const serviceSupabase = createServiceClient();
-    const isSuperAdmin = await checkSuperAdmin(serviceSupabase, user.id);
-    if (!isSuperAdmin) {
-      return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
-    }
-
-    // Buscar dados completos do usuário
-    const { data: userData, error } = await serviceSupabase
-      .from("user_profiles")
-      .select(`
-        user_id,
-        first_name,
-        last_name,
-        email,
-        created_at,
-        last_sign_in_at,
-        is_suspended,
-        suspended_at,
-        suspended_by,
-        suspension_reason
-      `)
-      .eq("user_id", userId)
-      .single();
-
-    if (error || !userData) {
-      return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
-    }
-
-    // Buscar memberships separadamente
-    const { data: memberships } = await serviceSupabase
-      .from("memberships")
-      .select(`
-        id,
-        role,
-        status,
-        created_at,
-        accepted_at,
-        organization_id,
-        role_id,
-        organizations (
-          id,
-          name,
-          created_at
-        )
-      `)
-      .eq("user_id", userId);
-
-    // Criar objeto de resposta com tipos corretos
-    const userResponse = {
-      ...userData,
-      id: userData.user_id,
-      memberships: memberships || []
-    };
-
-    return NextResponse.json({
-      user: userResponse,
-      activities: [],
-      pendingInvites: []
-    });
-
-  } catch (error) {
-    console.error("Erro ao buscar usuário:", error);
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+function canManageTargetUser(context: AdminAccessContext, targetMemberships: MembershipRow[]): boolean {
+  if (context.isMaster || context.isSuperUser) {
+    return true;
   }
+
+  if (!context.isOrgAdmin) {
+    return false;
+  }
+
+  return targetMemberships.some((membership) => {
+    const orgId = resolveOrganizationId(membership);
+    return orgId ? context.canManageOrganization(orgId) : false;
+  });
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
-  try {
-    const supabase = await createClient();
-    const { userId } = await params;
-    const body = await request.json();
-    
-    // Verificar autenticação
-    const user = await getAuthenticatedUser(request, supabase);
-    if (!user) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+async function upsertMembership(
+  serviceSupabase: ReturnType<typeof createServiceClient>,
+  payload: {
+    targetUserId: string;
+    organizationId: string;
+    roleName: string;
+    roleId: string | null;
+    actorUserId: string;
+  }
+): Promise<{ ok: boolean; error?: string }> {
+  const byOrganizationId = await serviceSupabase
+    .from("memberships")
+    .select("id")
+    .eq("user_id", payload.targetUserId)
+    .eq("organization_id", payload.organizationId)
+    .maybeSingle();
+
+  const byOrgId = byOrganizationId.data?.id
+    ? null
+    : await serviceSupabase
+        .from("memberships")
+        .select("id")
+        .eq("user_id", payload.targetUserId)
+        .eq("org_id", payload.organizationId)
+        .maybeSingle();
+
+  const membershipId =
+    normalizeString(byOrganizationId.data?.id) ?? normalizeString(byOrgId?.data?.id) ?? null;
+
+  if (membershipId) {
+    const updateCandidates: Array<Record<string, unknown>> = [
+      {
+        role: payload.roleName,
+        role_id: payload.roleId,
+        status: "active",
+        accepted_at: new Date().toISOString(),
+        removed_at: null,
+        removed_by: null,
+      },
+      {
+        role: payload.roleName,
+        role_id: payload.roleId,
+      },
+      {
+        role: payload.roleName,
+      },
+    ];
+
+    for (const candidate of updateCandidates) {
+      const { error } = await serviceSupabase.from("memberships").update(candidate).eq("id", membershipId);
+      if (!error) {
+        return { ok: true };
+      }
     }
 
-    // Verificar se é super admin (usar service client para bypass RLS)
-    const serviceSupabase = createServiceClient();
-    const isSuperAdmin = await checkSuperAdmin(serviceSupabase, user.id);
-    if (!isSuperAdmin) {
-      return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+    return { ok: false, error: "Failed to update membership" };
+  }
+
+  const insertCandidates: Array<Record<string, unknown>> = [
+    {
+      user_id: payload.targetUserId,
+      organization_id: payload.organizationId,
+      role: payload.roleName,
+      role_id: payload.roleId,
+      status: "active",
+      invited_by: payload.actorUserId,
+      invited_at: new Date().toISOString(),
+      accepted_at: new Date().toISOString(),
+    },
+    {
+      user_id: payload.targetUserId,
+      org_id: payload.organizationId,
+      role: payload.roleName,
+      role_id: payload.roleId,
+      status: "active",
+    },
+    {
+      user_id: payload.targetUserId,
+      organization_id: payload.organizationId,
+      role: payload.roleName,
+    },
+    {
+      user_id: payload.targetUserId,
+      org_id: payload.organizationId,
+      role: payload.roleName,
+    },
+  ];
+
+  for (const candidate of insertCandidates) {
+    const { error } = await serviceSupabase.from("memberships").insert(candidate as never);
+    if (!error) {
+      return { ok: true };
+    }
+  }
+
+  return { ok: false, error: "Failed to create membership" };
+}
+
+async function getMembershipById(
+  serviceSupabase: ReturnType<typeof createServiceClient>,
+  membershipId: string,
+  userId: string
+): Promise<{ id: string; organization_id?: string | null; org_id?: string | null } | null> {
+  const selectCandidates = [
+    "id,organization_id,org_id",
+    "id,organization_id",
+    "id,org_id",
+  ];
+
+  for (const selectClause of selectCandidates) {
+    const { data, error } = await serviceSupabase
+      .from("memberships")
+      .select(selectClause)
+      .eq("id", membershipId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (!error && data) {
+      return data;
+    }
+  }
+
+  return null;
+}
+
+export async function GET(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+  const { context, errorResponse } = await requireAdminAccess(request);
+  if (!context) {
+    return errorResponse!;
+  }
+
+  const { userId } = await params;
+  const serviceSupabase = createServiceClient();
+
+  const [profile, targetMemberships] = await Promise.all([
+    loadProfileForUser(serviceSupabase, userId),
+    loadMembershipsForUser(serviceSupabase, userId),
+  ]);
+
+  if (!profile) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  if (!canManageTargetUser(context, targetMemberships)) {
+    return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  }
+
+  return NextResponse.json({
+    user: {
+      ...profile,
+      id: profile.user_id,
+      memberships: targetMemberships,
+    },
+    activities: [],
+    pendingInvites: [],
+  });
+}
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+  const { context, errorResponse } = await requireAdminAccess(request);
+  if (!context) {
+    return errorResponse!;
+  }
+
+  const { userId } = await params;
+  const body = await request.json();
+  const action = normalizeString(body.action);
+
+  const serviceSupabase = createServiceClient();
+  const targetMemberships = await loadMembershipsForUser(serviceSupabase, userId);
+
+  if (!canManageTargetUser(context, targetMemberships)) {
+    return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  }
+
+  switch (action) {
+    case "update_profile": {
+      const firstName = typeof body.firstName === "string" ? body.firstName.trim() : "";
+      const lastName = typeof body.lastName === "string" ? body.lastName.trim() : "";
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+
+      const { error } = await serviceSupabase
+        .from("user_profiles")
+        .update({
+          first_name: firstName,
+          last_name: lastName,
+          email: email || null,
+        })
+        .eq("user_id", userId);
+
+      if (error) {
+        return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
+      }
+      return NextResponse.json({ message: "User updated successfully" });
     }
 
-    const { action, ...updateData } = body;
+    case "suspend": {
+      const reason = typeof body.reason === "string" ? body.reason.trim() : null;
+      const { error } = await serviceSupabase
+        .from("user_profiles")
+        .update({
+          is_suspended: true,
+          suspended_at: new Date().toISOString(),
+          suspended_by: context.requester.id,
+          suspension_reason: reason,
+        })
+        .eq("user_id", userId);
 
-    switch (action) {
-      case 'update_profile':
-        const { firstName, lastName, email } = updateData;
-        
-        const { error: profileError } = await serviceSupabase
-          .from("user_profiles")
-          .update({
-            first_name: firstName,
-            last_name: lastName,
-            email: email
-          })
-          .eq("user_id", userId);
+      if (error) {
+        return NextResponse.json({ error: "Failed to suspend user" }, { status: 500 });
+      }
+      return NextResponse.json({ message: "User suspended successfully" });
+    }
 
-        if (profileError) {
-          return NextResponse.json({ error: "Erro ao atualizar perfil" }, { status: 500 });
+    case "unsuspend": {
+      const { error } = await serviceSupabase
+        .from("user_profiles")
+        .update({
+          is_suspended: false,
+          suspended_at: null,
+          suspended_by: null,
+          suspension_reason: null,
+        })
+        .eq("user_id", userId);
+
+      if (error) {
+        return NextResponse.json({ error: "Failed to reactivate user" }, { status: 500 });
+      }
+      return NextResponse.json({ message: "User reactivated successfully" });
+    }
+
+    case "update_role":
+    case "assign_to_organization": {
+      const organizationId = normalizeString(body.organizationId);
+      const membershipId = normalizeString(body.membershipId);
+      const resolvedRole = await resolveRole(
+        normalizeString(body.roleId),
+        normalizeString(body.newRole) ?? normalizeString(body.role)
+      );
+
+      if (!context.canAssignRole(resolvedRole.canonicalRole)) {
+        return NextResponse.json({ error: "Cannot assign requested role" }, { status: 403 });
+      }
+
+      if (membershipId && action === "update_role") {
+        const membership = await getMembershipById(serviceSupabase, membershipId, userId);
+        if (!membership) {
+          return NextResponse.json({ error: "Membership not found" }, { status: 404 });
         }
-        break;
 
-      case 'suspend':
-        const { reason } = updateData;
-        
-        const { error: suspendError } = await serviceSupabase
-          .from("user_profiles")
-          .update({
-            is_suspended: true,
-            suspended_at: new Date().toISOString(),
-            suspended_by: user.id,
-            suspension_reason: reason
-          })
-          .eq("user_id", userId);
-
-        if (suspendError) {
-          return NextResponse.json({ error: "Erro ao suspender usuário" }, { status: 500 });
+        const targetOrg = normalizeString(membership.organization_id) ?? normalizeString(membership.org_id);
+        if (!targetOrg || !context.canManageOrganization(targetOrg)) {
+          return NextResponse.json({ error: "Access denied for this organization" }, { status: 403 });
         }
-        break;
 
-      case 'unsuspend':
-        const { error: unsuspendError } = await serviceSupabase
-          .from("user_profiles")
-          .update({
-            is_suspended: false,
-            suspended_at: null,
-            suspended_by: null,
-            suspension_reason: null
-          })
-          .eq("user_id", userId);
-
-        if (unsuspendError) {
-          return NextResponse.json({ error: "Erro ao reativar usuário" }, { status: 500 });
-        }
-        break;
-
-      case 'update_role':
-        const { membershipId, newRole } = updateData;
-        
-        const { error: roleError } = await serviceSupabase
+        const { error } = await serviceSupabase
           .from("memberships")
           .update({
-            role: newRole
+            role: resolvedRole.name,
+            role_id: resolvedRole.id,
+            status: "active",
+            accepted_at: new Date().toISOString(),
           })
           .eq("id", membershipId)
           .eq("user_id", userId);
 
-        if (roleError) {
-          return NextResponse.json({ error: "Erro ao atualizar role" }, { status: 500 });
+        if (error) {
+          return NextResponse.json({ error: "Failed to update role" }, { status: 500 });
         }
-        break;
 
-      case 'remove_from_organization':
-        const { membershipId: removeMembershipId } = updateData;
-        
-        const { error: removeError } = await serviceSupabase
-          .from("memberships")
-          .update({
-            status: "removed",
-            removed_at: new Date().toISOString(),
-            removed_by: user.id
-          })
-          .eq("id", removeMembershipId)
-          .eq("user_id", userId);
+        return NextResponse.json({ message: "Role updated successfully" });
+      }
 
-        if (removeError) {
-          return NextResponse.json({ error: "Erro ao remover da organização" }, { status: 500 });
-        }
-        break;
+      if (!organizationId) {
+        return NextResponse.json({ error: "Organization is required" }, { status: 400 });
+      }
 
-      default:
-        return NextResponse.json({ error: "Ação não reconhecida" }, { status: 400 });
+      if (!context.canManageOrganization(organizationId)) {
+        return NextResponse.json({ error: "Access denied for this organization" }, { status: 403 });
+      }
+
+      if (!(await ensureOrganizationExists(organizationId))) {
+        return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+      }
+
+      const upsertResult = await upsertMembership(serviceSupabase, {
+        targetUserId: userId,
+        organizationId,
+        roleName: resolvedRole.name,
+        roleId: resolvedRole.id,
+        actorUserId: context.requester.id,
+      });
+
+      if (!upsertResult.ok) {
+        return NextResponse.json({ error: upsertResult.error ?? "Failed to assign organization" }, { status: 500 });
+      }
+
+      return NextResponse.json({ message: "Organization assignment saved successfully" });
     }
 
-    return NextResponse.json({ message: "Usuário atualizado com sucesso" });
+    case "remove_from_organization": {
+      const membershipId = normalizeString(body.membershipId);
+      if (!membershipId) {
+        return NextResponse.json({ error: "Membership is required" }, { status: 400 });
+      }
 
-  } catch (error) {
-    console.error("Erro ao atualizar usuário:", error);
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+      const { data: membership, error: membershipError } = await serviceSupabase
+        .from("memberships")
+        .select("id")
+        .eq("id", membershipId)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (membershipError || !membership) {
+        return NextResponse.json({ error: "Membership not found" }, { status: 404 });
+      }
+
+      const membershipWithOrg = await getMembershipById(serviceSupabase, membershipId, userId);
+      if (!membershipWithOrg) {
+        return NextResponse.json({ error: "Membership not found" }, { status: 404 });
+      }
+
+      const targetOrg =
+        normalizeString(membershipWithOrg.organization_id) ?? normalizeString(membershipWithOrg.org_id);
+      if (!targetOrg || !context.canManageOrganization(targetOrg)) {
+        return NextResponse.json({ error: "Access denied for this organization" }, { status: 403 });
+      }
+
+      const removeCandidates: Array<Record<string, unknown>> = [
+        {
+          status: "removed",
+          removed_at: new Date().toISOString(),
+          removed_by: context.requester.id,
+        },
+        {
+          status: "removed",
+        },
+      ];
+
+      let removed = false;
+      for (const payload of removeCandidates) {
+        const { error } = await serviceSupabase.from("memberships").update(payload).eq("id", membershipId);
+        if (!error) {
+          removed = true;
+          break;
+        }
+      }
+
+      if (!removed) {
+        return NextResponse.json({ error: "Failed to remove membership" }, { status: 500 });
+      }
+
+      return NextResponse.json({ message: "Membership removed successfully" });
+    }
+
+    default:
+      return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
-  try {
-    const supabase = await createClient();
-    const { userId } = await params;
-    
-    // Verificar autenticação
-    const user = await getAuthenticatedUser(request, supabase);
-    if (!user) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
-
-    // Verificar se é super admin (usar service client para bypass RLS)
-    const serviceSupabase = createServiceClient();
-    const isSuperAdmin = await checkSuperAdmin(serviceSupabase, user.id);
-    if (!isSuperAdmin) {
-      return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
-    }
-
-    // Não permitir deletar o próprio usuário
-    if (userId === user.id) {
-      return NextResponse.json({ 
-        error: "Não é possível deletar seu próprio usuário" 
-      }, { status: 400 });
-    }
-
-    // Verificar se o usuário existe
-    const { data: userData } = await serviceSupabase
-      .from("user_profiles")
-      .select("user_id, email")
-      .eq("user_id", userId)
-      .single();
-
-    if (!userData) {
-      return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
-    }
-
-    // Marcar todas as memberships como removidas
-    await serviceSupabase
-      .from("memberships")
-      .update({
-        status: "removed",
-        removed_at: new Date().toISOString(),
-        removed_by: user.id
-      })
-      .eq("user_id", userId);
-
-    // Marcar o usuário como deletado (soft delete)
-    const { error: deleteError } = await serviceSupabase
-      .from("user_profiles")
-      .update({
-        is_deleted: true,
-        deleted_at: new Date().toISOString(),
-        deleted_by: user.id
-      })
-      .eq("user_id", userId);
-
-    if (deleteError) {
-      return NextResponse.json({ error: "Erro ao deletar usuário" }, { status: 500 });
-    }
-
-    return NextResponse.json({ message: "Usuário deletado com sucesso" });
-
-  } catch (error) {
-    console.error("Erro ao deletar usuário:", error);
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+  const { context, errorResponse } = await requireAdminAccess(request);
+  if (!context) {
+    return errorResponse!;
   }
+
+  if (!context.isMaster && !context.isSuperUser) {
+    return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  }
+
+  const { userId } = await params;
+  if (userId === context.requester.id) {
+    return NextResponse.json({ error: "Cannot delete your own user" }, { status: 400 });
+  }
+
+  const serviceSupabase = createServiceClient();
+  const { data: profile } = await serviceSupabase.from("user_profiles").select("user_id").eq("user_id", userId).maybeSingle();
+  if (!profile) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  await serviceSupabase
+    .from("memberships")
+    .update({
+      status: "removed",
+      removed_at: new Date().toISOString(),
+      removed_by: context.requester.id,
+    })
+    .eq("user_id", userId);
+
+  const { error } = await serviceSupabase
+    .from("user_profiles")
+    .update({
+      is_deleted: true,
+      deleted_at: new Date().toISOString(),
+      deleted_by: context.requester.id,
+    })
+    .eq("user_id", userId);
+
+  if (error) {
+    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
+  }
+
+  return NextResponse.json({ message: "User deleted successfully" });
 }

@@ -2,7 +2,7 @@
  * Subscription Intent Expiration Cron Job API
  * 
  * Handles automated expiration processing, warnings, and cleanup.
- * This endpoint should be called by a cron service (e.g., Vercel Cron, GitHub Actions).
+ * This endpoint should be called by a cron service (e.g., GitHub Actions, Scheduler).
  * 
  * Requirements: 5.1, 6.3
  */

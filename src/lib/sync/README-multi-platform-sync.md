@@ -1,6 +1,6 @@
-# Multi-Platform Sync Engine
+﻿# Multi-Platform Sync Engine
 
-Sistema de sincronização multi-plataforma para dados históricos de campanhas de anúncios.
+Sistema de sincronizaÃ§Ã£o multi-plataforma para dados histÃ³ricos de campanhas de anÃºncios.
 
 ## Arquitetura
 
@@ -8,64 +8,64 @@ Sistema de sincronização multi-plataforma para dados históricos de campanhas 
 
 1. **MultiPlatformSyncEngine** - Orquestrador principal
    - Gerencia adapters de diferentes plataformas
-   - Executa sincronizações de clientes
-   - Calcula próximos horários de sync baseado em limites de plano
+   - Executa sincronizaÃ§Ãµes de clientes
+   - Calcula prÃ³ximos horÃ¡rios de sync baseado em limites de plano
 
 2. **SyncQueue** - Sistema de filas com prioridade
-   - Gerencia fila de jobs de sincronização
+   - Gerencia fila de jobs de sincronizaÃ§Ã£o
    - Implementa retry logic com exponential backoff
-   - Controla concorrência (máx 3 syncs simultâneos)
+   - Controla concorrÃªncia (mÃ¡x 3 syncs simultÃ¢neos)
 
 3. **BaseSyncAdapter** - Classe abstrata base
    - Define interface comum para todos os adapters
-   - Implementa lógica compartilhada (autenticação, rate limiting, etc)
+   - Implementa lÃ³gica compartilhada (autenticaÃ§Ã£o, rate limiting, etc)
 
-4. **Platform Adapters** - Implementações específicas
-   - GoogleAdsSyncAdapter - Sincronização com Google Ads
-   - MetaAdsSyncAdapter - Sincronização com Meta Ads (a ser implementado)
+4. **Platform Adapters** - ImplementaÃ§Ãµes especÃ­ficas
+   - GoogleAdsSyncAdapter - SincronizaÃ§Ã£o com Google Ads
+   - MetaAdsSyncAdapter - SincronizaÃ§Ã£o com Meta Ads (a ser implementado)
 
-## Fluxo de Sincronização
+## Fluxo de SincronizaÃ§Ã£o
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Cron: sync-scheduler (a cada 5 minutos)                    │
-│  - Verifica configurações de sync que estão pendentes       │
-│  - Cria jobs de sincronização                               │
-│  - Adiciona jobs à fila com prioridade                      │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Cron: sync-executor (a cada 1 minuto)                      │
-│  - Processa jobs da fila                                    │
-│  - Respeita limite de concorrência (3 simultâneos)          │
-│  - Implementa retry com exponential backoff                 │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│  MultiPlatformSyncEngine.syncClient()                       │
-│  1. Busca configuração de sync do cliente                   │
-│  2. Seleciona adapter apropriado (Meta/Google)              │
-│  3. Autentica com a plataforma                              │
-│  4. Busca campanhas                                         │
-│  5. Busca insights para cada campanha                       │
-│  6. Armazena dados no cache histórico                       │
-│  7. Atualiza próximo horário de sync                        │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Cron: data-cleanup (diariamente às 3h)                     │
-│  - Remove dados expirados baseado em retenção do plano      │
-│  - Processa todos os clientes                               │
-│  - Registra estatísticas de limpeza                         │
-└─────────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  Cron: sync-scheduler (a cada 5 minutos)                    â”‚
+â”‚  - Verifica configuraÃ§Ãµes de sync que estÃ£o pendentes       â”‚
+â”‚  - Cria jobs de sincronizaÃ§Ã£o                               â”‚
+â”‚  - Adiciona jobs Ã  fila com prioridade                      â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                              â”‚
+                              â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  Cron: sync-executor (a cada 1 minuto)                      â”‚
+â”‚  - Processa jobs da fila                                    â”‚
+â”‚  - Respeita limite de concorrÃªncia (3 simultÃ¢neos)          â”‚
+â”‚  - Implementa retry com exponential backoff                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                              â”‚
+                              â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  MultiPlatformSyncEngine.syncClient()                       â”‚
+â”‚  1. Busca configuraÃ§Ã£o de sync do cliente                   â”‚
+â”‚  2. Seleciona adapter apropriado (Meta/Google)              â”‚
+â”‚  3. Autentica com a plataforma                              â”‚
+â”‚  4. Busca campanhas                                         â”‚
+â”‚  5. Busca insights para cada campanha                       â”‚
+â”‚  6. Armazena dados no cache histÃ³rico                       â”‚
+â”‚  7. Atualiza prÃ³ximo horÃ¡rio de sync                        â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                              â”‚
+                              â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  Cron: data-cleanup (diariamente Ã s 3h)                     â”‚
+â”‚  - Remove dados expirados baseado em retenÃ§Ã£o do plano      â”‚
+â”‚  - Processa todos os clientes                               â”‚
+â”‚  - Registra estatÃ­sticas de limpeza                         â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
-## Configuração de Sync
+## ConfiguraÃ§Ã£o de Sync
 
-Cada cliente pode ter múltiplas configurações de sync (uma por plataforma):
+Cada cliente pode ter mÃºltiplas configuraÃ§Ãµes de sync (uma por plataforma):
 
 ```typescript
 interface SyncConfig {
@@ -89,29 +89,29 @@ interface SyncConfig {
 
 ## Sistema de Filas
 
-### Priorização
+### PriorizaÃ§Ã£o
 
-Jobs são priorizados baseado em:
+Jobs sÃ£o priorizados baseado em:
 - **+100 pontos**: Nunca sincronizado antes
 - **+10 pontos por dia**: Dias de atraso
-- **+50 pontos**: Teve erro na última tentativa
+- **+50 pontos**: Teve erro na Ãºltima tentativa
 
 ### Retry Logic
 
-- **Máximo de tentativas**: 3
+- **MÃ¡ximo de tentativas**: 3
 - **Backoff inicial**: 1 segundo
-- **Backoff máximo**: 5 minutos
+- **Backoff mÃ¡ximo**: 5 minutos
 - **Multiplicador**: 2x a cada tentativa
 
 Exemplo de delays:
-- 1ª tentativa: imediato
-- 2ª tentativa: após 1 segundo
-- 3ª tentativa: após 2 segundos
-- 4ª tentativa: após 4 segundos
+- 1Âª tentativa: imediato
+- 2Âª tentativa: apÃ³s 1 segundo
+- 3Âª tentativa: apÃ³s 2 segundos
+- 4Âª tentativa: apÃ³s 4 segundos
 
-### Concorrência
+### ConcorrÃªncia
 
-- Máximo de 3 syncs simultâneos
+- MÃ¡ximo de 3 syncs simultÃ¢neos
 - Evita sobrecarga de APIs externas
 - Garante uso eficiente de recursos
 
@@ -119,34 +119,34 @@ Exemplo de delays:
 
 ### 1. Sync Scheduler (`/api/cron/sync-scheduler`)
 
-**Frequência**: A cada 5 minutos
+**FrequÃªncia**: A cada 5 minutos
 
-**Função**: Verifica quais clientes precisam ser sincronizados e agenda jobs
+**FunÃ§Ã£o**: Verifica quais clientes precisam ser sincronizados e agenda jobs
 
 **Endpoint**:
 ```bash
-# Automático (Vercel Cron)
+# AutomÃ¡tico (plataforma de deploy Cron)
 GET /api/cron/sync-scheduler
 
 # Manual
 POST /api/cron/sync-scheduler
 {
-  "force": true  # Força agendamento mesmo se não estiver na hora
+  "force": true  # ForÃ§a agendamento mesmo se nÃ£o estiver na hora
 }
 ```
 
 ### 2. Sync Executor (`/api/cron/sync-executor`)
 
-**Frequência**: A cada 1 minuto
+**FrequÃªncia**: A cada 1 minuto
 
-**Função**: Executa jobs pendentes da fila
+**FunÃ§Ã£o**: Executa jobs pendentes da fila
 
 **Endpoints**:
 ```bash
 # Iniciar processamento
 GET /api/cron/sync-executor
 
-# Ações de gerenciamento
+# AÃ§Ãµes de gerenciamento
 POST /api/cron/sync-executor
 {
   "action": "status"        # Ver status da fila
@@ -158,16 +158,16 @@ POST /api/cron/sync-executor
 
 ### 3. Data Cleanup (`/api/cron/data-cleanup`)
 
-**Frequência**: Diariamente às 3h
+**FrequÃªncia**: Diariamente Ã s 3h
 
-**Função**: Remove dados expirados baseado em retenção do plano
+**FunÃ§Ã£o**: Remove dados expirados baseado em retenÃ§Ã£o do plano
 
 **Endpoints**:
 ```bash
-# Automático (Vercel Cron)
+# AutomÃ¡tico (plataforma de deploy Cron)
 GET /api/cron/data-cleanup
 
-# Manual para cliente específico
+# Manual para cliente especÃ­fico
 POST /api/cron/data-cleanup
 {
   "client_id": "uuid",
@@ -175,37 +175,37 @@ POST /api/cron/data-cleanup
 }
 ```
 
-## Segurança
+## SeguranÃ§a
 
-Todos os cron jobs requerem autenticação via header:
+Todos os cron jobs requerem autenticaÃ§Ã£o via header:
 
 ```bash
 Authorization: Bearer <CRON_SECRET>
 ```
 
-Configure a variável de ambiente:
+Configure a variÃ¡vel de ambiente:
 ```env
 CRON_SECRET=seu-secret-aqui
 ```
 
 ## Monitoramento
 
-### Estatísticas da Fila
+### EstatÃ­sticas da Fila
 
 ```typescript
 interface QueueStats {
   total_jobs: number;        // Total de jobs
   pending_jobs: number;      // Aguardando processamento
-  running_jobs: number;      // Em execução
-  failed_jobs: number;       // Falhados (após max retries)
+  running_jobs: number;      // Em execuÃ§Ã£o
+  failed_jobs: number;       // Falhados (apÃ³s max retries)
   completed_jobs: number;    // Completados com sucesso
-  average_duration_ms: number; // Duração média
+  average_duration_ms: number; // DuraÃ§Ã£o mÃ©dia
 }
 ```
 
-### Logs de Sincronização
+### Logs de SincronizaÃ§Ã£o
 
-Cada sync é registrado na tabela `sync_logs`:
+Cada sync Ã© registrado na tabela `sync_logs`:
 
 ```sql
 SELECT 
@@ -225,30 +225,30 @@ ORDER BY sl.started_at DESC;
 
 O sistema respeita os limites configurados em `plan_limits`:
 
-- **sync_interval_hours**: Intervalo entre sincronizações (1-168 horas)
-- **data_retention_days**: Período de retenção de dados (30-3650 dias)
+- **sync_interval_hours**: Intervalo entre sincronizaÃ§Ãµes (1-168 horas)
+- **data_retention_days**: PerÃ­odo de retenÃ§Ã£o de dados (30-3650 dias)
 
 ## Tratamento de Erros
 
-### Erros de Autenticação
+### Erros de AutenticaÃ§Ã£o
 
-- Token expirado → Tenta refresh automático
-- Refresh falha → Marca sync como 'error', notifica usuário
+- Token expirado â†’ Tenta refresh automÃ¡tico
+- Refresh falha â†’ Marca sync como 'error', notifica usuÃ¡rio
 
 ### Erros de API
 
-- Rate limit → Aguarda e retenta com backoff
-- Erro temporário → Retenta até 3 vezes
-- Erro permanente → Marca como falhado, registra erro
+- Rate limit â†’ Aguarda e retenta com backoff
+- Erro temporÃ¡rio â†’ Retenta atÃ© 3 vezes
+- Erro permanente â†’ Marca como falhado, registra erro
 
 ### Erros de Rede
 
-- Timeout → Retenta com backoff
-- Conexão perdida → Retenta com backoff
+- Timeout â†’ Retenta com backoff
+- ConexÃ£o perdida â†’ Retenta com backoff
 
 ## Exemplo de Uso
 
-### Adicionar Configuração de Sync
+### Adicionar ConfiguraÃ§Ã£o de Sync
 
 ```typescript
 import { createClient } from '@/lib/supabase/server';
@@ -284,16 +284,17 @@ console.log(`Synced ${result.records_synced} records in ${result.duration_ms}ms`
 ### Verificar Status da Fila
 
 ```bash
-curl -X POST https://seu-app.vercel.app/api/cron/sync-executor \
+curl -X POST https://seu-app.seu-dominio.com/api/cron/sync-executor \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"action": "status"}'
 ```
 
-## Próximos Passos
+## PrÃ³ximos Passos
 
 1. Implementar MetaAdsSyncAdapter
-2. Adicionar métricas de observabilidade (Prometheus/Grafana)
-3. Implementar notificações de falhas
+2. Adicionar mÃ©tricas de observabilidade (Prometheus/Grafana)
+3. Implementar notificaÃ§Ãµes de falhas
 4. Adicionar dashboard de monitoramento no admin panel
 5. Implementar sync incremental (apenas dados novos)
+

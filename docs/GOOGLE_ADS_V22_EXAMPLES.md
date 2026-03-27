@@ -1,8 +1,8 @@
-# Google Ads API v22 - Exemplos Práticos
+﻿# Google Ads API v22 - Exemplos PrÃ¡ticos
 
-## 🎯 Exemplos de Uso
+## ðŸŽ¯ Exemplos de Uso
 
-Este documento contém exemplos práticos de como usar a integração Google Ads API v22.
+Este documento contÃ©m exemplos prÃ¡ticos de como usar a integraÃ§Ã£o Google Ads API v22.
 
 ## 1. Conectar Conta Google Ads
 
@@ -128,7 +128,7 @@ export function SelectGoogleAccounts({ clientId }: { clientId: string }) {
       ))}
       
       <Button onClick={handleSave} disabled={selected.length === 0}>
-        Salvar Seleção
+        Salvar SeleÃ§Ã£o
       </Button>
     </div>
   );
@@ -231,11 +231,11 @@ export function CampaignsList({ clientId }: { clientId: string }) {
         <Card key={campaign.id} className="p-4">
           <h3 className="font-bold">{campaign.name}</h3>
           <p className="text-sm text-gray-500">Status: {campaign.status}</p>
-          <p className="text-sm">Orçamento: R$ {campaign.budget.toFixed(2)}</p>
+          <p className="text-sm">OrÃ§amento: R$ {campaign.budget.toFixed(2)}</p>
           
           <div className="mt-4 grid grid-cols-4 gap-2">
             <div>
-              <p className="text-xs text-gray-500">Impressões</p>
+              <p className="text-xs text-gray-500">ImpressÃµes</p>
               <p className="font-bold">{campaign.metrics.impressions.toLocaleString()}</p>
             </div>
             <div>
@@ -247,7 +247,7 @@ export function CampaignsList({ clientId }: { clientId: string }) {
               <p className="font-bold">R$ {campaign.metrics.cost.toFixed(2)}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Conversões</p>
+              <p className="text-xs text-gray-500">ConversÃµes</p>
               <p className="font-bold">{campaign.metrics.conversions}</p>
             </div>
           </div>
@@ -271,7 +271,7 @@ export async function GET(request: NextRequest) {
   try {
     const clientId = request.nextUrl.searchParams.get('clientId');
     
-    // Obter token válido
+    // Obter token vÃ¡lido
     const tokenManager = getGoogleTokenManager();
     const { accessToken, customerId, connectionId } = 
       await tokenManager.ensureValidTokenForClient(clientId!);
@@ -279,10 +279,10 @@ export async function GET(request: NextRequest) {
     // Criar client
     const client = getGoogleAdsClient({
       accessToken,
-      refreshToken: '', // Não necessário com connectionId
+      refreshToken: '', // NÃ£o necessÃ¡rio com connectionId
       developerToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN!,
       customerId,
-      connectionId, // Importante: habilita refresh automático
+      connectionId, // Importante: habilita refresh automÃ¡tico
     });
     
     // Buscar campanhas
@@ -351,7 +351,7 @@ export async function POST(request: NextRequest) {
 }
 ```
 
-## 7. Monitorar Status da Conexão
+## 7. Monitorar Status da ConexÃ£o
 
 ### Frontend (React)
 
@@ -412,7 +412,7 @@ export async function GET(request: NextRequest) {
   const errorHandler = new GoogleAdsErrorHandler();
   
   try {
-    // Sua lógica aqui
+    // Sua lÃ³gica aqui
     const result = await someGoogleAdsOperation();
     return NextResponse.json(result);
     
@@ -436,14 +436,14 @@ export async function GET(request: NextRequest) {
     
     if (handled.code === 403) {
       return NextResponse.json(
-        { error: 'Sem permissão. Verifique suas credenciais.' },
+        { error: 'Sem permissÃ£o. Verifique suas credenciais.' },
         { status: 403 }
       );
     }
     
     if (handled.isRetryable) {
       return NextResponse.json(
-        { error: 'Erro temporário. Tente novamente em alguns instantes.' },
+        { error: 'Erro temporÃ¡rio. Tente novamente em alguns instantes.' },
         { status: 503 }
       );
     }
@@ -456,7 +456,7 @@ export async function GET(request: NextRequest) {
 }
 ```
 
-## 9. Cron Job de Sincronização
+## 9. Cron Job de SincronizaÃ§Ã£o
 
 ### API Route (Cron)
 
@@ -466,7 +466,7 @@ import { NextResponse } from 'next/server';
 import { getGoogleAdsSyncService } from '@/lib/google/sync-service';
 
 export async function GET(request: Request) {
-  // Verificar autorização (Vercel Cron Secret)
+  // Verificar autorizaÃ§Ã£o (plataforma de deploy Cron Secret)
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -485,7 +485,7 @@ export async function GET(request: Request) {
       details: result,
     });
   } catch (error) {
-    console.error('[Cron] Erro na sincronização:', error);
+    console.error('[Cron] Erro na sincronizaÃ§Ã£o:', error);
     return NextResponse.json(
       { error: 'Sync failed' },
       { status: 500 }
@@ -494,7 +494,7 @@ export async function GET(request: Request) {
 }
 ```
 
-### Configuração Vercel (vercel.json)
+### ConfiguraÃ§Ã£o plataforma de deploy (deploy.json)
 
 ```json
 {
@@ -543,5 +543,6 @@ export default function GoogleAdsDashboard() {
 
 ---
 
-**Versão:** v22  
-**Última atualização:** 2024-01-20
+**VersÃ£o:** v22  
+**Ãšltima atualizaÃ§Ã£o:** 2024-01-20
+

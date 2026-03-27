@@ -298,7 +298,7 @@ test.describe('Diferentes Cenários de Pagamento', () => {
     await page.click('[data-testid="submit-checkout"]');
 
     // Verificar redirecionamento
-    await expect(page).toHaveURL /\/checkout\/status\/.+/);
+    await expect(page).toHaveURL(/\/checkout\/status\/.+/);
     await expect(page.locator('[data-testid="payment-method"]')).toContainText('Boleto');
   });
 });

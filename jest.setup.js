@@ -1,5 +1,40 @@
 import '@testing-library/jest-dom'
 
+const root = globalThis
+
+const ensureResponseJsonStatic = (ResponseCtor) => {
+  if (typeof ResponseCtor === 'undefined' || typeof ResponseCtor.json === 'function') {
+    return
+  }
+
+  Object.defineProperty(ResponseCtor, 'json', {
+    configurable: true,
+    writable: true,
+    value(body, init = {}) {
+      const headers =
+        init.headers instanceof Map
+          ? Object.fromEntries(init.headers.entries())
+          : typeof init.headers?.entries === 'function'
+            ? Object.fromEntries(init.headers.entries())
+            : { ...(init.headers || {}) }
+
+      headers['Content-Type'] = headers['Content-Type'] || 'application/json'
+
+      return new ResponseCtor(JSON.stringify(body), {
+        ...init,
+        headers,
+      })
+    },
+  })
+}
+
+if (typeof root.fetch === 'undefined') {
+  root.fetch = async (...args) => {
+    const { default: fetch } = await import('node-fetch')
+    return fetch(...args)
+  }
+}
+
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
   useRouter() {
@@ -21,8 +56,8 @@ jest.mock('next/navigation', () => ({
 }))
 
 // Mock Web APIs for Node.js environment
-if (typeof global.Request === 'undefined') {
-  global.Request = class Request {
+if (typeof root.Request === 'undefined') {
+  root.Request = class Request {
     constructor(input, init) {
       Object.defineProperty(this, 'url', {
         value: typeof input === 'string' ? input : input.url,
@@ -44,8 +79,8 @@ if (typeof global.Request === 'undefined') {
   }
 }
 
-if (typeof global.Response === 'undefined') {
-  global.Response = class Response {
+if (typeof root.Response === 'undefined') {
+  root.Response = class Response {
     constructor(body, init) {
       this.body = body
       this.status = init?.status || 200
@@ -62,6 +97,8 @@ if (typeof global.Response === 'undefined') {
     }
   }
 }
+
+ensureResponseJsonStatic(root.Response)
 
 // Mock modules will be handled in individual test files
 

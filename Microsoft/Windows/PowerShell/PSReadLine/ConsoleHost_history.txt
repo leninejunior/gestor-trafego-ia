@@ -1,0 +1,7 @@
+clear
+codex resume
+codex
+codex resume
+menory-bridge --help
+memory-bridge --help
+memory-bridge

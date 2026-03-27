@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+node /mnt/g/flying-fox-bob/engrene-memory-bridge/dist/src/wrappers/mb-replit.js "$@"

@@ -262,6 +262,11 @@ export default function AdminApiKeysPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {organizations.length === 0 && !loading && (
+                <p className="text-xs text-red-600">
+                  Nenhuma organizacao disponivel para o seu usuario. Verifique suas permissoes de admin/master.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

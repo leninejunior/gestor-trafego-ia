@@ -1,4 +1,4 @@
-# Google Ads Health Check Endpoint
+﻿# Google Ads Health Check Endpoint
 
 ## Overview
 
@@ -387,7 +387,7 @@ async function monitorGoogleAdsHealth() {
 ### Scheduled Health Monitoring
 
 ```typescript
-// Example: Vercel Cron Job
+// Example: plataforma de deploy Cron Job
 // api/cron/health-check.ts
 export async function GET() {
   const health = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/google/health`)
@@ -423,3 +423,4 @@ This health check endpoint satisfies the following requirements:
 - **Requirement 9.3**: Check if encryption keys are properly configured
 - **Requirement 9.4**: Verify that at least one active connection exists
 - **Requirement 9.5**: Return detailed status report
+

@@ -32,17 +32,65 @@ export type SquadRun = {
   id: string
   organizationId: string
   clientId: string
+  planName?: string | null
+  mode?: 'legacy' | 'conversational'
+  idea?: string | null
   campaignName: string
   objective: string
-  budget: { amount: number; currency: string }
+  budget: { amount: number; currency: string } | null
   channels: SquadChannel[]
   status: string
   stage: string
   allowAutoRefine: boolean
   refinementCount: number
+  qaLoopCount?: number
   llmConfigId: string | null
+  llmSnapshot?: {
+    id?: string
+    provider?: string
+    model?: string
+    tokenReference?: string
+    temperature?: number
+    maxTokens?: number
+    fallbackModel?: string | null
+  } | null
   approvalId: string | null
   readyCreatives?: ReadyCreativeInput[]
+  planDraft?: Record<string, unknown> | null
+  approvedPlan?: Record<string, unknown> | null
+  contextSnapshot?: Record<string, unknown> | null
+  messages?: Array<{
+    id: string
+    role: 'system' | 'assistant' | 'user'
+    phase?: string
+    content: string
+    createdAt: string
+  }>
+  executionTasks?: Array<{
+    id: string
+    type: 'creative' | 'qa' | 'publish' | string
+    status: 'pending' | 'in_progress' | 'completed' | 'failed' | string
+    title?: string
+    channel?: SquadChannel | string | null
+    campaignId?: string | null
+    loopCount?: number
+    error?: string
+    externalIds?: Record<string, unknown> | null
+    agent?: {
+      id?: string
+      role?: string
+      label?: string
+      specialty?: string
+      assignedAt?: string
+      llm?: {
+        provider?: string | null
+        model?: string | null
+      }
+    } | null
+    createdAt?: string
+    updatedAt?: string
+    completedAt?: string
+  }>
   timeline: TimelineEntry[]
   creativeBatch?: {
     id: string
@@ -53,6 +101,15 @@ export type SquadRun = {
       title: string
       content?: string
       storageUrl?: string
+      publicUrl?: string | null
+      campaignId?: string | null
+      channel?: SquadChannel | string | null
+      agent?: {
+        id?: string
+        role?: string
+        label?: string
+        specialty?: string
+      } | null
     }>
   } | null
   publishResult?: {
@@ -65,6 +122,8 @@ export type SquadRun = {
       adSetId?: string
     }>
   } | null
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type SquadSchedule = {
@@ -86,6 +145,8 @@ export type SquadSchedule = {
 export type ClientSummary = {
   id: string
   name: string
+  organization_id?: string | null
+  organization_name?: string | null
 }
 
 export type ServiceHealth = {
@@ -128,8 +189,8 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
 
 export function runStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (status === 'completed') return 'default'
-  if (status === 'failed' || status === 'rejected') return 'destructive'
-  if (status === 'awaiting_approval' || status === 'publishing') return 'secondary'
+  if (status === 'failed' || status === 'rejected' || status === 'needs_manual_intervention') return 'destructive'
+  if (status === 'awaiting_approval' || status === 'awaiting_plan_approval' || status === 'publishing' || status === 'qa_review') return 'secondary'
   return 'outline'
 }
 

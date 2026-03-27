@@ -7,6 +7,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 const MISSING_API_KEYS_TABLE_CODES = new Set(['PGRST205', '42P01'])
 
 type ApiPermission = '*' | 'balance:read' | 'campaigns:read' | 'campaigns:write'
+const ELEVATED_ROLES = new Set(['super_admin', 'owner', 'admin', 'master'])
 
 function isUuid(value: string): boolean {
   return UUID_REGEX.test(value)
@@ -24,6 +25,19 @@ function isMissingApiKeysTableError(error: unknown): boolean {
 
   const message = (candidate.message ?? '').toLowerCase()
   return message.includes('api_keys')
+}
+
+function isMissingColumnError(error: unknown, columnName: string): boolean {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const candidate = error as { code?: string; message?: string }
+  if (candidate.code !== '42703') {
+    return false
+  }
+
+  return (candidate.message ?? '').toLowerCase().includes(columnName.toLowerCase())
 }
 
 function normalizePermissions(input: unknown): ApiPermission[] {
@@ -77,6 +91,51 @@ function createApiKeyMaterial() {
   return { apiKey, keyHash, keyPrefix }
 }
 
+function extractRoleName(value: unknown): string | null {
+  if (!value) {
+    return null
+  }
+
+  if (Array.isArray(value)) {
+    const first = value[0]
+    if (first && typeof first === 'object' && 'name' in first && typeof first.name === 'string') {
+      return first.name
+    }
+    return null
+  }
+
+  if (typeof value === 'object' && 'name' in value && typeof value.name === 'string') {
+    return value.name
+  }
+
+  return null
+}
+
+async function hasElevatedMembershipAccess(userId: string): Promise<boolean> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('memberships')
+    .select(
+      `
+        role,
+        user_roles!memberships_role_id_fkey(name)
+      `
+    )
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .limit(20)
+
+  if (error || !Array.isArray(data)) {
+    return false
+  }
+
+  return data.some((membership: any) => {
+    const role = typeof membership.role === 'string' ? membership.role.toLowerCase() : ''
+    const linkedRoleName = extractRoleName(membership.user_roles)?.toLowerCase() ?? ''
+    return ELEVATED_ROLES.has(role) || ELEVATED_ROLES.has(linkedRoleName)
+  })
+}
+
 async function requireMasterAccess() {
   const supabase = await createClient()
   const {
@@ -89,8 +148,12 @@ async function requireMasterAccess() {
   }
 
   const accessControl = new UserAccessControl()
-  const isMaster = await accessControl.isMasterUser(user.id)
-  if (!isMaster) {
+  const [isMaster, hasElevatedMembership] = await Promise.all([
+    accessControl.isMasterUser(user.id),
+    hasElevatedMembershipAccess(user.id)
+  ])
+
+  if (!isMaster && !hasElevatedMembership) {
     return { ok: false as const, response: NextResponse.json({ error: 'Access denied' }, { status: 403 }) }
   }
 
@@ -164,11 +227,32 @@ export async function GET(request: NextRequest) {
       throw keysError
     }
 
-    const { data: organizations, error: orgError } = await supabase
+    let organizations: Array<{ id: string; name: string; is_active?: boolean }> | null = null
+    let orgError: unknown = null
+
+    const primaryOrganizationsQuery = await supabase
       .from('organizations')
       .select('id, name, is_active')
       .order('name', { ascending: true })
       .limit(1000)
+
+    if (primaryOrganizationsQuery.error && isMissingColumnError(primaryOrganizationsQuery.error, 'is_active')) {
+      const fallbackOrganizationsQuery = await supabase
+        .from('organizations')
+        .select('id, name')
+        .order('name', { ascending: true })
+        .limit(1000)
+
+      organizations = (fallbackOrganizationsQuery.data ?? []).map((org: any) => ({
+        id: org.id,
+        name: org.name,
+        is_active: true
+      }))
+      orgError = fallbackOrganizationsQuery.error
+    } else {
+      organizations = primaryOrganizationsQuery.data ?? []
+      orgError = primaryOrganizationsQuery.error
+    }
 
     if (orgError) {
       throw orgError

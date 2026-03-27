@@ -18,25 +18,24 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
-import { 
-  Cpu, 
-  Brain, 
-  MessageSquare, 
-  Send, 
+import * as LucideIcons from 'lucide-react'
+
+const {
+  MessageSquare,
+  Send,
   Lightbulb,
   TrendingUp,
-  TrendingDown,
   Target,
   AlertTriangle,
-  CheckCircle,
   RefreshCw,
   Download,
   Settings,
   Zap,
   BarChart3,
-  PieChart,
   Activity
-} from 'lucide-react'
+} = LucideIcons as any
+
+const BrainIcon = (LucideIcons as any).Brain || Activity
 
 interface ChatMessage {
   id: string
@@ -231,7 +230,7 @@ export default function AIAgentPage() {
       case 'optimization': return <TrendingUp className="h-4 w-4 text-green-600" />
       case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-600" />
       case 'opportunity': return <Lightbulb className="h-4 w-4 text-blue-600" />
-      case 'prediction': return <Brain className="h-4 w-4 text-purple-600" />
+      case 'prediction': return <BrainIcon className="h-4 w-4 text-purple-600" />
       default: return <Activity className="h-4 w-4 text-gray-600" />
     }
   }
@@ -269,7 +268,7 @@ export default function AIAgentPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center">
-            <Cpu className="h-8 w-8 mr-3 text-blue-600" />
+            <Target className="h-8 w-8 mr-3 text-blue-600" />
             Agente de IA
           </h1>
           <p className="text-muted-foreground">
@@ -362,7 +361,7 @@ export default function AIAgentPage() {
               <div className="flex-1 overflow-y-auto space-y-4 mb-4 p-4 bg-gray-50 rounded-lg">
                 {messages.length === 0 && (
                   <div className="text-center text-muted-foreground py-8">
-                    <Cpu className="h-12 w-12 mx-auto mb-4 text-blue-600" />
+                    <Target className="h-12 w-12 mx-auto mb-4 text-blue-600" />
                     <p className="text-lg font-medium">Olá! Sou seu assistente de campanhas.</p>
                     <p>Posso ajudar você a analisar performance, otimizar campanhas e identificar oportunidades.</p>
                     <div className="mt-4 space-y-2 text-sm">
@@ -390,7 +389,7 @@ export default function AIAgentPage() {
                     >
                       {message.type === 'ai' && (
                         <div className="flex items-center mb-2">
-                          <Cpu className="h-4 w-4 mr-2 text-blue-600" />
+                          <Target className="h-4 w-4 mr-2 text-blue-600" />
                           <span className="text-sm font-medium text-blue-600">AI Assistant</span>
                           {message.metadata?.confidence && (
                             <Badge variant="outline" className="ml-2 text-xs">
@@ -411,7 +410,7 @@ export default function AIAgentPage() {
                   <div className="flex justify-start">
                     <div className="bg-white border shadow-sm p-3 rounded-lg">
                       <div className="flex items-center">
-                        <Cpu className="h-4 w-4 mr-2 text-blue-600" />
+                        <Target className="h-4 w-4 mr-2 text-blue-600" />
                         <span className="text-sm font-medium text-blue-600">AI Assistant</span>
                       </div>
                       <div className="flex items-center mt-2">
@@ -507,7 +506,7 @@ export default function AIAgentPage() {
 
                 {insights.length === 0 && (
                   <div className="text-center py-8">
-                    <Brain className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <BrainIcon className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                     <p className="text-lg font-medium text-muted-foreground">
                       Nenhum insight disponível
                     </p>

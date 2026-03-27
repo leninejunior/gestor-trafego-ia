@@ -1,115 +1,115 @@
-# 🛠️ Comandos Úteis para Deploy
+﻿# ðŸ› ï¸ Comandos Ãšteis para Deploy
 
-## Verificação Pré-Deploy
+## VerificaÃ§Ã£o PrÃ©-Deploy
 
 ```bash
-# Verificar se sistema está pronto
+# Verificar se sistema estÃ¡ pronto
 node scripts\pre-deploy-check.js
 
 # Verificar build local
 npm run build
 
-# Testar produção localmente
+# Testar produÃ§Ã£o localmente
 npm run start
 ```
 
-## Deploy Vercel
+## Deploy plataforma de deploy
 
 ### Primeira Vez
 
 ```bash
-# Instalar Vercel CLI
-npm install -g vercel
+# Instalar plataforma de deploy CLI
+npm install -g deploy
 
 # Login
-vercel login
+deploy login
 
 # Deploy inicial (staging)
-vercel
+deploy
 
-# Deploy produção
-vercel --prod
+# Deploy produÃ§Ã£o
+deploy --prod
 ```
 
 ### Deploys Subsequentes
 
 ```bash
-# Deploy direto para produção
-vercel --prod
+# Deploy direto para produÃ§Ã£o
+deploy --prod
 
 # Ou usar script npm
 npm run deploy
 ```
 
-### Gerenciar Variáveis de Ambiente
+### Gerenciar VariÃ¡veis de Ambiente
 
 ```bash
-# Adicionar variável
-vercel env add NOME_VARIAVEL production
+# Adicionar variÃ¡vel
+deploy env add NOME_VARIAVEL production
 
-# Listar variáveis
-vercel env ls
+# Listar variÃ¡veis
+deploy env ls
 
-# Remover variável
-vercel env rm NOME_VARIAVEL production
+# Remover variÃ¡vel
+deploy env rm NOME_VARIAVEL production
 
-# Pull variáveis para local (não recomendado para produção)
-vercel env pull .env.local
+# Pull variÃ¡veis para local (nÃ£o recomendado para produÃ§Ã£o)
+deploy env pull .env.local
 ```
 
 ## Logs e Monitoramento
 
 ```bash
 # Ver logs em tempo real
-vercel logs --follow
+deploy logs --follow
 
-# Ver logs de uma função específica
-vercel logs --follow /api/google/campaigns
+# Ver logs de uma funÃ§Ã£o especÃ­fica
+deploy logs --follow /api/google/campaigns
 
-# Ver últimos 100 logs
-vercel logs -n 100
+# Ver Ãºltimos 100 logs
+deploy logs -n 100
 
 # Ver logs de build
-vercel logs --build
+deploy logs --build
 ```
 
-## Domínio
+## DomÃ­nio
 
 ```bash
-# Adicionar domínio customizado
-vercel domains add seudominio.com
+# Adicionar domÃ­nio customizado
+deploy domains add seudominio.com
 
-# Listar domínios
-vercel domains ls
+# Listar domÃ­nios
+deploy domains ls
 
-# Remover domínio
-vercel domains rm seudominio.com
+# Remover domÃ­nio
+deploy domains rm seudominio.com
 ```
 
 ## Projetos
 
 ```bash
 # Listar projetos
-vercel projects ls
+deploy projects ls
 
-# Ver informações do projeto
-vercel inspect
+# Ver informaÃ§Ãµes do projeto
+deploy inspect
 
 # Remover projeto
-vercel remove nome-do-projeto
+deploy remove nome-do-projeto
 ```
 
 ## Rollback
 
 ```bash
 # Listar deployments
-vercel ls
+deploy ls
 
-# Promover deployment anterior para produção
-vercel promote [deployment-url]
+# Promover deployment anterior para produÃ§Ã£o
+deploy promote [deployment-url]
 
 # Ou via dashboard
-# https://vercel.com/dashboard > Deployments > Promote to Production
+# https://provedor-deploy.com/dashboard > Deployments > Promote to Production
 ```
 
 ## Supabase
@@ -117,7 +117,7 @@ vercel promote [deployment-url]
 ### Aplicar Schemas
 
 ```bash
-# Não há comando CLI - use Supabase Dashboard
+# NÃ£o hÃ¡ comando CLI - use Supabase Dashboard
 # https://supabase.com/dashboard/project/SEU_PROJETO/sql
 
 # Copie e cole manualmente:
@@ -125,10 +125,10 @@ vercel promote [deployment-url]
 # 2. database/google-ads-schema.sql
 ```
 
-### Verificar Conexão
+### Verificar ConexÃ£o
 
 ```bash
-# Testar conexão Supabase (local)
+# Testar conexÃ£o Supabase (local)
 node scripts/check-supabase-keys.js
 ```
 
@@ -138,37 +138,37 @@ node scripts/check-supabase-keys.js
 # Verificar status
 git status
 
-# Commit mudanças
+# Commit mudanÃ§as
 git add .
-git commit -m "Preparar para deploy em produção"
+git commit -m "Preparar para deploy em produÃ§Ã£o"
 
-# Push para repositório
+# Push para repositÃ³rio
 git push origin main
 
-# Tag de versão
-git tag -a v0.1.1 -m "Release v0.1.1 - Deploy produção"
+# Tag de versÃ£o
+git tag -a v0.1.1 -m "Release v0.1.1 - Deploy produÃ§Ã£o"
 git push origin v0.1.1
 ```
 
-## NPM Scripts Disponíveis
+## NPM Scripts DisponÃ­veis
 
 ```bash
 # Desenvolvimento
 npm run dev                    # Iniciar dev server
-npm run build                  # Build para produção
-npm run start                  # Iniciar produção local
-npm run lint                   # Lint código
+npm run build                  # Build para produÃ§Ã£o
+npm run start                  # Iniciar produÃ§Ã£o local
+npm run lint                   # Lint cÃ³digo
 
 # Deploy
-npm run pre-deploy             # Verificação pré-deploy
-npm run deploy                 # Deploy Vercel produção
+npm run pre-deploy             # VerificaÃ§Ã£o prÃ©-deploy
+npm run deploy                 # Deploy plataforma de deploy produÃ§Ã£o
 
 # Testes
-npm run test                   # Testes unitários
+npm run test                   # Testes unitÃ¡rios
 npm run test:e2e               # Testes E2E
 npm run test:coverage          # Coverage
 
-# Verificações
+# VerificaÃ§Ãµes
 npm run check-env              # Verificar .env
 npm run check-supabase         # Verificar Supabase
 ```
@@ -184,91 +184,108 @@ npm install
 npm run build
 ```
 
-### Variáveis de Ambiente Não Funcionam
+### VariÃ¡veis de Ambiente NÃ£o Funcionam
 
 ```bash
-# Verificar variáveis configuradas
-vercel env ls
+# Verificar variÃ¡veis configuradas
+deploy env ls
 
-# Redeploy após adicionar variáveis
-vercel --prod --force
+# Redeploy apÃ³s adicionar variÃ¡veis
+deploy --prod --force
 ```
 
-### Erro de Permissão
+### Erro de PermissÃ£o
 
 ```bash
 # Verificar login
-vercel whoami
+deploy whoami
 
-# Re-login se necessário
-vercel logout
-vercel login
+# Re-login se necessÃ¡rio
+deploy logout
+deploy login
 ```
 
-### Logs Não Aparecem
+### Logs NÃ£o Aparecem
 
 ```bash
 # Especificar projeto
-vercel logs --follow --scope=seu-time
+deploy logs --follow --scope=seu-time
 
 # Ou via dashboard
-# https://vercel.com/dashboard > Logs
+# https://provedor-deploy.com/dashboard > Logs
 ```
 
-## Comandos de Emergência
+## Comandos de EmergÃªncia
 
 ### Reverter Deploy Rapidamente
 
 ```bash
 # 1. Listar deployments
-vercel ls
+deploy ls
 
 # 2. Promover deployment anterior
-vercel promote [url-deployment-anterior]
+deploy promote [url-deployment-anterior]
 ```
 
-### Pausar Aplicação
+### Pausar AplicaÃ§Ã£o
 
 ```bash
-# Não há comando direto - opções:
-# 1. Remover domínio: vercel domains rm seudominio.com
-# 2. Deletar projeto: vercel remove nome-projeto
+# NÃ£o hÃ¡ comando direto - opÃ§Ãµes:
+# 1. Remover domÃ­nio: deploy domains rm seudominio.com
+# 2. Deletar projeto: deploy remove nome-projeto
 # 3. Via dashboard: Settings > Delete Project
 ```
 
-### Backup Rápido
+### Backup RÃ¡pido
 
 ```bash
-# Backup código
+# Backup cÃ³digo
 git archive --format=zip --output=backup-$(date +%Y%m%d).zip HEAD
 
 # Backup .env (local apenas)
 cp .env .env.backup.$(date +%Y%m%d)
 ```
 
-## Monitoramento Contínuo
+## Monitoramento ContÃ­nuo
 
 ```bash
-# Terminal 1: Logs Vercel
-vercel logs --follow
+# Terminal 1: Logs plataforma de deploy
+deploy logs --follow
 
 # Terminal 2: Monitorar status
-watch -n 30 'curl -s https://seu-app.vercel.app/api/health'
+watch -n 30 'curl -s https://seu-app.seu-dominio.com/api/health'
 
 # Terminal 3: Monitorar Supabase
 # Via dashboard: https://supabase.com/dashboard/project/SEU_PROJETO/logs
 ```
 
-## Aliases Úteis (Opcional)
+## Cron de Saldo (10 min)
+
+```bash
+# Teste manual do endpoint de cron de saldo
+curl -X GET "https://seu-app.seu-dominio.com/api/cron/balance-sync" \
+  -H "Authorization: Bearer ${CRON_SECRET}"
+```
+
+```bash
+# Exemplo Linux crontab (a cada 10 minutos)
+crontab -e
+```
+
+```cron
+*/10 * * * * curl -fsS -X GET "https://seu-app.seu-dominio.com/api/cron/balance-sync" -H "Authorization: Bearer SEU_CRON_SECRET" >/dev/null 2>&1
+```
+
+## Aliases Ãšteis (Opcional)
 
 Adicione ao seu `.bashrc` ou `.zshrc`:
 
 ```bash
 # Deploy aliases
-alias vdeploy='vercel --prod'
-alias vlogs='vercel logs --follow'
-alias venv='vercel env ls'
-alias vls='vercel ls'
+alias vdeploy='deploy --prod'
+alias vlogs='deploy logs --follow'
+alias venv='deploy env ls'
+alias vls='deploy ls'
 
 # Build aliases
 alias nbuild='npm run build'
@@ -276,7 +293,7 @@ alias ndev='npm run dev'
 alias ncheck='node scripts/pre-deploy-check.js'
 ```
 
-## Checklist Rápido
+## Checklist RÃ¡pido
 
 Antes de cada deploy:
 
@@ -284,21 +301,22 @@ Antes de cada deploy:
 # 1. Verificar sistema
 node scripts\pre-deploy-check.js
 
-# 2. Commit mudanças
+# 2. Commit mudanÃ§as
 git add .
-git commit -m "Descrição das mudanças"
+git commit -m "DescriÃ§Ã£o das mudanÃ§as"
 git push
 
 # 3. Deploy
-vercel --prod
+deploy --prod
 
 # 4. Verificar logs
-vercel logs --follow
+deploy logs --follow
 
-# 5. Testar aplicação
-curl https://seu-app.vercel.app/api/health
+# 5. Testar aplicaÃ§Ã£o
+curl https://seu-app.seu-dominio.com/api/health
 ```
 
 ---
 
-**Dica:** Salve este arquivo como referência rápida durante o deploy!
+**Dica:** Salve este arquivo como referÃªncia rÃ¡pida durante o deploy!
+

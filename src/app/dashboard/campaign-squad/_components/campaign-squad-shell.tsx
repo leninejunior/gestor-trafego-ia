@@ -13,10 +13,12 @@ type CampaignSquadShellProps = {
 }
 
 const NAV_ITEMS = [
-  { href: '/dashboard/campaign-squad', label: 'Visão Geral' },
-  { href: '/dashboard/campaign-squad/runs', label: 'Runs e Aprovação' },
+  { href: '/dashboard/campaign-squad', label: 'Visao Geral' },
+  { href: '/dashboard/campaign-squad/runs', label: 'Runs e Aprovacao' },
+  { href: '/dashboard/campaign-squad/history', label: 'Historico de Runs' },
   { href: '/dashboard/campaign-squad/schedules', label: 'Agendamentos' },
-  { href: '/dashboard/campaign-squad/llm', label: 'Configuração LLM' }
+  { href: '/dashboard/campaign-squad/context', label: 'Contexto Cliente' },
+  { href: '/dashboard/campaign-squad/llm', label: 'Configuracao LLM' }
 ]
 
 export function CampaignSquadShell({ title, description, children, actions }: CampaignSquadShellProps) {

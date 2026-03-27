@@ -1,0 +1,2 @@
+-- Placeholder migration to align local history with remote.
+-- Version: 20251224181116

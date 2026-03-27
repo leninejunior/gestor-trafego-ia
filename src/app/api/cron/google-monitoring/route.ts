@@ -11,7 +11,7 @@ import { googleAdsLogger } from '@/lib/google/logger';
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify this is a cron request (Vercel sets this header)
+    // Verify this is a cron request (scheduler sets this header)
     const authHeader = request.headers.get('authorization');
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       googleAdsLogger.warn('Unauthorized cron request', {

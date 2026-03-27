@@ -2,7 +2,7 @@
  * GET /api/cron/export-cleanup
  * 
  * Cron job to clean up expired export files
- * Should be called daily via Vercel Cron or similar
+ * Should be called daily via a scheduler service
  */
 
 import { NextRequest, NextResponse } from 'next/server';

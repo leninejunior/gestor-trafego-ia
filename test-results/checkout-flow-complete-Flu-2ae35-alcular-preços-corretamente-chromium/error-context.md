@@ -1,0 +1,213 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - img [ref=e6]
+          - generic [ref=e8]: Ads Manager Pro
+        - generic [ref=e9]:
+          - link "Planos" [ref=e10] [cursor=pointer]:
+            - /url: "#planos"
+          - link "Recursos" [ref=e11] [cursor=pointer]:
+            - /url: "#recursos"
+          - link "Contato" [ref=e12] [cursor=pointer]:
+            - /url: "#contato"
+          - link "Privacidade" [ref=e13] [cursor=pointer]:
+            - /url: /privacy-policy
+          - link "Termos" [ref=e14] [cursor=pointer]:
+            - /url: /terms-of-service
+          - link "Acessar Sistema" [ref=e15] [cursor=pointer]:
+            - /url: /dashboard
+            - button "Acessar Sistema" [ref=e16]
+    - generic [ref=e17]:
+      - generic [ref=e18]: Plataforma Completa de Gestão de Campanhas
+      - heading "Gerencie Múltiplos Clientes Em Uma Única Plataforma" [level=1] [ref=e19]:
+        - text: Gerencie Múltiplos Clientes
+        - text: Em Uma Única Plataforma
+      - paragraph [ref=e20]: Sistema profissional para agências e gestores de tráfego gerenciarem campanhas do Meta Ads, Google Ads e WhatsApp Business com total isolamento de dados entre clientes.
+      - generic [ref=e21]:
+        - link "Falar com Especialista" [ref=e22] [cursor=pointer]:
+          - /url: "#contato"
+          - text: Falar com Especialista
+          - img
+        - link "Ver Recursos" [ref=e23] [cursor=pointer]:
+          - /url: "#recursos"
+    - generic [ref=e24]:
+      - heading "Recursos Principais" [level=2] [ref=e25]
+      - generic [ref=e26]:
+        - generic [ref=e28]:
+          - img [ref=e29]
+          - heading "Gestão Multi-Cliente" [level=3] [ref=e34]
+          - paragraph [ref=e35]: Gerencie múltiplos clientes com isolamento completo de dados. Cada cliente tem seu próprio ambiente seguro.
+        - generic [ref=e37]:
+          - img [ref=e38]
+          - heading "Integração Meta Ads" [level=3] [ref=e40]
+          - paragraph [ref=e41]: Conexão direta com Facebook e Instagram Ads. Sincronização automática de campanhas e métricas em tempo real.
+        - generic [ref=e43]:
+          - img [ref=e44]
+          - heading "Analytics Avançado" [level=3] [ref=e47]
+          - paragraph [ref=e48]: Dashboards personalizáveis com métricas em tempo real, relatórios executivos e insights preditivos.
+        - generic [ref=e50]:
+          - img [ref=e51]
+          - heading "Segurança Avançada" [level=3] [ref=e53]
+          - paragraph [ref=e54]: Row Level Security (RLS) no banco de dados garante isolamento total entre dados de diferentes clientes.
+        - generic [ref=e56]:
+          - img [ref=e57]
+          - heading "Automações Inteligentes" [level=3] [ref=e59]
+          - paragraph [ref=e60]: Workflows automatizados, alertas personalizados e sincronização automática de campanhas.
+        - generic [ref=e62]:
+          - img [ref=e63]
+          - heading "Objetivos Inteligentes" [level=3] [ref=e67]
+          - paragraph [ref=e68]: Defina metas por campanha e receba alertas automáticos quando métricas saírem do esperado.
+    - generic [ref=e70]:
+      - heading "Integrações Disponíveis" [level=2] [ref=e71]
+      - generic [ref=e72]:
+        - generic [ref=e73]:
+          - img [ref=e75]
+          - paragraph [ref=e77]: Facebook Ads
+        - generic [ref=e78]:
+          - img [ref=e80]
+          - paragraph [ref=e83]: Instagram Ads
+        - generic [ref=e84]:
+          - img [ref=e86]
+          - paragraph [ref=e89]: Google Ads
+        - generic [ref=e90]:
+          - img [ref=e92]
+          - paragraph [ref=e94]: WhatsApp Business
+    - generic [ref=e95]:
+      - heading "Por Que Escolher Nossa Plataforma?" [level=2] [ref=e96]
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - img [ref=e99]
+          - generic [ref=e102]: Isolamento completo de dados entre clientes
+        - generic [ref=e103]:
+          - img [ref=e104]
+          - generic [ref=e107]: Interface intuitiva e moderna
+        - generic [ref=e108]:
+          - img [ref=e109]
+          - generic [ref=e112]: Relatórios executivos automatizados
+        - generic [ref=e113]:
+          - img [ref=e114]
+          - generic [ref=e117]: Métricas personalizadas por cliente
+        - generic [ref=e118]:
+          - img [ref=e119]
+          - generic [ref=e122]: Sincronização em tempo real
+        - generic [ref=e123]:
+          - img [ref=e124]
+          - generic [ref=e127]: Suporte técnico especializado
+        - generic [ref=e128]:
+          - img [ref=e129]
+          - generic [ref=e132]: Dashboards personalizáveis
+        - generic [ref=e133]:
+          - img [ref=e134]
+          - generic [ref=e137]: Alertas e notificações inteligentes
+    - generic [ref=e138]:
+      - generic [ref=e139]:
+        - heading "Escolha Seu Plano" [level=2] [ref=e140]
+        - paragraph [ref=e141]: Planos flexíveis para agências de todos os tamanhos
+      - generic [ref=e142]:
+        - generic [ref=e144]:
+          - generic [ref=e145]:
+            - heading "Basic" [level=3] [ref=e146]
+            - paragraph [ref=e147]: Perfect for small agencies getting started
+            - generic [ref=e148]:
+              - generic [ref=e149]: R$ 49
+              - text: /mês
+            - paragraph [ref=e150]: ou R$ 490/ano (economize 17%)
+          - list
+          - link "Começar Agora" [ref=e151] [cursor=pointer]:
+            - /url: /checkout?plan=dd69597d-ab7e-4fa6-8d94-6190a9f8056e
+        - generic [ref=e152]:
+          - generic [ref=e153]: Mais Popular
+          - generic [ref=e154]:
+            - generic [ref=e155]:
+              - heading "Pro" [level=3] [ref=e156]
+              - paragraph [ref=e157]: Para agências em crescimento
+              - generic [ref=e158]:
+                - generic [ref=e159]: R$ 100
+                - text: /mês
+              - paragraph [ref=e160]: ou R$ 1000/ano (economize 17%)
+            - list
+            - link "Começar Agora" [ref=e161] [cursor=pointer]:
+              - /url: /checkout?plan=2b0b6e23-ecff-4116-a1fd-2fec6f25d017
+        - generic [ref=e163]:
+          - generic [ref=e164]:
+            - heading "Enterprise" [level=3] [ref=e165]
+            - paragraph [ref=e166]: Solução completa para grandes empresas
+            - generic [ref=e167]:
+              - generic [ref=e168]: R$ 1000
+              - text: /mês
+            - paragraph [ref=e169]: ou R$ 9999/ano (economize 17%)
+          - list
+          - link "Começar Agora" [ref=e170] [cursor=pointer]:
+            - /url: /checkout?plan=bca552b6-6954-457c-8d39-4643679985b7
+      - paragraph [ref=e171]: Comece agora e transforme a gestão das suas campanhas
+    - generic [ref=e173]:
+      - heading "Ideal Para" [level=2] [ref=e174]
+      - generic [ref=e175]:
+        - generic [ref=e177]:
+          - img [ref=e178]
+          - heading "Agências de Marketing" [level=3] [ref=e183]
+          - paragraph [ref=e184]: Gerencie múltiplos clientes com eficiência
+        - generic [ref=e186]:
+          - img [ref=e187]
+          - heading "Gestores de Tráfego" [level=3] [ref=e190]
+          - paragraph [ref=e191]: Otimize campanhas em uma única plataforma
+        - generic [ref=e193]:
+          - img [ref=e194]
+          - heading "Empresas" [level=3] [ref=e197]
+          - paragraph [ref=e198]: Gerencie campanhas de múltiplas marcas
+        - generic [ref=e200]:
+          - img [ref=e201]
+          - heading "Social Media" [level=3] [ref=e204]
+          - paragraph [ref=e205]: Acompanhe resultados de forma profissional
+    - generic [ref=e207]:
+      - generic [ref=e208]:
+        - heading "Entre em Contato" [level=2] [ref=e209]
+        - paragraph [ref=e210]: Preencha o formulário e nossa equipe entrará em contato para apresentar a plataforma
+      - generic [ref=e213]:
+        - generic [ref=e214]:
+          - generic [ref=e215]: Nome Completo *
+          - textbox "Seu nome" [ref=e216]
+        - generic [ref=e217]:
+          - generic [ref=e218]: Email *
+          - textbox "seu@email.com" [ref=e219]
+        - generic [ref=e220]:
+          - generic [ref=e221]: Telefone
+          - textbox "(00) 00000-0000" [ref=e222]
+        - generic [ref=e223]:
+          - generic [ref=e224]: Empresa
+          - textbox "Nome da empresa" [ref=e225]
+        - generic [ref=e226]:
+          - generic [ref=e227]: Você é *
+          - combobox [ref=e228] [cursor=pointer]:
+            - generic: Selecione uma opção
+            - img [ref=e229]
+          - combobox [ref=e231]
+        - generic [ref=e232]:
+          - generic [ref=e233]: Mensagem
+          - textbox "Conte-nos mais sobre suas necessidades..." [ref=e234]
+        - button "Enviar Mensagem" [ref=e235] [cursor=pointer]
+    - contentinfo [ref=e236]:
+      - generic [ref=e237]:
+        - generic [ref=e238]:
+          - img [ref=e239]
+          - generic [ref=e241]: Ads Manager Pro
+        - paragraph [ref=e242]: Plataforma profissional de gestão de campanhas para agências e gestores de tráfego
+        - generic [ref=e243]:
+          - link "Política de Privacidade" [ref=e244] [cursor=pointer]:
+            - /url: /privacy-policy
+          - link "Termos de Uso" [ref=e245] [cursor=pointer]:
+            - /url: /terms-of-service
+          - link "Contato" [ref=e246] [cursor=pointer]:
+            - /url: "#contato"
+          - link "Acessar Sistema" [ref=e247] [cursor=pointer]:
+            - /url: /dashboard
+        - paragraph [ref=e248]: © 2026 Ads Manager Pro. Todos os direitos reservados.
+  - region "Notifications alt+T"
+  - region "Notifications alt+T"
+  - alert [ref=e249]
+```

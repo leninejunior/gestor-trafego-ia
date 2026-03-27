@@ -1,0 +1,28 @@
+{
+  "name": "campaign-squad-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Campaign squad microservice for planning, creative generation, approval and ad publishing.",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js",
+    "smoke:flow": "node scripts/smoke-campaign-squad-flow.js",
+    "smoke:cs14": "node scripts/smoke-campaign-squad-cs14.js",
+    "smoke:cs14:happy": "node scripts/smoke-campaign-squad-cs14.js --scenario=happy_no_context",
+    "smoke:cs14:with-context": "node scripts/smoke-campaign-squad-cs14.js --scenario=with_context",
+    "smoke:cs14:qa-limit": "node scripts/smoke-campaign-squad-cs14.js --scenario=qa_limit_fixture",
+    "smoke:cs14:publish-failure": "node scripts/smoke-campaign-squad-cs14.js --scenario=publish_failure"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.884.0",
+    "@supabase/supabase-js": "^2.76.1",
+    "bullmq": "^5.58.4",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "ioredis": "^5.8.1",
+    "uuid": "^11.1.0",
+    "zod": "^3.25.76"
+  }
+}

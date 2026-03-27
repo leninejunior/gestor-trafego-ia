@@ -1,0 +1,4 @@
+interface:
+  display_name: "Seguranca de Software"
+  short_description: "Hardening e validacao de seguranca"
+  default_prompt: "Use -security-hardening para auditar meu sistema, validar controles e corrigir riscos criticos."

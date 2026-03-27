@@ -1,0 +1,255 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - button "Recolher sidebar" [ref=e3] [cursor=pointer]:
+      - img [ref=e4]
+    - generic [ref=e6]:
+      - link "Ads Manager" [ref=e8] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e10]
+        - heading "Ads Manager" [level=1] [ref=e24]
+      - navigation [ref=e25]:
+        - generic [ref=e26]:
+          - heading "Principal" [level=3] [ref=e27]
+          - generic [ref=e28]:
+            - link "Dashboard" [ref=e29] [cursor=pointer]:
+              - /url: /dashboard
+              - img [ref=e30]
+              - generic [ref=e32]: Dashboard
+            - link "Campanhas" [ref=e33] [cursor=pointer]:
+              - /url: /dashboard/campaigns
+              - img [ref=e34]
+              - generic [ref=e38]: Campanhas
+              - generic "Não conectado" [ref=e40]:
+                - img [ref=e41]
+            - link "Campaign Squad" [ref=e45] [cursor=pointer]:
+              - /url: /dashboard/campaign-squad
+              - img [ref=e46]
+              - generic [ref=e49]: Campaign Squad
+            - link "Clientes" [ref=e50] [cursor=pointer]:
+              - /url: /dashboard/clients
+              - img [ref=e51]
+              - generic [ref=e56]: Clientes
+            - link "Saldo das Contas" [ref=e57] [cursor=pointer]:
+              - /url: /dashboard/balance
+              - img [ref=e58]
+              - generic [ref=e60]: Saldo das Contas
+            - link "Relatórios" [ref=e61] [cursor=pointer]:
+              - /url: /dashboard/reports
+              - img [ref=e62]
+              - generic [ref=e66]: Relatórios
+            - link "Analytics" [ref=e67] [cursor=pointer]:
+              - /url: /dashboard/analytics
+              - img [ref=e68]
+              - generic [ref=e71]: Analytics
+              - generic "Não conectado" [ref=e73]:
+                - img [ref=e74]
+        - generic [ref=e78]:
+          - heading "Plataformas" [level=3] [ref=e79]
+          - generic [ref=e80]:
+            - link "Meta Ads" [ref=e81] [cursor=pointer]:
+              - /url: /dashboard/meta
+              - img [ref=e82]
+              - generic [ref=e86]: Meta Ads
+              - generic "Não conectado" [ref=e88]:
+                - img [ref=e89]
+            - link "Google Ads" [ref=e93] [cursor=pointer]:
+              - /url: /dashboard/google
+              - img [ref=e94]
+              - generic [ref=e97]: Google Ads
+              - generic "Não conectado" [ref=e99]:
+                - img [ref=e100]
+            - link "Insights Google" [ref=e104] [cursor=pointer]:
+              - /url: /dashboard/analytics/google
+              - img [ref=e105]
+              - generic [ref=e108]: Insights Google
+              - generic "Não conectado" [ref=e110]:
+                - img [ref=e111]
+            - link "WhatsApp" [ref=e115] [cursor=pointer]:
+              - /url: /dashboard/whatsapp
+              - img [ref=e116]
+              - generic [ref=e118]: WhatsApp
+        - generic [ref=e119]:
+          - heading "Avançado" [level=3] [ref=e120]
+          - generic [ref=e121]:
+            - link "Métricas Personalizadas" [ref=e122] [cursor=pointer]:
+              - /url: /dashboard/metrics
+              - img [ref=e123]
+              - generic [ref=e125]: Métricas Personalizadas
+            - link "Dashboard Personalizável" [ref=e126] [cursor=pointer]:
+              - /url: /dashboard/custom-views
+              - img [ref=e127]
+              - generic [ref=e130]: Dashboard Personalizável
+            - link "Monitoring Google Ads" [ref=e131] [cursor=pointer]:
+              - /url: /dashboard/google/monitoring
+              - img [ref=e132]
+              - generic [ref=e134]: Monitoring Google Ads
+              - generic "Não conectado" [ref=e136]:
+                - img [ref=e137]
+            - link "Objetivos Inteligentes" [ref=e141] [cursor=pointer]:
+              - /url: /dashboard/objectives
+              - img [ref=e142]
+              - generic [ref=e146]: Objetivos Inteligentes
+        - generic [ref=e147]:
+          - heading "Gestão" [level=3] [ref=e148]
+          - generic [ref=e149]:
+            - link "Usuários" [ref=e150] [cursor=pointer]:
+              - /url: /dashboard/users
+              - img [ref=e151]
+              - generic [ref=e156]: Usuários
+            - link "Equipe" [ref=e157] [cursor=pointer]:
+              - /url: /dashboard/team
+              - img [ref=e158]
+              - generic [ref=e163]: Equipe
+            - link "Planos & Cobrança" [ref=e164] [cursor=pointer]:
+              - /url: /dashboard/billing
+              - img [ref=e165]
+              - generic [ref=e167]: Planos & Cobrança
+            - link "Configurações" [ref=e168] [cursor=pointer]:
+              - /url: /dashboard/settings
+              - img [ref=e169]
+              - generic [ref=e172]: Configurações
+            - link "Política de Privacidade" [ref=e173] [cursor=pointer]:
+              - /url: /privacy-policy
+              - img [ref=e174]
+              - generic [ref=e177]: Política de Privacidade
+            - link "Termos de Uso" [ref=e178] [cursor=pointer]:
+              - /url: /terms-of-service
+              - img [ref=e179]
+              - generic [ref=e182]: Termos de Uso
+        - generic [ref=e183]:
+          - heading "Administração" [level=3] [ref=e184]
+          - generic [ref=e185]:
+            - link "Painel Admin ADMIN" [ref=e186] [cursor=pointer]:
+              - /url: /admin
+              - img [ref=e187]
+              - generic [ref=e190]: Painel Admin
+              - generic [ref=e192]: ADMIN
+            - link "Organizações ADMIN" [ref=e193] [cursor=pointer]:
+              - /url: /admin/organizations
+              - img [ref=e194]
+              - generic [ref=e198]: Organizações
+              - generic [ref=e200]: ADMIN
+            - link "Usuários ADMIN" [ref=e201] [cursor=pointer]:
+              - /url: /admin/users
+              - img [ref=e202]
+              - generic [ref=e207]: Usuários
+              - generic [ref=e209]: ADMIN
+            - link "Planos ADMIN" [ref=e210] [cursor=pointer]:
+              - /url: /admin/plans
+              - img [ref=e211]
+              - generic [ref=e213]: Planos
+              - generic [ref=e215]: ADMIN
+            - link "Assinaturas ADMIN" [ref=e216] [cursor=pointer]:
+              - /url: /admin/subscriptions
+              - img [ref=e217]
+              - generic [ref=e219]: Assinaturas
+              - generic [ref=e221]: ADMIN
+            - link "Gerenciamento Manual ADMIN" [ref=e222] [cursor=pointer]:
+              - /url: /admin/subscription-management
+              - img [ref=e223]
+              - generic [ref=e226]: Gerenciamento Manual
+              - generic [ref=e228]: ADMIN
+            - link "Gestão de Cobrança ADMIN" [ref=e229] [cursor=pointer]:
+              - /url: /admin/billing-management
+              - img [ref=e230]
+              - generic [ref=e232]: Gestão de Cobrança
+              - generic [ref=e234]: ADMIN
+            - link "Leads ADMIN" [ref=e235] [cursor=pointer]:
+              - /url: /admin/leads
+              - img [ref=e236]
+              - generic [ref=e237]: Leads
+              - generic [ref=e239]: ADMIN
+            - link "Monitoramento ADMIN" [ref=e240] [cursor=pointer]:
+              - /url: /admin/monitoring
+              - img [ref=e241]
+              - generic [ref=e244]: Monitoramento
+              - generic [ref=e246]: ADMIN
+      - button "Tema Escuro" [ref=e248] [cursor=pointer]:
+        - img [ref=e249]
+        - generic [ref=e251]: Tema Escuro
+      - generic [ref=e254]:
+        - generic [ref=e256]: U
+        - generic [ref=e257]:
+          - generic [ref=e258]:
+            - paragraph [ref=e259]: Usuário
+            - img [ref=e260]
+          - generic [ref=e263]:
+            - img [ref=e264]
+            - paragraph [ref=e268]: Organização
+          - generic [ref=e269]:
+            - generic [ref=e270]: Viewer
+            - generic [ref=e271]: Free
+      - generic [ref=e273]:
+        - generic [ref=e274]: Ads Manager SaaS
+        - generic [ref=e275]:
+          - generic [ref=e276]: v2.0
+          - generic [ref=e277]: •
+          - generic [ref=e278]: Sistema Completo
+    - generic [ref=e279]:
+      - banner [ref=e280]:
+        - generic [ref=e281]:
+          - generic [ref=e283]:
+            - heading "Faturamento" [level=1] [ref=e284]
+            - generic [ref=e285]:
+              - img [ref=e286]
+              - generic [ref=e288]: ADMIN
+          - generic [ref=e290]:
+            - img [ref=e291]
+            - textbox "Buscar clientes, campanhas..." [ref=e294]
+          - generic [ref=e295]:
+            - link "Dashboard" [ref=e297] [cursor=pointer]:
+              - /url: /dashboard
+              - img
+              - text: Dashboard
+            - button "3" [ref=e298] [cursor=pointer]:
+              - img
+              - generic [ref=e299]: "3"
+            - button [ref=e300] [cursor=pointer]:
+              - generic [ref=e302]:
+                - img
+      - main [ref=e303]:
+        - generic [ref=e305]:
+          - generic [ref=e309]:
+            - heading "Billing Management" [level=1] [ref=e310]
+            - paragraph [ref=e311]: Monitor payments, manage subscriptions, and handle billing issues
+          - generic [ref=e314]:
+            - generic [ref=e316]:
+              - generic [ref=e317]:
+                - heading "Customer Billing" [level=3] [ref=e318]
+                - paragraph [ref=e319]: Manage customer subscriptions and billing history
+              - generic [ref=e320]:
+                - button "Export" [ref=e321] [cursor=pointer]:
+                  - img
+                  - text: Export
+                - button "Refresh" [ref=e322] [cursor=pointer]:
+                  - img
+                  - text: Refresh
+            - generic [ref=e323]:
+              - generic [ref=e324]:
+                - generic [ref=e326]:
+                  - img [ref=e327]
+                  - textbox "Search customers..." [ref=e330]
+                - combobox [ref=e331] [cursor=pointer]:
+                  - generic: All Statuses
+                  - img [ref=e332]
+                - combobox [ref=e334] [cursor=pointer]:
+                  - generic: Last 30 days
+                  - img [ref=e335]
+              - table [ref=e338]:
+                - rowgroup [ref=e339]:
+                  - row "Customer Plan Status Monthly Revenue Total Revenue Last Payment Next Billing Actions" [ref=e340]:
+                    - columnheader "Customer" [ref=e341]
+                    - columnheader "Plan" [ref=e342]
+                    - columnheader "Status" [ref=e343]
+                    - columnheader "Monthly Revenue" [ref=e344]
+                    - columnheader "Total Revenue" [ref=e345]
+                    - columnheader "Last Payment" [ref=e346]
+                    - columnheader "Next Billing" [ref=e347]
+                    - columnheader "Actions" [ref=e348]
+                - rowgroup
+  - region "Notifications alt+T"
+  - alert [ref=e349]
+```

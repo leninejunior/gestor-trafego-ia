@@ -6,6 +6,7 @@
  */
 
 import { randomBytes } from 'crypto';
+import { getCanonicalGoogleRedirectUri } from './redirect-uri';
 
 // ============================================================================
 // Types and Interfaces
@@ -52,7 +53,7 @@ export class GoogleOAuthService {
     this.config = {
       clientId: config?.clientId || process.env.GOOGLE_CLIENT_ID || '',
       clientSecret: config?.clientSecret || process.env.GOOGLE_CLIENT_SECRET || '',
-      redirectUri: config?.redirectUri || `${process.env.NEXT_PUBLIC_APP_URL}/api/google/callback`,
+      redirectUri: config?.redirectUri || getCanonicalGoogleRedirectUri(),
       scopes: config?.scopes || this.DEFAULT_SCOPES,
     };
 

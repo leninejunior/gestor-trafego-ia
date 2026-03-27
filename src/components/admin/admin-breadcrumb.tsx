@@ -45,6 +45,8 @@ export function AdminBreadcrumb() {
         items.push({ label: 'Configuração LLM' })
       } else if (pathname === '/admin/monitoring') {
         items.push({ label: 'Monitoramento' })
+      } else if (pathname === '/admin/api-docs') {
+        items.push({ label: 'API para IA' })
       } else if (pathname === '/admin/organizations') {
         items.push({ label: 'Organizações' })
       } else if (pathname.startsWith('/admin/organizations/')) {

@@ -1,11 +1,11 @@
-# Task 9 Completion Summary: Sistema de Exportação
+﻿# Task 9 Completion Summary: Sistema de ExportaÃ§Ã£o
 
 ## Overview
 Successfully implemented a complete export system for campaign insights data with plan-based permissions, temporary file storage, and email notifications.
 
 ## Completed Sub-tasks
 
-### 9.1 ✅ Criar ExportService
+### 9.1 âœ… Criar ExportService
 **Files Created:**
 - `src/lib/services/export-service.ts` - Complete export service with CSV/JSON generation
 - `src/lib/services/README-export-service.md` - Documentation
@@ -25,7 +25,7 @@ Successfully implemented a complete export system for campaign insights data wit
 - Automatic file cleanup
 - Error handling and job status tracking
 
-### 9.2 ✅ Criar API endpoints de exportação
+### 9.2 âœ… Criar API endpoints de exportaÃ§Ã£o
 **Files Created:**
 - `src/app/api/exports/csv/route.ts` - POST endpoint for CSV exports
 - `src/app/api/exports/json/route.ts` - POST endpoint for JSON exports
@@ -46,7 +46,7 @@ Successfully implemented a complete export system for campaign insights data wit
 - Plan permission checks
 - Signed URLs with expiration
 
-### 9.3 ✅ Implementar sistema de notificações de exportação
+### 9.3 âœ… Implementar sistema de notificaÃ§Ãµes de exportaÃ§Ã£o
 **Files Created:**
 - `src/lib/services/export-notification-service.ts` - Email notification service
 
@@ -116,7 +116,7 @@ CREATE TABLE export_notifications_log (
 5. **Email System** - Notifications (development mode)
 
 ### Cron Jobs
-Added to `vercel.json`:
+Added to `deploy.json`:
 ```json
 {
   "path": "/api/cron/export-cleanup",
@@ -127,15 +127,15 @@ Runs daily at 4 AM to clean up expired exports.
 
 ## Export Flow
 
-1. **Request** → User requests export via API
-2. **Validation** → Check plan permissions and retention limits
-3. **Job Creation** → Create export job record
-4. **Data Fetch** → Query campaign insights within retention period
-5. **File Generation** → Generate CSV or JSON content
-6. **Storage** → Upload to Supabase Storage
-7. **Job Update** → Mark job as completed
-8. **Notification** → Send email with download link
-9. **Expiration** → Auto-cleanup after 24 hours
+1. **Request** â†’ User requests export via API
+2. **Validation** â†’ Check plan permissions and retention limits
+3. **Job Creation** â†’ Create export job record
+4. **Data Fetch** â†’ Query campaign insights within retention period
+5. **File Generation** â†’ Generate CSV or JSON content
+6. **Storage** â†’ Upload to Supabase Storage
+7. **Job Update** â†’ Mark job as completed
+8. **Notification** â†’ Send email with download link
+9. **Expiration** â†’ Auto-cleanup after 24 hours
 
 ## Error Handling
 
@@ -155,10 +155,10 @@ Runs daily at 4 AM to clean up expired exports.
 
 ## Requirements Mapping
 
-✅ **Requirement 8.1** - CSV export with permission validation
-✅ **Requirement 8.2** - JSON export with permission validation
-✅ **Requirement 8.4** - Data filtered by retention period
-✅ **Requirement 8.5** - Temporary files with 24h expiration and download links
+âœ… **Requirement 8.1** - CSV export with permission validation
+âœ… **Requirement 8.2** - JSON export with permission validation
+âœ… **Requirement 8.4** - Data filtered by retention period
+âœ… **Requirement 8.5** - Temporary files with 24h expiration and download links
 
 ## Testing Recommendations
 
@@ -169,7 +169,7 @@ Runs daily at 4 AM to clean up expired exports.
 - File size formatting
 
 ### Integration Tests
-- Complete export flow (request → notification)
+- Complete export flow (request â†’ notification)
 - Permission checks with different plans
 - Retention period validation
 - File cleanup
@@ -228,10 +228,11 @@ const { export: exportData } = await response.json();
 5. `src/app/api/exports/[id]/download/route.ts` - Download endpoint
 6. `src/app/api/cron/export-cleanup/route.ts` - Cleanup cron
 7. `database/historical-data-cache-schema.sql` - Database schema
-8. `vercel.json` - Cron configuration
+8. `deploy.json` - Cron configuration
 
 ## Documentation Created
 
 1. `src/lib/services/README-export-service.md` - Service documentation
 2. `src/app/api/exports/README.md` - API documentation
 3. `.kiro/specs/historical-data-cache/TASK-9-COMPLETION-SUMMARY.md` - This summary
+

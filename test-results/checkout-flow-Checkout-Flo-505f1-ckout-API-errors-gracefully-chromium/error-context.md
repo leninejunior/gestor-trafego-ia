@@ -1,0 +1,76 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - link "Voltar" [ref=e4] [cursor=pointer]:
+      - /url: /
+      - img [ref=e5]
+      - text: Voltar
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - heading "Criar Conta" [level=1] [ref=e9]
+        - paragraph [ref=e10]: Preencha seus dados para começar
+        - generic [ref=e13]:
+          - generic [ref=e14]:
+            - generic [ref=e15]: Nome Completo *
+            - textbox "Seu nome" [ref=e16]: João Silva
+          - generic [ref=e17]:
+            - generic [ref=e18]: Email *
+            - textbox "seu@email.com" [ref=e19]: joao.silva@teste.com
+          - generic [ref=e20]:
+            - generic [ref=e21]: Nome da Empresa/Agência *
+            - textbox "Nome da sua empresa" [ref=e22]: Empresa Teste LTDA
+          - generic [ref=e23]:
+            - generic [ref=e24]: CPF/CNPJ
+            - textbox "000.000.000-00" [ref=e25]
+          - generic [ref=e26]:
+            - generic [ref=e27]: Telefone
+            - textbox "(00) 00000-0000" [ref=e28]
+          - button "Continuar para Pagamento" [ref=e29] [cursor=pointer]
+          - paragraph [ref=e30]: Ao continuar, você concorda com nossos Termos de Serviço e Política de Privacidade
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - heading "Resumo do Pedido" [level=3] [ref=e34]
+          - paragraph [ref=e35]: Plano selecionado
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - generic [ref=e38]:
+              - generic [ref=e39]:
+                - heading "Pro" [level=3] [ref=e40]
+                - paragraph [ref=e41]: Plano profissional completo
+              - generic [ref=e42]: Popular
+            - generic [ref=e43]:
+              - button "Mensal" [ref=e44] [cursor=pointer]
+              - button "Anual -17%" [ref=e45] [cursor=pointer]:
+                - text: Anual
+                - generic [ref=e46]: "-17%"
+            - generic [ref=e48]:
+              - generic [ref=e49]: Valor
+              - generic [ref=e50]:
+                - generic [ref=e51]: R$ 99.90
+                - generic [ref=e52]: /mês
+            - generic [ref=e53]:
+              - paragraph [ref=e54]: "Recursos inclusos:"
+              - list [ref=e55]:
+                - listitem [ref=e56]:
+                  - img [ref=e57]
+                  - generic [ref=e60]: Até 50 clientes
+                - listitem [ref=e61]:
+                  - img [ref=e62]
+                  - generic [ref=e65]: Até 200 campanhas
+                - listitem [ref=e66]:
+                  - img [ref=e67]
+                  - generic [ref=e70]: Analytics avançado
+                - listitem [ref=e71]:
+                  - img [ref=e72]
+                  - generic [ref=e75]: Relatórios personalizados
+                - listitem [ref=e76]:
+                  - img [ref=e77]
+                  - generic [ref=e80]: Acesso à API
+          - generic [ref=e82]:
+            - paragraph [ref=e83]: 🚀 Comece Agora
+            - paragraph [ref=e84]: Acesso imediato a todos os recursos do plano
+  - region "Notifications alt+T"
+  - alert [ref=e85]
+```

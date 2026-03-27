@@ -1,4 +1,4 @@
-# Export API Endpoints
+﻿# Export API Endpoints
 
 API endpoints for exporting campaign insights data.
 
@@ -181,7 +181,7 @@ if (exportData.status === 'completed') {
 
 ### GET /api/cron/export-cleanup
 
-Cleans up expired export files. Should be configured in `vercel.json`:
+Cleans up expired export files. Should be configured in `deploy.json`:
 
 ```json
 {
@@ -200,3 +200,4 @@ Cleans up expired export files. Should be configured in `vercel.json`:
 - **8.2**: JSON export endpoint with permission validation
 - **8.4**: Data filtered by retention period
 - **8.5**: Temporary files with 24h expiration and download URLs
+

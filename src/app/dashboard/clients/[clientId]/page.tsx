@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Trash2, Calendar, RefreshCw, Users, AlertCircle, Save, Clock3 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -78,6 +79,14 @@ interface ClientContextForm {
   notes: string;
 }
 
+type ClientContextField = {
+  key: keyof ClientContextForm;
+  label: string;
+  placeholder: string;
+  rows?: number;
+  className?: string;
+};
+
 const EMPTY_CLIENT_CONTEXT: ClientContextForm = {
   companyOverview: "",
   productsServices: "",
@@ -89,11 +98,76 @@ const EMPTY_CLIENT_CONTEXT: ClientContextForm = {
   notes: ""
 };
 
+const CLIENT_CONTEXT_COPY = {
+  cardTitle: "Contexto do cliente",
+  cardDescription: "Base de conhecimento utilizada em respostas, campanhas e automações deste cliente.",
+  noUpdate: "Ainda sem atualização",
+  invalidUpdate: "Data de atualização inválida",
+  updatedPrefix: "Última atualização em "
+};
+
+const CLIENT_CONTEXT_FIELDS: ClientContextField[] = [
+  {
+    key: "companyOverview",
+    label: "Visão geral da empresa",
+    placeholder: "Resumo da empresa, posicionamento, história e contexto geral.",
+    rows: 4,
+    className: "lg:col-span-2"
+  },
+  {
+    key: "productsServices",
+    label: "Produtos e serviços",
+    placeholder: "Produtos, serviços, pacotes e principais entregas.",
+    rows: 4,
+    className: "lg:col-span-2"
+  },
+  {
+    key: "targetAudience",
+    label: "Público-alvo",
+    placeholder: "Público-alvo, segmentos, dores e perfis prioritários.",
+    rows: 4,
+    className: "lg:col-span-2"
+  },
+  {
+    key: "valueProps",
+    label: "Proposta de valor",
+    placeholder: "Diferenciais, benefícios e proposta de valor.",
+    rows: 4,
+    className: "lg:col-span-2"
+  },
+  {
+    key: "brandVoice",
+    label: "Tom de voz da marca",
+    placeholder: "Tom de voz, estilo e princípios de comunicação.",
+    rows: 4
+  },
+  {
+    key: "constraints",
+    label: "Restrições",
+    placeholder: "Restrições, proibições, limites legais ou de marca.",
+    rows: 4
+  },
+  {
+    key: "offers",
+    label: "Ofertas ativas",
+    placeholder: "Ofertas ativas, campanhas, promoções e condições.",
+    rows: 4,
+    className: "lg:col-span-2"
+  },
+  {
+    key: "notes",
+    label: "Notas adicionais",
+    placeholder: "Notas adicionais, preferências internas e observações operacionais.",
+    rows: 5,
+    className: "lg:col-span-2"
+  }
+];
+
 function formatUpdatedAt(value: string | null) {
-  if (!value) return "Sem atualização registrada";
+  if (!value) return CLIENT_CONTEXT_COPY.noUpdate;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Data de atualização inválida";
-  return "Última atualização em " + date.toLocaleString("pt-BR");
+  if (Number.isNaN(date.getTime())) return CLIENT_CONTEXT_COPY.invalidUpdate;
+  return CLIENT_CONTEXT_COPY.updatedPrefix + date.toLocaleString("pt-BR");
 }
 
 // Componente de Seção de Campanhas com Filtros
@@ -336,6 +410,7 @@ function ClientDetailContent() {
   const [loadingContext, setLoadingContext] = useState(false);
   const [savingContext, setSavingContext] = useState(false);
   const [contextError, setContextError] = useState<string | null>(null);
+  const [contextDialogOpen, setContextDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -737,165 +812,102 @@ function ClientDetailContent() {
 
       <Card className="border-slate-200 bg-white shadow-sm">
         <CardHeader className="space-y-3">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-1">
-              <CardTitle>Contexto fixo do cliente</CardTitle>
-              <CardDescription>
-                Use este conteúdo como base de RAG para orientar respostas, campanhas e automações deste cliente.
-              </CardDescription>
+              <CardTitle>{CLIENT_CONTEXT_COPY.cardTitle}</CardTitle>
+              <CardDescription>{CLIENT_CONTEXT_COPY.cardDescription}</CardDescription>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Clock3 className="h-4 w-4" />
-              <span>{formatUpdatedAt(clientContextUpdatedAt)}</span>
-            </div>
+            <Button type="button" onClick={() => setContextDialogOpen(true)}>
+              Abrir contexto
+            </Button>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+            <Clock3 className="h-4 w-4" />
+            <span>{formatUpdatedAt(clientContextUpdatedAt)}</span>
             {loadingContext ? (
               <Badge variant="secondary" className="gap-2">
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                Carregando contexto
+                Carregando
               </Badge>
             ) : null}
             {savingContext ? (
               <Badge variant="secondary" className="gap-2">
                 <Save className="h-3.5 w-3.5" />
-                Salvando alterações
+                Salvando
               </Badge>
             ) : null}
-            {contextError ? (
-              <Badge variant="destructive">{contextError}</Badge>
-            ) : null}
+            {contextError ? <Badge variant="destructive">{contextError}</Badge> : null}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-2 lg:col-span-2">
-              <Label htmlFor="companyOverview">companyOverview</Label>
-              <Textarea
-                id="companyOverview"
-                value={clientContext.companyOverview}
-                onChange={(event) => setClientContext((current) => ({ ...current, companyOverview: event.target.value }))}
-                placeholder="Resumo da empresa, posicionamento, história e contexto geral."
-                rows={4}
-                disabled={loadingContext || savingContext}
-              />
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label htmlFor="productsServices">productsServices</Label>
-              <Textarea
-                id="productsServices"
-                value={clientContext.productsServices}
-                onChange={(event) => setClientContext((current) => ({ ...current, productsServices: event.target.value }))}
-                placeholder="Produtos, serviços, pacotes e principais entregas."
-                rows={4}
-                disabled={loadingContext || savingContext}
-              />
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label htmlFor="targetAudience">targetAudience</Label>
-              <Textarea
-                id="targetAudience"
-                value={clientContext.targetAudience}
-                onChange={(event) => setClientContext((current) => ({ ...current, targetAudience: event.target.value }))}
-                placeholder="Público-alvo, segmentos, dores e perfis prioritários."
-                rows={4}
-                disabled={loadingContext || savingContext}
-              />
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label htmlFor="valueProps">valueProps</Label>
-              <Textarea
-                id="valueProps"
-                value={clientContext.valueProps}
-                onChange={(event) => setClientContext((current) => ({ ...current, valueProps: event.target.value }))}
-                placeholder="Diferenciais, benefícios e proposta de valor."
-                rows={4}
-                disabled={loadingContext || savingContext}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="brandVoice">brandVoice</Label>
-              <Textarea
-                id="brandVoice"
-                value={clientContext.brandVoice}
-                onChange={(event) => setClientContext((current) => ({ ...current, brandVoice: event.target.value }))}
-                placeholder="Tom de voz, estilo e princípios de comunicação."
-                rows={4}
-                disabled={loadingContext || savingContext}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="constraints">constraints</Label>
-              <Textarea
-                id="constraints"
-                value={clientContext.constraints}
-                onChange={(event) => setClientContext((current) => ({ ...current, constraints: event.target.value }))}
-                placeholder="Restrições, proibições, limites legais ou de marca."
-                rows={4}
-                disabled={loadingContext || savingContext}
-              />
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label htmlFor="offers">offers</Label>
-              <Textarea
-                id="offers"
-                value={clientContext.offers}
-                onChange={(event) => setClientContext((current) => ({ ...current, offers: event.target.value }))}
-                placeholder="Ofertas ativas, campanhas, promoções e condições."
-                rows={4}
-                disabled={loadingContext || savingContext}
-              />
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label htmlFor="notes">notes</Label>
-              <Textarea
-                id="notes"
-                value={clientContext.notes}
-                onChange={(event) => setClientContext((current) => ({ ...current, notes: event.target.value }))}
-                placeholder="Notas adicionais, preferências internas e observações operacionais."
-                rows={5}
-                disabled={loadingContext || savingContext}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-gray-600">
-              As alterações são persistidas em <code className="rounded bg-slate-100 px-1 py-0.5">/api/clients/:clientId/context</code> e ficam disponíveis para os fluxos de contexto fixo do projeto.
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  void loadClientContext();
-                }}
-                disabled={loadingContext || savingContext}
-              >
-                <RefreshCw className={`mr-2 h-4 w-4 ${loadingContext ? 'animate-spin' : ''}`} />
-                Recarregar contexto
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSaveClientContext}
-                disabled={loadingContext || savingContext}
-              >
-                {savingContext ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Salvando...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Salvar contexto
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
       </Card>
+
+      <Dialog open={contextDialogOpen} onOpenChange={setContextDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{CLIENT_CONTEXT_COPY.cardTitle}</DialogTitle>
+            <DialogDescription>{CLIENT_CONTEXT_COPY.cardDescription}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              {CLIENT_CONTEXT_FIELDS.map((field) => (
+                <div key={field.key} className={`space-y-2${field.className ? ` ${field.className}` : ""}`}>
+                  <Label htmlFor={field.key}>{field.label}</Label>
+                  <Textarea
+                    id={field.key}
+                    value={clientContext[field.key]}
+                    onChange={(event) =>
+                      setClientContext((current) => ({
+                        ...current,
+                        [field.key]: event.target.value,
+                      }))
+                    }
+                    placeholder={field.placeholder}
+                    rows={field.rows ?? 4}
+                    disabled={loadingContext || savingContext}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-gray-600">
+                As alteracoes sao persistidas em <code className="rounded bg-slate-100 px-1 py-0.5">/api/clients/:clientId/context</code> e ficam disponiveis para os fluxos de contexto fixo do projeto.
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    void loadClientContext();
+                  }}
+                  disabled={loadingContext || savingContext}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${loadingContext ? "animate-spin" : ""}`} />
+                  Recarregar contexto
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSaveClientContext}
+                  disabled={loadingContext || savingContext}
+                >
+                  {savingContext ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Salvar contexto
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Aviso de Problemas de Conexão */}
       {!hasMetaConnection && (

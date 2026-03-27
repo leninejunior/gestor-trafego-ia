@@ -85,18 +85,7 @@ export function UserManagementClient({ initialUsers, initialStats }: UserManagem
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
-      // Tentar API normal primeiro, depois API simples, depois debug
-      let response = await fetch(`/api/admin/users?${params}`);
-      
-      if (!response.ok) {
-        console.log("API normal falhou, tentando API simples...");
-        response = await fetch(`/api/admin/users/simple?${params}`);
-      }
-      
-      if (!response.ok) {
-        console.log("API simples falhou, tentando API debug...");
-        response = await fetch(`/api/admin/users/debug?${params}`);
-      }
+      const response = await fetch(`/api/admin/users?${params}`);
       
       if (response.ok) {
         const data = await response.json();

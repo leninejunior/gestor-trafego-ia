@@ -1,4 +1,4 @@
-# Historical Data Cache Integration Guide
+﻿# Historical Data Cache Integration Guide
 
 ## Overview
 
@@ -123,7 +123,7 @@ const { data: googleConfig } = await supabase
 
 ### Step 3: Configure Cron Jobs
 
-Set up Vercel cron jobs in `vercel.json`:
+Set up plataforma de deploy cron jobs in `deploy.json`:
 
 ```json
 {
@@ -374,10 +374,10 @@ if (!validation.is_fresh) {
 ### 1. Always Check Limits First
 
 ```typescript
-// ❌ Bad: Fetch data without checking limits
+// âŒ Bad: Fetch data without checking limits
 const data = await service.getData(query);
 
-// ✅ Good: Check limits before fetching
+// âœ… Good: Check limits before fetching
 const retentionCheck = await cacheFeatureGate.checkDataRetention(
   userId,
   calculateDaysBetween(query.date_from, query.date_to)
@@ -393,7 +393,7 @@ const data = await service.getData(query);
 ### 2. Handle Fallback Scenarios
 
 ```typescript
-// ✅ Good: Handle API failures gracefully
+// âœ… Good: Handle API failures gracefully
 const result = await service.getData(query, adapter);
 
 if (result.fallback_used) {
@@ -410,14 +410,14 @@ if (result.api_status === 'failed') {
 ### 3. Optimize Date Ranges
 
 ```typescript
-// ❌ Bad: Always fetch maximum range
+// âŒ Bad: Always fetch maximum range
 const data = await service.getData({
   client_id: 'client-1',
   date_from: new Date('2024-01-01'),
   date_to: new Date(),
 });
 
-// ✅ Good: Fetch only what's needed
+// âœ… Good: Fetch only what's needed
 const data = await service.getData({
   client_id: 'client-1',
   date_from: new Date('2025-01-20'), // Last 7 days
@@ -428,14 +428,14 @@ const data = await service.getData({
 ### 4. Use Campaign Filters
 
 ```typescript
-// ❌ Bad: Fetch all campaigns
+// âŒ Bad: Fetch all campaigns
 const data = await service.getData({
   client_id: 'client-1',
   date_from: startDate,
   date_to: endDate,
 });
 
-// ✅ Good: Filter to specific campaigns
+// âœ… Good: Filter to specific campaigns
 const data = await service.getData({
   client_id: 'client-1',
   date_from: startDate,
@@ -447,7 +447,7 @@ const data = await service.getData({
 ### 5. Implement Retry Logic
 
 ```typescript
-// ✅ Good: Retry with exponential backoff
+// âœ… Good: Retry with exponential backoff
 async function fetchWithRetry(query: DataQuery, maxRetries = 3) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
@@ -465,7 +465,7 @@ async function fetchWithRetry(query: DataQuery, maxRetries = 3) {
 ### 6. Monitor Performance
 
 ```typescript
-// ✅ Good: Track performance metrics
+// âœ… Good: Track performance metrics
 const startTime = performance.now();
 const result = await service.getData(query);
 const duration = performance.now() - startTime;
@@ -719,3 +719,4 @@ For additional help:
 
 **Last Updated:** January 27, 2025  
 **Version:** 1.0.0
+

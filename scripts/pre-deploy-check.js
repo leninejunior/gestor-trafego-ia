@@ -48,7 +48,6 @@ const essentialFiles = [
   'next.config.ts',
   'tsconfig.json',
   '.env.production.example',
-  'vercel.json',
 ];
 
 essentialFiles.forEach(file => {
@@ -183,35 +182,7 @@ schemaFiles.forEach(file => {
   }
 });
 
-// 7. Verificar vercel.json
-console.log('\n🚀 Verificando configuração Vercel...');
-
-try {
-  const vercelConfig = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
-  
-  if (vercelConfig.buildCommand) {
-    success(`Build command: ${vercelConfig.buildCommand}`);
-  } else {
-    warning('Build command não especificado (usará padrão)');
-  }
-  
-  if (vercelConfig.framework === 'nextjs') {
-    success('Framework configurado como Next.js');
-  } else {
-    warning('Framework não especificado explicitamente');
-  }
-  
-  if (vercelConfig.regions) {
-    success(`Regiões configuradas: ${vercelConfig.regions.join(', ')}`);
-  } else {
-    info('Regiões não especificadas (usará padrão)');
-  }
-  
-} catch (err) {
-  warning(`Erro ao ler vercel.json: ${err.message}`);
-}
-
-// 8. Verificar se há arquivos .env locais (não devem ir para produção)
+// 7. Verificar se há arquivos .env locais (não devem ir para produção)
 console.log('\n🔒 Verificando arquivos sensíveis...');
 
 const sensitiveFiles = ['.env', '.env.local', '.env.production'];
@@ -264,7 +235,7 @@ if (hasErrors) {
   console.log('Você pode prosseguir com o deploy.\n');
   
   console.log('Próximos passos:');
-  console.log('1. Configure variáveis de ambiente na Vercel');
+  console.log('1. Configure variáveis de ambiente na sua plataforma de deploy');
   console.log('2. Execute: npm run deploy');
   console.log('3. Aplique schemas no Supabase');
   console.log('4. Configure callbacks no Meta/Google Console');

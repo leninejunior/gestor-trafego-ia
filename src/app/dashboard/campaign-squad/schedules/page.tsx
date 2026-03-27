@@ -29,11 +29,7 @@ import { ReadyCreativesBuilder } from '../_components/ready-creatives-builder'
 type ScheduleFormState = {
   organizationId: string
   clientId: string
-  cadence: 'monthly' | 'weekly'
   timezone: string
-  dayOfMonth: string
-  hour: string
-  minute: string
   nextRunAt: string
   campaignName: string
   objective: string
@@ -51,6 +47,14 @@ type OrganizationSummary = {
   name: string
 }
 
+function addDaysToDatetimeLocal(input: string, days = 1): string {
+  const base = new Date(input)
+  if (Number.isNaN(base.getTime())) return datetimeLocalFromNow(60 * 24)
+  base.setDate(base.getDate() + days)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())}T${pad(base.getHours())}:${pad(base.getMinutes())}`
+}
+
 export default function CampaignSquadSchedulesPage() {
   const { toast } = useToast()
   const [organizations, setOrganizations] = useState<OrganizationSummary[]>([])
@@ -63,13 +67,9 @@ export default function CampaignSquadSchedulesPage() {
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>({
     organizationId: 'default',
     clientId: '',
-    cadence: 'monthly',
     timezone: 'America/Sao_Paulo',
-    dayOfMonth: '1',
-    hour: '9',
-    minute: '0',
     nextRunAt: datetimeLocalFromNow(60),
-    campaignName: 'Planejamento recorrente',
+    campaignName: 'Planejamento de campanha',
     objective: 'Leads',
     budgetAmount: '1000',
     budgetCurrency: 'BRL',
@@ -85,6 +85,8 @@ export default function CampaignSquadSchedulesPage() {
   const [submittingSchedule, setSubmittingSchedule] = useState(false)
   const [triggeringDueSchedules, setTriggeringDueSchedules] = useState(false)
   const [togglingScheduleId, setTogglingScheduleId] = useState<string | null>(null)
+  const [duplicatingScheduleId, setDuplicatingScheduleId] = useState<string | null>(null)
+
   const hasSelectedOrganization =
     scheduleForm.organizationId.trim().length > 0 && scheduleForm.organizationId !== 'default'
   const hasSelectedClient = scheduleForm.clientId.trim().length > 0
@@ -176,7 +178,7 @@ export default function CampaignSquadSchedulesPage() {
       setLlmConfigs(Array.isArray(data.data) ? data.data : [])
     } catch (error) {
       toast({
-        title: 'Falha ao listar configurações LLM',
+        title: 'Falha ao listar configuracoes LLM',
         description: error instanceof Error ? error.message : 'Erro inesperado',
         variant: 'destructive'
       })
@@ -229,7 +231,7 @@ export default function CampaignSquadSchedulesPage() {
     })
   }, [clients, scheduleForm.organizationId])
 
-  const handleCreateSchedule = async () => {
+  const handleCreateSchedule = async (options?: { continueSequence?: boolean }) => {
     if (!hasSelectedOrganization || !hasSelectedClient) {
       toast({ title: 'Informe conta e cliente pela lista para criar o agendamento', variant: 'destructive' })
       return
@@ -245,13 +247,13 @@ export default function CampaignSquadSchedulesPage() {
 
     const budgetAmount = Number(scheduleForm.budgetAmount)
     if (!Number.isFinite(budgetAmount) || budgetAmount <= 0) {
-      toast({ title: 'Orçamento do template inválido', variant: 'destructive' })
+      toast({ title: 'Orcamento do template invalido', variant: 'destructive' })
       return
     }
 
     const nextRunAt = new Date(scheduleForm.nextRunAt)
     if (Number.isNaN(nextRunAt.getTime())) {
-      toast({ title: 'Data/hora do primeiro disparo inválida', variant: 'destructive' })
+      toast({ title: 'Data/hora do disparo invalida', variant: 'destructive' })
       return
     }
 
@@ -264,13 +266,14 @@ export default function CampaignSquadSchedulesPage() {
         body: JSON.stringify({
           organizationId: scheduleForm.organizationId.trim(),
           clientId: scheduleForm.clientId.trim(),
-          cadence: scheduleForm.cadence,
+          cadence: 'monthly',
           timezone: scheduleForm.timezone.trim(),
-          dayOfMonth: Number(scheduleForm.dayOfMonth),
-          hour: Number(scheduleForm.hour),
-          minute: Number(scheduleForm.minute),
+          dayOfMonth: nextRunAt.getDate(),
+          hour: nextRunAt.getHours(),
+          minute: nextRunAt.getMinutes(),
           nextRunAt: nextRunAt.toISOString(),
           payloadTemplate: {
+            scheduleMode: 'one_time',
             campaignName: scheduleForm.campaignName.trim(),
             objective: scheduleForm.objective.trim(),
             budget: {
@@ -286,7 +289,13 @@ export default function CampaignSquadSchedulesPage() {
         })
       })
 
-      toast({ title: 'Agendamento criado com sucesso' })
+      toast({ title: options?.continueSequence ? 'Agendamento criado e proximo pronto' : 'Agendamento criado com sucesso' })
+      if (options?.continueSequence) {
+        setScheduleForm((prev) => ({
+          ...prev,
+          nextRunAt: addDaysToDatetimeLocal(prev.nextRunAt, 1)
+        }))
+      }
       await loadSchedules(scheduleForm.organizationId)
     } catch (error) {
       toast({
@@ -296,6 +305,47 @@ export default function CampaignSquadSchedulesPage() {
       })
     } finally {
       setSubmittingSchedule(false)
+    }
+  }
+
+  const handleDuplicateSchedulePlusOneDay = async (schedule: SquadSchedule) => {
+    const sourceDate = schedule.nextRunAt ? new Date(schedule.nextRunAt) : new Date()
+    if (Number.isNaN(sourceDate.getTime())) {
+      toast({ title: 'Nao foi possivel duplicar: data invalida no agendamento base', variant: 'destructive' })
+      return
+    }
+    sourceDate.setDate(sourceDate.getDate() + 1)
+
+    setDuplicatingScheduleId(schedule.id)
+    try {
+      await requestJson('/api/campaign-squad/schedules', {
+        method: 'POST',
+        body: JSON.stringify({
+          organizationId: schedule.organizationId,
+          clientId: schedule.clientId,
+          cadence: 'monthly',
+          timezone: schedule.timezone || 'America/Sao_Paulo',
+          dayOfMonth: sourceDate.getDate(),
+          hour: sourceDate.getHours(),
+          minute: sourceDate.getMinutes(),
+          nextRunAt: sourceDate.toISOString(),
+          payloadTemplate: {
+            ...(schedule.payloadTemplate || {}),
+            scheduleMode: 'one_time'
+          }
+        })
+      })
+
+      toast({ title: 'Sequencia criada', description: 'Novo agendamento criado com +1 dia da campanha base.' })
+      await loadSchedules(schedule.organizationId)
+    } catch (error) {
+      toast({
+        title: 'Falha ao criar sequencia da campanha',
+        description: error instanceof Error ? error.message : 'Erro inesperado',
+        variant: 'destructive'
+      })
+    } finally {
+      setDuplicatingScheduleId(null)
     }
   }
 
@@ -349,7 +399,7 @@ export default function CampaignSquadSchedulesPage() {
   return (
     <CampaignSquadShell
       title="Agendamentos"
-      description="Planejamento recorrente de criativos e anúncios com controle de ativação."
+      description="Agende por data e horario exatos, com opcao de sequencia da mesma campanha."
       actions={(
         <>
           <Button variant="outline" onClick={() => loadSchedules(scheduleForm.organizationId)} disabled={loadingSchedules}>
@@ -366,16 +416,16 @@ export default function CampaignSquadSchedulesPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Novo agendamento recorrente</CardTitle>
-            <CardDescription>Configure cron mensal/semanal e template da campanha.</CardDescription>
+            <CardTitle>Novo agendamento por data/hora</CardTitle>
+            <CardDescription>Defina campanha, orcamento e data/hora exata. Para sequencia, use o botao de criar +1 dia.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="schedule-org">Organização</Label>
-                <Select value={scheduleForm.organizationId || undefined} onValueChange={(value) => setScheduleForm((prev) => ({ ...prev, organizationId: value }))}>
+                <Label htmlFor="schedule-org">Organizacao</Label>
+                <Select value={scheduleForm.organizationId} onValueChange={(value) => setScheduleForm((prev) => ({ ...prev, organizationId: value }))}>
                   <SelectTrigger id="schedule-org" disabled={loadingClients || organizations.length === 0}>
-                    <SelectValue placeholder="Selecione uma organização" />
+                    <SelectValue placeholder="Selecione uma organizacao" />
                   </SelectTrigger>
                   <SelectContent>
                     {organizations.map((organization) => (
@@ -385,17 +435,11 @@ export default function CampaignSquadSchedulesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {!loadingClients && organizations.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Nenhuma conta disponivel para seu usuario.</p>
-                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="schedule-client">Cliente</Label>
-                <Select value={scheduleForm.clientId || undefined} onValueChange={(value) => setScheduleForm((prev) => ({ ...prev, clientId: value }))}>
-                  <SelectTrigger
-                    id="schedule-client"
-                    disabled={loadingClients || !hasSelectedOrganization || clientsForSelectedOrganization.length === 0}
-                  >
+                <Select value={scheduleForm.clientId} onValueChange={(value) => setScheduleForm((prev) => ({ ...prev, clientId: value }))}>
+                  <SelectTrigger id="schedule-client" disabled={loadingClients || !hasSelectedOrganization || clientsForSelectedOrganization.length === 0}>
                     <SelectValue placeholder="Selecione um cliente" />
                   </SelectTrigger>
                   <SelectContent>
@@ -406,22 +450,10 @@ export default function CampaignSquadSchedulesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {loadingClients ? <p className="text-xs text-muted-foreground">Carregando clientes...</p> : null}
-                {!loadingClients && hasSelectedOrganization && clientsForSelectedOrganization.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Nenhum cliente encontrado para a conta selecionada.</p>
-                ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="schedule-cadence">Cadência</Label>
-                <Select value={scheduleForm.cadence} onValueChange={(value: 'monthly' | 'weekly') => setScheduleForm((prev) => ({ ...prev, cadence: value }))}>
-                  <SelectTrigger id="schedule-cadence">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">Mensal</SelectItem>
-                    <SelectItem value="weekly">Semanal</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="schedule-next">Data e horario do disparo</Label>
+                <Input id="schedule-next" type="datetime-local" value={scheduleForm.nextRunAt} onChange={(event) => setScheduleForm((prev) => ({ ...prev, nextRunAt: event.target.value }))} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="schedule-timezone">Timezone</Label>
@@ -429,28 +461,9 @@ export default function CampaignSquadSchedulesPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              <div className="space-y-2">
-                <Label htmlFor="schedule-day">Dia do mês</Label>
-                <Input id="schedule-day" type="number" min="1" max="31" value={scheduleForm.dayOfMonth} onChange={(event) => setScheduleForm((prev) => ({ ...prev, dayOfMonth: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="schedule-hour">Hora</Label>
-                <Input id="schedule-hour" type="number" min="0" max="23" value={scheduleForm.hour} onChange={(event) => setScheduleForm((prev) => ({ ...prev, hour: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="schedule-minute">Minuto</Label>
-                <Input id="schedule-minute" type="number" min="0" max="59" value={scheduleForm.minute} onChange={(event) => setScheduleForm((prev) => ({ ...prev, minute: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="schedule-next">Primeiro disparo</Label>
-                <Input id="schedule-next" type="datetime-local" value={scheduleForm.nextRunAt} onChange={(event) => setScheduleForm((prev) => ({ ...prev, nextRunAt: event.target.value }))} />
-              </div>
-            </div>
-
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="schedule-campaign-name">Nome base da campanha</Label>
+                <Label htmlFor="schedule-campaign-name">Nome da campanha</Label>
                 <Input id="schedule-campaign-name" value={scheduleForm.campaignName} onChange={(event) => setScheduleForm((prev) => ({ ...prev, campaignName: event.target.value }))} />
               </div>
               <div className="space-y-2">
@@ -458,7 +471,7 @@ export default function CampaignSquadSchedulesPage() {
                 <Input id="schedule-objective" value={scheduleForm.objective} onChange={(event) => setScheduleForm((prev) => ({ ...prev, objective: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="schedule-budget-amount">Orçamento</Label>
+                <Label htmlFor="schedule-budget-amount">Orcamento</Label>
                 <Input id="schedule-budget-amount" type="number" min="1" step="0.01" value={scheduleForm.budgetAmount} onChange={(event) => setScheduleForm((prev) => ({ ...prev, budgetAmount: event.target.value }))} />
               </div>
               <div className="space-y-2">
@@ -466,13 +479,13 @@ export default function CampaignSquadSchedulesPage() {
                 <Input id="schedule-budget-currency" value={scheduleForm.budgetCurrency} onChange={(event) => setScheduleForm((prev) => ({ ...prev, budgetCurrency: event.target.value }))} />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="schedule-llm-select">Configuração LLM</Label>
+                <Label htmlFor="schedule-llm-select">Configuracao LLM</Label>
                 <Select value={scheduleForm.llmConfigId || 'none'} onValueChange={(value) => setScheduleForm((prev) => ({ ...prev, llmConfigId: value === 'none' ? '' : value }))}>
                   <SelectTrigger id="schedule-llm-select">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Nenhuma (resolução automática)</SelectItem>
+                    <SelectItem value="none">Nenhuma (resolucao automatica)</SelectItem>
                     {llmConfigs.map((config) => (
                       <SelectItem key={config.id} value={config.id}>
                         {config.provider}/{config.model} - {config.tokenReference}
@@ -480,13 +493,12 @@ export default function CampaignSquadSchedulesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {loadingLlmConfigs ? <p className="text-xs text-muted-foreground">Atualizando configs LLM...</p> : null}
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="flex items-center justify-between rounded-md border p-3">
-                <Label>Refação automática no template</Label>
+                <Label>Refacao automatica no template</Label>
                 <Switch checked={scheduleForm.allowAutoRefine} onCheckedChange={(checked) => setScheduleForm((prev) => ({ ...prev, allowAutoRefine: checked }))} />
               </div>
               <div className="flex items-center gap-3 rounded-md border p-3">
@@ -500,7 +512,7 @@ export default function CampaignSquadSchedulesPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="schedule-publication-json">publicationConfig no template (JSON opcional)</Label>
+              <Label htmlFor="schedule-publication-json">publicationConfig (JSON opcional)</Label>
               <Textarea
                 id="schedule-publication-json"
                 placeholder='{"meta":{"pageId":"123"},"google":{"dailyBudget":120}}'
@@ -516,49 +528,76 @@ export default function CampaignSquadSchedulesPage() {
               onChange={setReadyCreatives}
             />
 
-            <Button onClick={handleCreateSchedule} disabled={submittingSchedule}>
-              {submittingSchedule ? 'Criando agendamento...' : 'Criar agendamento recorrente'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => handleCreateSchedule()} disabled={submittingSchedule}>
+                {submittingSchedule ? 'Criando agendamento...' : 'Criar agendamento'}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => handleCreateSchedule({ continueSequence: true })} disabled={submittingSchedule}>
+                {submittingSchedule ? 'Criando...' : 'Criar e preparar proximo (+1 dia)'}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Agendamentos ativos</CardTitle>
-            <CardDescription>Controle de status e próximos disparos.</CardDescription>
+            <CardTitle>Agendamentos</CardTitle>
+            <CardDescription>Disparos por data/hora com opcao de sequencia da mesma campanha.</CardDescription>
           </CardHeader>
           <CardContent>
             {loadingSchedules ? (
               <p className="text-sm text-muted-foreground">Carregando agendamentos...</p>
             ) : schedules.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum agendamento encontrado para esta organização.</p>
+              <p className="text-sm text-muted-foreground">Nenhum agendamento encontrado para esta organizacao.</p>
             ) : (
               <div className="space-y-3">
-                {schedules.map((schedule) => (
-                  <div key={schedule.id} className="rounded-md border p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">{schedule.id}</Badge>
-                      <Badge variant="secondary">{schedule.cadence}</Badge>
-                      <Badge variant={schedule.isActive ? 'default' : 'destructive'}>
-                        {schedule.isActive ? 'ativo' : 'inativo'}
-                      </Badge>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={togglingScheduleId === schedule.id}
-                        onClick={() => handleToggleSchedule(schedule)}
-                      >
-                        {togglingScheduleId === schedule.id ? 'Atualizando...' : schedule.isActive ? 'Desativar' : 'Ativar'}
-                      </Button>
+                {schedules.map((schedule) => {
+                  const template = (schedule.payloadTemplate || {}) as Record<string, unknown>
+                  const campaignName = typeof template.campaignName === 'string' ? template.campaignName : 'Campanha sem nome'
+                  const templateBudget = template.budget && typeof template.budget === 'object'
+                    ? template.budget as { amount?: number; currency?: string }
+                    : null
+                  const budgetLabel = templateBudget
+                    ? `${templateBudget.amount ?? '-'} ${templateBudget.currency ?? ''}`.trim()
+                    : '-'
+
+                  return (
+                    <div key={schedule.id} className="rounded-md border p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">{schedule.id}</Badge>
+                        <Badge variant="secondary">data fixa</Badge>
+                        <Badge variant={schedule.isActive ? 'default' : 'destructive'}>
+                          {schedule.isActive ? 'ativo' : 'inativo'}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={togglingScheduleId === schedule.id}
+                          onClick={() => handleToggleSchedule(schedule)}
+                        >
+                          {togglingScheduleId === schedule.id ? 'Atualizando...' : schedule.isActive ? 'Desativar' : 'Ativar'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={duplicatingScheduleId === schedule.id}
+                          onClick={() => handleDuplicateSchedulePlusOneDay(schedule)}
+                        >
+                          {duplicatingScheduleId === schedule.id ? 'Duplicando...' : 'Sequencia +1 dia'}
+                        </Button>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Data/hora: {schedule.nextRunAt ? new Date(schedule.nextRunAt).toLocaleString('pt-BR') : 'nao definido'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Campanha: {campaignName} | Orcamento: {budgetLabel}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Conta: {organizationNameById.get(schedule.organizationId) || 'Conta nao carregada'} | Cliente: {clientNameById.get(schedule.clientId) || 'Cliente nao carregado'} | Timezone: {schedule.timezone}
+                      </p>
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Próximo disparo: {schedule.nextRunAt ? new Date(schedule.nextRunAt).toLocaleString('pt-BR') : 'não definido'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Conta: {organizationNameById.get(schedule.organizationId) || 'Conta não carregada'} | Cliente: {clientNameById.get(schedule.clientId) || 'Cliente não carregado'} | Timezone: {schedule.timezone} | Hora: {String(schedule.hour).padStart(2, '0')}:{String(schedule.minute).padStart(2, '0')}
-                    </p>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </CardContent>

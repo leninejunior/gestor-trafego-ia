@@ -1,29 +1,29 @@
-# Task 13 - Sistema de Limpeza Automática de Dados - Resumo de Implementação
+﻿# Task 13 - Sistema de Limpeza AutomÃ¡tica de Dados - Resumo de ImplementaÃ§Ã£o
 
-## Visão Geral
+## VisÃ£o Geral
 
-Implementação completa do sistema de limpeza automática de dados históricos, incluindo gerenciamento de partições e cron jobs para execução diária.
+ImplementaÃ§Ã£o completa do sistema de limpeza automÃ¡tica de dados histÃ³ricos, incluindo gerenciamento de partiÃ§Ãµes e cron jobs para execuÃ§Ã£o diÃ¡ria.
 
 ## Requisitos Atendidos
 
-- ✅ **Requisito 2.3**: Sistema remove automaticamente dados além do limite de retenção
-- ✅ **Requisito 10.1**: Agregação de métricas por dia
-- ✅ **Requisito 10.2**: Particionamento mensal para otimizar queries
+- âœ… **Requisito 2.3**: Sistema remove automaticamente dados alÃ©m do limite de retenÃ§Ã£o
+- âœ… **Requisito 10.1**: AgregaÃ§Ã£o de mÃ©tricas por dia
+- âœ… **Requisito 10.2**: Particionamento mensal para otimizar queries
 
 ## Componentes Implementados
 
 ### 1. CleanupService (`src/lib/services/cleanup-service.ts`)
 
-Serviço principal para gerenciamento de limpeza de dados.
+ServiÃ§o principal para gerenciamento de limpeza de dados.
 
-**Métodos Implementados**:
+**MÃ©todos Implementados**:
 
 #### `deleteExpiredData(clientId: string)`
-- Remove dados expirados de um cliente específico
-- Consulta o plano do cliente para determinar período de retenção
+- Remove dados expirados de um cliente especÃ­fico
+- Consulta o plano do cliente para determinar perÃ­odo de retenÃ§Ã£o
 - Calcula data de corte baseada em `data_retention_days`
-- Remove registros anteriores à data de corte
-- Retorna estatísticas da operação
+- Remove registros anteriores Ã  data de corte
+- Retorna estatÃ­sticas da operaÃ§Ã£o
 
 #### `deleteExpiredDataForAllClients()`
 - Processa todos os clientes do sistema
@@ -32,39 +32,39 @@ Serviço principal para gerenciamento de limpeza de dados.
 - Retorna array com resultados de cada cliente
 
 #### `createMonthlyPartitions(monthsAhead: number)`
-- Cria partições mensais para os próximos N meses
-- Verifica se partição já existe antes de criar
-- Usa SQL dinâmico para criar partições
-- Retorna informações sobre partições criadas/existentes
+- Cria partiÃ§Ãµes mensais para os prÃ³ximos N meses
+- Verifica se partiÃ§Ã£o jÃ¡ existe antes de criar
+- Usa SQL dinÃ¢mico para criar partiÃ§Ãµes
+- Retorna informaÃ§Ãµes sobre partiÃ§Ãµes criadas/existentes
 
 #### `archiveOldPartitions(monthsToKeep: number)`
-- Desanexa partições antigas da tabela principal
-- Mantém dados mas torna inacessíveis para queries normais
-- Útil para reduzir overhead de queries
+- Desanexa partiÃ§Ãµes antigas da tabela principal
+- MantÃ©m dados mas torna inacessÃ­veis para queries normais
+- Ãštil para reduzir overhead de queries
 - Retorna resultados de arquivamento
 
 #### `getCleanupStats()`
-- Retorna estatísticas gerais do sistema
-- Total de clientes, partições, datas
-- Útil para monitoramento
+- Retorna estatÃ­sticas gerais do sistema
+- Total de clientes, partiÃ§Ãµes, datas
+- Ãštil para monitoramento
 
-### 2. Funções do Banco de Dados (`database/cleanup-functions.sql`)
+### 2. FunÃ§Ãµes do Banco de Dados (`database/cleanup-functions.sql`)
 
-Funções SQL para suportar operações de limpeza.
+FunÃ§Ãµes SQL para suportar operaÃ§Ãµes de limpeza.
 
-**Funções Criadas**:
+**FunÃ§Ãµes Criadas**:
 
-- `check_partition_exists(table_name, partition_name)`: Verifica existência de partição
-- `list_partitions(parent_table)`: Lista todas as partições
-- `execute_sql(sql_query)`: Executa SQL dinâmico (admin only)
-- `get_partition_sizes(parent_table)`: Informações de tamanho das partições
-- `get_client_cleanup_stats(client_id)`: Estatísticas por cliente
-- `get_overall_cleanup_stats()`: Estatísticas gerais
-- `create_next_month_partition()`: Cria próxima partição automaticamente
+- `check_partition_exists(table_name, partition_name)`: Verifica existÃªncia de partiÃ§Ã£o
+- `list_partitions(parent_table)`: Lista todas as partiÃ§Ãµes
+- `execute_sql(sql_query)`: Executa SQL dinÃ¢mico (admin only)
+- `get_partition_sizes(parent_table)`: InformaÃ§Ãµes de tamanho das partiÃ§Ãµes
+- `get_client_cleanup_stats(client_id)`: EstatÃ­sticas por cliente
+- `get_overall_cleanup_stats()`: EstatÃ­sticas gerais
+- `create_next_month_partition()`: Cria prÃ³xima partiÃ§Ã£o automaticamente
 
 ### 3. Schema de Logs (`database/cleanup-logs-schema.sql`)
 
-Tabela para rastrear execuções de limpeza.
+Tabela para rastrear execuÃ§Ãµes de limpeza.
 
 **Estrutura**:
 ```sql
@@ -75,33 +75,33 @@ CREATE TABLE cleanup_logs (
   records_affected INT,   -- Registros afetados
   details JSONB,          -- Detalhes adicionais
   error_message TEXT,     -- Mensagem de erro
-  started_at TIMESTAMPTZ, -- Início
+  started_at TIMESTAMPTZ, -- InÃ­cio
   completed_at TIMESTAMPTZ, -- Fim
-  duration_ms INT,        -- Duração
-  created_at TIMESTAMPTZ  -- Criação do log
+  duration_ms INT,        -- DuraÃ§Ã£o
+  created_at TIMESTAMPTZ  -- CriaÃ§Ã£o do log
 );
 ```
 
-**Funções de Consulta**:
-- `get_cleanup_log_summary(days_back)`: Resumo de execuções
+**FunÃ§Ãµes de Consulta**:
+- `get_cleanup_log_summary(days_back)`: Resumo de execuÃ§Ãµes
 - `get_recent_cleanup_failures(limit_count)`: Falhas recentes
 - `cleanup_old_logs()`: Remove logs antigos (> 90 dias)
 
 ### 4. Cron Job (`src/app/api/cron/cleanup/route.ts`)
 
-Endpoint executado diariamente pelo Vercel Cron.
+Endpoint executado diariamente pelo plataforma de deploy Cron.
 
-**Operações Executadas**:
-1. Cria partições para próximos 3 meses
+**OperaÃ§Ãµes Executadas**:
+1. Cria partiÃ§Ãµes para prÃ³ximos 3 meses
 2. Remove dados expirados de todos os clientes
-3. Registra operações em logs
-4. Retorna estatísticas
+3. Registra operaÃ§Ãµes em logs
+4. Retorna estatÃ­sticas
 
-**Agendamento**: Diariamente às 2:00 AM UTC
+**Agendamento**: Diariamente Ã s 2:00 AM UTC
 
-**Segurança**: Protegido por `CRON_SECRET`
+**SeguranÃ§a**: Protegido por `CRON_SECRET`
 
-### 5. APIs de Administração
+### 5. APIs de AdministraÃ§Ã£o
 
 #### `/api/admin/cleanup/logs` (GET)
 - Visualiza logs de limpeza
@@ -110,14 +110,14 @@ Endpoint executado diariamente pelo Vercel Cron.
 - Apenas admins
 
 #### `/api/admin/cleanup/trigger` (POST)
-- Execução manual de limpeza
-- Operações: delete_expired, create_partitions, archive_partitions, all
-- Útil para testes e manutenção
+- ExecuÃ§Ã£o manual de limpeza
+- OperaÃ§Ãµes: delete_expired, create_partitions, archive_partitions, all
+- Ãštil para testes e manutenÃ§Ã£o
 - Apenas admins
 
-### 6. Configuração Vercel (`vercel.json`)
+### 6. ConfiguraÃ§Ã£o plataforma de deploy (`deploy.json`)
 
-Adicionado cron job ao arquivo de configuração:
+Adicionado cron job ao arquivo de configuraÃ§Ã£o:
 
 ```json
 {
@@ -126,53 +126,53 @@ Adicionado cron job ao arquivo de configuração:
 }
 ```
 
-## Fluxo de Execução
+## Fluxo de ExecuÃ§Ã£o
 
-### Execução Diária Automática
+### ExecuÃ§Ã£o DiÃ¡ria AutomÃ¡tica
 
 ```
-1. Vercel Cron (2:00 AM UTC)
-   ↓
+1. plataforma de deploy Cron (2:00 AM UTC)
+   â†“
 2. GET /api/cron/cleanup
-   ↓
+   â†“
 3. Verificar CRON_SECRET
-   ↓
-4. Criar Partições Futuras
-   ├─ Verificar partições existentes
-   ├─ Criar novas partições (se necessário)
-   └─ Registrar em logs
-   ↓
+   â†“
+4. Criar PartiÃ§Ãµes Futuras
+   â”œâ”€ Verificar partiÃ§Ãµes existentes
+   â”œâ”€ Criar novas partiÃ§Ãµes (se necessÃ¡rio)
+   â””â”€ Registrar em logs
+   â†“
 5. Limpar Dados Expirados
-   ├─ Buscar todos os clientes
-   ├─ Para cada cliente:
-   │  ├─ Obter plano ativo
-   │  ├─ Consultar data_retention_days
-   │  ├─ Calcular data de corte
-   │  └─ Remover registros antigos
-   └─ Registrar em logs
-   ↓
-6. Obter Estatísticas
-   ↓
+   â”œâ”€ Buscar todos os clientes
+   â”œâ”€ Para cada cliente:
+   â”‚  â”œâ”€ Obter plano ativo
+   â”‚  â”œâ”€ Consultar data_retention_days
+   â”‚  â”œâ”€ Calcular data de corte
+   â”‚  â””â”€ Remover registros antigos
+   â””â”€ Registrar em logs
+   â†“
+6. Obter EstatÃ­sticas
+   â†“
 7. Retornar Resposta
 ```
 
-### Execução Manual
+### ExecuÃ§Ã£o Manual
 
 ```
 1. Admin acessa /api/admin/cleanup/trigger
-   ↓
-2. Verificar permissões de admin
-   ↓
-3. Executar operação solicitada
-   ↓
+   â†“
+2. Verificar permissÃµes de admin
+   â†“
+3. Executar operaÃ§Ã£o solicitada
+   â†“
 4. Retornar resultados
 ```
 
-## Integração com Sistema Existente
+## IntegraÃ§Ã£o com Sistema Existente
 
 ### PlanConfigurationService
-- `getUserPlanLimits(userId)`: Obtém limites do plano
-- `data_retention_days`: Período de retenção usado na limpeza
+- `getUserPlanLimits(userId)`: ObtÃ©m limites do plano
+- `data_retention_days`: PerÃ­odo de retenÃ§Ã£o usado na limpeza
 
 ### HistoricalDataRepository
 - Tabela `campaign_insights_history`: Dados limpos
@@ -180,39 +180,39 @@ Adicionado cron job ao arquivo de configuração:
 
 ### Supabase
 - RLS policies: Garantem isolamento de dados
-- Functions: Operações avançadas de particionamento
+- Functions: OperaÃ§Ãµes avanÃ§adas de particionamento
 
 ## Monitoramento e Logs
 
-### Métricas Disponíveis
+### MÃ©tricas DisponÃ­veis
 
-1. **Por Execução**:
+1. **Por ExecuÃ§Ã£o**:
    - Registros removidos
    - Clientes processados
-   - Partições criadas
-   - Duração da execução
+   - PartiÃ§Ãµes criadas
+   - DuraÃ§Ã£o da execuÃ§Ã£o
 
 2. **Agregadas**:
    - Taxa de sucesso
    - Total de registros removidos
-   - Duração média
+   - DuraÃ§Ã£o mÃ©dia
    - Falhas recentes
 
-### Consultas Úteis
+### Consultas Ãšteis
 
 ```sql
--- Ver últimas execuções
+-- Ver Ãºltimas execuÃ§Ãµes
 SELECT * FROM cleanup_logs 
 ORDER BY created_at DESC 
 LIMIT 10;
 
--- Resumo dos últimos 30 dias
+-- Resumo dos Ãºltimos 30 dias
 SELECT * FROM get_cleanup_log_summary(30);
 
 -- Falhas recentes
 SELECT * FROM get_recent_cleanup_failures(5);
 
--- Estatísticas gerais
+-- EstatÃ­sticas gerais
 SELECT * FROM get_overall_cleanup_stats();
 ```
 
@@ -232,18 +232,18 @@ curl https://your-domain.com/api/admin/cleanup/logs?days=7 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-### Teste de Partições
+### Teste de PartiÃ§Ãµes
 
 ```typescript
 import { cleanupService } from '@/lib/services/cleanup-service';
 
-// Criar partições
+// Criar partiÃ§Ãµes
 const partitions = await cleanupService.createMonthlyPartitions(3);
-console.log('Partições:', partitions);
+console.log('PartiÃ§Ãµes:', partitions);
 
-// Verificar estatísticas
+// Verificar estatÃ­sticas
 const stats = await cleanupService.getCleanupStats();
-console.log('Estatísticas:', stats);
+console.log('EstatÃ­sticas:', stats);
 ```
 
 ### Teste de Limpeza
@@ -256,50 +256,50 @@ console.log(`Removidos ${result.records_deleted} registros`);
 
 ## Performance
 
-### Otimizações Implementadas
+### OtimizaÃ§Ãµes Implementadas
 
-1. **Batch Processing**: Processa todos os clientes em uma execução
-2. **Índices**: Queries otimizadas com índices em `client_id` e `date`
-3. **Particionamento**: Deletes mais rápidos em partições menores
-4. **Logging Assíncrono**: Não bloqueia operações principais
+1. **Batch Processing**: Processa todos os clientes em uma execuÃ§Ã£o
+2. **Ãndices**: Queries otimizadas com Ã­ndices em `client_id` e `date`
+3. **Particionamento**: Deletes mais rÃ¡pidos em partiÃ§Ãµes menores
+4. **Logging AssÃ­ncrono**: NÃ£o bloqueia operaÃ§Ãµes principais
 
-### Considerações
+### ConsideraÃ§Ãµes
 
-- **Timeout Vercel**: 10s (Free), 60s (Pro), 900s (Enterprise)
+- **Timeout plataforma de deploy**: 10s (Free), 60s (Pro), 900s (Enterprise)
 - **Volume de Dados**: Para grandes volumes, considerar processamento em lotes
-- **Horário**: Execução em horário de baixo tráfego (2 AM UTC)
+- **HorÃ¡rio**: ExecuÃ§Ã£o em horÃ¡rio de baixo trÃ¡fego (2 AM UTC)
 
-## Segurança
+## SeguranÃ§a
 
-1. **Autenticação**: CRON_SECRET para cron jobs
-2. **Autorização**: Apenas admins podem acessar APIs de limpeza
-3. **RLS**: Políticas de segurança em nível de banco
-4. **Audit Trail**: Todos os logs são registrados
+1. **AutenticaÃ§Ã£o**: CRON_SECRET para cron jobs
+2. **AutorizaÃ§Ã£o**: Apenas admins podem acessar APIs de limpeza
+3. **RLS**: PolÃ­ticas de seguranÃ§a em nÃ­vel de banco
+4. **Audit Trail**: Todos os logs sÃ£o registrados
 
-## Documentação
+## DocumentaÃ§Ã£o
 
-- ✅ README do CleanupService
-- ✅ README do Cron Job
-- ✅ Comentários no código
-- ✅ Documentação SQL
-- ✅ Este resumo de implementação
+- âœ… README do CleanupService
+- âœ… README do Cron Job
+- âœ… ComentÃ¡rios no cÃ³digo
+- âœ… DocumentaÃ§Ã£o SQL
+- âœ… Este resumo de implementaÃ§Ã£o
 
-## Próximos Passos Recomendados
+## PrÃ³ximos Passos Recomendados
 
 1. **Monitoramento**:
    - Configurar alertas para falhas
-   - Dashboard de visualização de logs
-   - Métricas em tempo real
+   - Dashboard de visualizaÃ§Ã£o de logs
+   - MÃ©tricas em tempo real
 
-2. **Otimizações**:
-   - Implementar cache Redis para configurações
+2. **OtimizaÃ§Ãµes**:
+   - Implementar cache Redis para configuraÃ§Ãµes
    - Processar clientes em paralelo
    - Otimizar queries de limpeza
 
 3. **Features Adicionais**:
-   - Notificações de limpeza para admins
-   - Relatórios mensais de limpeza
-   - Previsão de crescimento de dados
+   - NotificaÃ§Ãµes de limpeza para admins
+   - RelatÃ³rios mensais de limpeza
+   - PrevisÃ£o de crescimento de dados
 
 ## Arquivos Criados/Modificados
 
@@ -315,18 +315,19 @@ console.log(`Removidos ${result.records_deleted} registros`);
 - `.kiro/specs/historical-data-cache/TASK-13-COMPLETION-SUMMARY.md`
 
 ### Modificados
-- `vercel.json` (adicionado cron job)
+- `deploy.json` (adicionado cron job)
 
-## Conclusão
+## ConclusÃ£o
 
-A tarefa 13 foi implementada com sucesso, fornecendo um sistema robusto e automatizado de limpeza de dados históricos. O sistema:
+A tarefa 13 foi implementada com sucesso, fornecendo um sistema robusto e automatizado de limpeza de dados histÃ³ricos. O sistema:
 
-- ✅ Remove automaticamente dados expirados baseado em planos
-- ✅ Gerencia partições mensais automaticamente
-- ✅ Registra todas as operações para auditoria
-- ✅ Fornece APIs para monitoramento e execução manual
-- ✅ Está integrado com o sistema de planos existente
-- ✅ Inclui documentação completa
+- âœ… Remove automaticamente dados expirados baseado em planos
+- âœ… Gerencia partiÃ§Ãµes mensais automaticamente
+- âœ… Registra todas as operaÃ§Ãµes para auditoria
+- âœ… Fornece APIs para monitoramento e execuÃ§Ã£o manual
+- âœ… EstÃ¡ integrado com o sistema de planos existente
+- âœ… Inclui documentaÃ§Ã£o completa
 
-O sistema está pronto para produção e pode ser monitorado através dos logs e APIs de administração.
+O sistema estÃ¡ pronto para produÃ§Ã£o e pode ser monitorado atravÃ©s dos logs e APIs de administraÃ§Ã£o.
+
 

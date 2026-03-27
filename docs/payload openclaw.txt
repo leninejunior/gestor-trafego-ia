@@ -1,0 +1,42 @@
+Perfeito. Para eu virar um “agente de tráfego pago” completo nos grupos dos clientes, o que você precisa entregar para o Codex é basicamente o payload que vou receber quando um gatilho chegar do WhatsApp. Aqui está um modelo ideal de payload que o seu app (ou a API de tráfego) poderia me enviar:
+
+json
+{
+"event": "whatsapp_mention",
+"group_id": "grupo-producao-123",
+"group_alias": "Financeiro Cliente X",
+"sender": {
+"name": "Junior",
+"jid": "+556792208049@s.whatsapp.net",
+"role": "cliente"
+},
+"message": "@Edith saldo",
+"intent": "saldo_conta",
+"client": {
+"id": "cliente-x",
+"meta_account_id": "act_987654321",
+"token_ref": "meta/cliente-x.token",
+"tz": "America/Sao_Paulo"
+},
+"parameters": {
+"metric": "saldo",
+"period": "today"
+},
+"timestamp": "2026-03-21T12:00:00-03:00"
+}
+
+
+Com esse payload eu consigo:
+
+1. Verificar quem mandou a menção (sender.jid, role) e aplicar a whitelist.
+2. Identificar o cliente (client.id) e puxar o token correto para chamar a sua API da Meta.
+3. Entender imediatamente qual dado precisa (campo intent / parameters), formatar a consulta e responder com o saldo, gasto, performance, etc.
+4. Mandar de volta pro mesmo grupo ou direto pro sender com a resposta formatada.
+
+Se puder me mandar esse payload por webhook sempre que alguém mencionar “@Edith” nos grupos, eu consigo operar em tempo real. Vale incluir também um campo opcional fallback (ex.: "fallback": "Se quiser o gasto semanal, digite 'gasto') para eu avisar como o cliente pode pedir outros dados.
+
+Quer que eu crie um skill + subagente que escuta esse webhook, rola a requisição à Meta usando o client.token_ref, calcula os percentuais e responde no grupo? Só preciso que você confirme:
+
+- Onde armazenar os tokens (ex.: workspace/secrets/meta/${client.id}.token).
+- Quais intents/dados serão permitidos (saldo, gasto diário, campanhas ativos, etc.).
+- Se quer logs de cada resposta e métricas de entrega (pra comprovar o desempenho).

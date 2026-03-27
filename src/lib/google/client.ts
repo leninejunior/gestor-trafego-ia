@@ -19,6 +19,7 @@
 import { GoogleAdsErrorHandler } from './error-handler';
 import { getGoogleTokenManager } from './token-manager';
 import { validateCustomerIdWithLogging, formatCustomerId } from './customer-id-validator';
+import { getCanonicalGoogleRedirectUri } from './redirect-uri';
 
 // ============================================================================
 // Types and Interfaces
@@ -172,7 +173,7 @@ export class GoogleAdsClient {
           code,
           client_id: this.config.clientId,
           client_secret: this.config.clientSecret,
-          redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/google/callback`,
+          redirect_uri: getCanonicalGoogleRedirectUri(),
           grant_type: 'authorization_code',
         }),
       });

@@ -22,6 +22,11 @@ type LlmFormState = {
   fallbackModel: string
 }
 
+type LlmTestResponse = {
+  ok: boolean
+  message: string
+}
+
 export default function CampaignSquadLlmPage() {
   const { toast } = useToast()
   const [llmForm, setLlmForm] = useState<LlmFormState>({
@@ -38,6 +43,8 @@ export default function CampaignSquadLlmPage() {
   const [llmConfigs, setLlmConfigs] = useState<LlmConfig[]>([])
   const [loadingLlmConfigs, setLoadingLlmConfigs] = useState(false)
   const [submittingLlm, setSubmittingLlm] = useState(false)
+  const [testingLlm, setTestingLlm] = useState(false)
+  const [testResult, setTestResult] = useState<LlmTestResponse | null>(null)
 
   const loadLlmConfigs = useCallback(async (organizationId: string) => {
     if (!organizationId.trim()) return
@@ -100,6 +107,40 @@ export default function CampaignSquadLlmPage() {
     }
   }
 
+  const handleTestLlmConfig = async () => {
+    setTestingLlm(true)
+    setTestResult(null)
+    try {
+      const result = await requestJson<LlmTestResponse>('/api/campaign-squad/llm-configs/test', {
+        method: 'POST',
+        body: JSON.stringify({
+          provider: llmForm.provider.trim(),
+          model: llmForm.model.trim(),
+          tokenReference: llmForm.tokenReference.trim()
+        })
+      })
+
+      setTestResult(result)
+      toast({
+        title: 'Teste de conexão concluído',
+        description: result.message
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro inesperado ao testar LLM'
+      setTestResult({
+        ok: false,
+        message
+      })
+      toast({
+        title: 'Falha no teste de conexão',
+        description: message,
+        variant: 'destructive'
+      })
+    } finally {
+      setTestingLlm(false)
+    }
+  }
+
   return (
     <CampaignSquadShell
       title="Configuração LLM"
@@ -158,9 +199,20 @@ export default function CampaignSquadLlmPage() {
               </div>
             </div>
 
-            <Button onClick={handleCreateLlmConfig} disabled={submittingLlm}>
-              {submittingLlm ? 'Salvando...' : 'Salvar configuração LLM'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handleCreateLlmConfig} disabled={submittingLlm}>
+                {submittingLlm ? 'Salvando...' : 'Salvar configuração LLM'}
+              </Button>
+              <Button variant="outline" onClick={handleTestLlmConfig} disabled={testingLlm}>
+                {testingLlm ? 'Testando...' : 'Testar conexão agora'}
+              </Button>
+            </div>
+
+            {testResult ? (
+              <div className={`rounded-md border p-3 text-sm ${testResult.ok ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-destructive/40 bg-destructive/10'}`}>
+                {testResult.message}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 

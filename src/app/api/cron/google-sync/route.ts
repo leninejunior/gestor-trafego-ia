@@ -2,7 +2,7 @@
  * Google Ads Sync Cron Job
  * 
  * Automatically syncs Google Ads data for all active clients
- * Runs every 6 hours via Vercel Cron
+ * Runs every 6 hours via scheduler service
  * Requirements: 3.2, 10.5
  */
 
@@ -32,7 +32,7 @@ interface CronResult {
 /**
  * GET /api/cron/google-sync
  * 
- * Triggered by Vercel Cron every 6 hours
+ * Triggered by scheduler every 6 hours
  * Queues sync jobs for all active Google Ads connections
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {

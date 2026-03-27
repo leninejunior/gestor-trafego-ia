@@ -98,12 +98,17 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
     setLoading(true);
 
     try {
+      const selectedRole = roles.find((role) => role.id === formData.roleId);
       const response = await fetch("/api/admin/users", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          roleId: formData.roleId,
+          role: selectedRole?.name || ""
+        })
       });
 
       const data = await response.json();

@@ -88,7 +88,6 @@ test.describe('Admin Subscription Intents E2E', () => {
     await expect(page.locator('text=Company One')).toBeVisible();
     await expect(page.locator('text=Company Two')).toBeVisible();
   });
-});  
 test('deve filtrar subscription intents por status', async ({ page }) => {
     await page.goto('/admin/subscription-intents');
 

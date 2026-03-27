@@ -4,12 +4,20 @@
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { redisCacheService } from '@/lib/cache/redis-cache-service';
 import {
   CampaignInsight,
   DataQuery,
   StorageStats,
   AdPlatform
 } from '@/lib/types/sync';
+
+const CACHE_TTL_SECONDS = {
+  queryInsights: 300,
+  storageStats: 120,
+  rangeExists: 180,
+  campaignIds: 300
+} as const;
 
 /**
  * Repository for managing historical campaign data
@@ -34,7 +42,7 @@ export class HistoricalDataRepository {
       client_id: insight.client_id,
       campaign_id: insight.campaign_id,
       campaign_name: insight.campaign_name,
-      date: insight.date.toISOString().split('T')[0], // Date only
+      date: this.toDateOnly(insight.date),
       impressions: insight.impressions,
       clicks: insight.clicks,
       spend: insight.spend,
@@ -47,20 +55,37 @@ export class HistoricalDataRepository {
       synced_at: insight.synced_at.toISOString()
     }));
 
-    // Batch insert with upsert on conflict
-    const { data, error } = await supabase
-      .from('campaign_insights_history')
-      .upsert(records, {
-        onConflict: 'platform,client_id,campaign_id,date',
-        ignoreDuplicates: false
-      })
-      .select('id');
+    // Batch insert with upsert on conflict.
+    // Splitting large payloads improves reliability on high-volume syncs.
+    const batchSize = 1000;
+    let storedCount = 0;
 
-    if (error) {
-      throw new Error(`Failed to store insights: ${error.message}`);
+    for (let i = 0; i < records.length; i += batchSize) {
+      const batch = records.slice(i, i + batchSize);
+
+      const { data, error } = await supabase
+        .from('campaign_insights_history')
+        .upsert(batch, {
+          onConflict: 'platform,client_id,campaign_id,date',
+          ignoreDuplicates: false
+        })
+        .select('id');
+
+      if (error) {
+        throw new Error(`Failed to store insights: ${error.message}`);
+      }
+
+      storedCount += data?.length || 0;
     }
 
-    return data?.length || 0;
+    const affectedClientIds = new Set(records.map(record => record.client_id));
+    await Promise.all(
+      Array.from(affectedClientIds).map(clientId =>
+        this.invalidateClientCache(clientId)
+      )
+    );
+
+    return storedCount;
   }
 
   /**
@@ -69,15 +94,26 @@ export class HistoricalDataRepository {
    * @returns Array of campaign insights
    */
   async queryInsights(query: DataQuery): Promise<CampaignInsight[]> {
+    const cacheKey = this.buildQueryCacheKey(query);
+    const cachedInsights = await redisCacheService.getJson<CampaignInsight[]>(
+      cacheKey
+    );
+
+    if (cachedInsights && cachedInsights.length > 0) {
+      return this.deserializeInsights(cachedInsights);
+    }
+
     const supabase = await createClient();
 
     // Build query
     let dbQuery = supabase
       .from('campaign_insights_history')
-      .select('*')
+      .select(
+        'id,platform,client_id,campaign_id,campaign_name,date,impressions,clicks,spend,conversions,ctr,cpc,cpm,conversion_rate,is_deleted,synced_at'
+      )
       .eq('client_id', query.client_id)
-      .gte('date', query.date_from.toISOString().split('T')[0])
-      .lte('date', query.date_to.toISOString().split('T')[0])
+      .gte('date', this.toDateOnly(query.date_from))
+      .lte('date', this.toDateOnly(query.date_to))
       .order('date', { ascending: false });
 
     // Apply optional filters
@@ -111,25 +147,15 @@ export class HistoricalDataRepository {
       return [];
     }
 
-    // Transform database records to CampaignInsight objects
-    return data.map(record => ({
-      id: record.id,
-      platform: record.platform as AdPlatform,
-      client_id: record.client_id,
-      campaign_id: record.campaign_id,
-      campaign_name: record.campaign_name,
-      date: new Date(record.date),
-      impressions: record.impressions,
-      clicks: record.clicks,
-      spend: parseFloat(record.spend),
-      conversions: record.conversions,
-      ctr: parseFloat(record.ctr),
-      cpc: parseFloat(record.cpc),
-      cpm: parseFloat(record.cpm),
-      conversion_rate: parseFloat(record.conversion_rate),
-      is_deleted: record.is_deleted,
-      synced_at: new Date(record.synced_at)
-    }));
+    const insights = data.map(record => this.mapInsightRecord(record));
+
+    await redisCacheService.setJson(
+      cacheKey,
+      insights,
+      CACHE_TTL_SECONDS.queryInsights
+    );
+
+    return insights;
   }
 
   /**
@@ -147,7 +173,7 @@ export class HistoricalDataRepository {
     // Calculate cutoff date
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-    const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+    const cutoffDateStr = this.toDateOnly(cutoffDate);
 
     const { data, error } = await supabase
       .from('campaign_insights_history')
@@ -160,6 +186,8 @@ export class HistoricalDataRepository {
       throw new Error(`Failed to delete expired data: ${error.message}`);
     }
 
+    await this.invalidateClientCache(clientId);
+
     return data?.length || 0;
   }
 
@@ -169,58 +197,86 @@ export class HistoricalDataRepository {
    * @returns Storage statistics
    */
   async getStorageStats(clientId: string): Promise<StorageStats> {
-    const supabase = await createClient();
-
-    // Get total record count and date range
-    const { data: summary, error: summaryError } = await supabase
-      .from('campaign_insights_history')
-      .select('date')
-      .eq('client_id', clientId);
-
-    if (summaryError) {
-      throw new Error(`Failed to get storage stats: ${summaryError.message}`);
+    const cacheKey = this.buildStorageStatsCacheKey(clientId);
+    const cachedStats = await redisCacheService.getJson<StorageStats>(cacheKey);
+    if (cachedStats) {
+      return this.deserializeStorageStats(cachedStats);
     }
 
-    // Get platform breakdown
-    const { data: platformData, error: platformError } = await supabase
-      .from('campaign_insights_history')
-      .select('platform')
-      .eq('client_id', clientId);
+    const supabase = await createClient();
 
-    if (platformError) {
+    const [
+      totalCountResult,
+      oldestResult,
+      newestResult,
+      metaCountResult,
+      googleCountResult
+    ] = await Promise.all([
+      supabase
+        .from('campaign_insights_history')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId),
+      supabase
+        .from('campaign_insights_history')
+        .select('date')
+        .eq('client_id', clientId)
+        .order('date', { ascending: true })
+        .limit(1),
+      supabase
+        .from('campaign_insights_history')
+        .select('date')
+        .eq('client_id', clientId)
+        .order('date', { ascending: false })
+        .limit(1),
+      supabase
+        .from('campaign_insights_history')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .eq('platform', AdPlatform.META),
+      supabase
+        .from('campaign_insights_history')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .eq('platform', AdPlatform.GOOGLE)
+    ]);
+
+    const errors = [
+      totalCountResult.error,
+      oldestResult.error,
+      newestResult.error,
+      metaCountResult.error,
+      googleCountResult.error
+    ].filter(Boolean);
+
+    if (errors.length > 0) {
       throw new Error(
-        `Failed to get platform stats: ${platformError.message}`
+        'Failed to get storage stats: ' +
+          errors.map(err => err?.message).join('; ')
       );
     }
 
-    // Calculate statistics
-    const totalRecords = summary?.length || 0;
-    const dates = summary?.map(r => new Date(r.date)) || [];
-    const oldestDate = dates.length > 0 
-      ? new Date(Math.min(...dates.map(d => d.getTime())))
-      : undefined;
-    const newestDate = dates.length > 0
-      ? new Date(Math.max(...dates.map(d => d.getTime())))
-      : undefined;
+    const totalRecords = totalCountResult.count || 0;
+    const oldestDate =
+      oldestResult.data && oldestResult.data.length > 0
+        ? new Date(oldestResult.data[0].date)
+        : undefined;
+    const newestDate =
+      newestResult.data && newestResult.data.length > 0
+        ? new Date(newestResult.data[0].date)
+        : undefined;
 
-    // Count by platform
-    const platformCounts = new Map<AdPlatform, number>();
-    platformData?.forEach(record => {
-      const platform = record.platform as AdPlatform;
-      platformCounts.set(platform, (platformCounts.get(platform) || 0) + 1);
-    });
+    const metaCount = metaCountResult.count || 0;
+    const googleCount = googleCountResult.count || 0;
 
-    const platforms = Array.from(platformCounts.entries()).map(
-      ([platform, count]) => ({
-        platform,
-        record_count: count
-      })
-    );
+    const platforms = [
+      { platform: AdPlatform.META, record_count: metaCount },
+      { platform: AdPlatform.GOOGLE, record_count: googleCount }
+    ].filter(item => item.record_count > 0);
 
     // Estimate size (rough calculation: ~500 bytes per record)
     const estimatedSizeBytes = totalRecords * 500;
 
-    return {
+    const stats: StorageStats = {
       client_id: clientId,
       total_records: totalRecords,
       total_size_bytes: estimatedSizeBytes,
@@ -228,6 +284,14 @@ export class HistoricalDataRepository {
       newest_record_date: newestDate,
       platforms
     };
+
+    await redisCacheService.setJson(
+      cacheKey,
+      stats,
+      CACHE_TTL_SECONDS.storageStats
+    );
+
+    return stats;
   }
 
   /**
@@ -244,6 +308,17 @@ export class HistoricalDataRepository {
     dateFrom: Date,
     dateTo: Date
   ): Promise<boolean> {
+    const cacheKey = this.buildRangeExistsCacheKey(
+      clientId,
+      platform,
+      dateFrom,
+      dateTo
+    );
+    const cached = await redisCacheService.getJson<boolean>(cacheKey);
+    if (typeof cached === 'boolean') {
+      return cached;
+    }
+
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -251,15 +326,22 @@ export class HistoricalDataRepository {
       .select('id')
       .eq('client_id', clientId)
       .eq('platform', platform)
-      .gte('date', dateFrom.toISOString().split('T')[0])
-      .lte('date', dateTo.toISOString().split('T')[0])
+      .gte('date', this.toDateOnly(dateFrom))
+      .lte('date', this.toDateOnly(dateTo))
       .limit(1);
 
     if (error) {
       throw new Error(`Failed to check data existence: ${error.message}`);
     }
 
-    return (data?.length || 0) > 0;
+    const exists = (data?.length || 0) > 0;
+    await redisCacheService.setJson(
+      cacheKey,
+      exists,
+      CACHE_TTL_SECONDS.rangeExists
+    );
+
+    return exists;
   }
 
   /**
@@ -272,6 +354,12 @@ export class HistoricalDataRepository {
     clientId: string,
     platform?: AdPlatform
   ): Promise<string[]> {
+    const cacheKey = this.buildCampaignIdsCacheKey(clientId, platform);
+    const cached = await redisCacheService.getJson<string[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const supabase = await createClient();
 
     let query = supabase
@@ -289,8 +377,146 @@ export class HistoricalDataRepository {
       throw new Error(`Failed to get campaign IDs: ${error.message}`);
     }
 
-    // Get unique campaign IDs
-    const uniqueIds = new Set(data?.map(r => r.campaign_id) || []);
-    return Array.from(uniqueIds);
+    const uniqueIds = Array.from(new Set(data?.map(r => r.campaign_id) || []));
+
+    await redisCacheService.setJson(
+      cacheKey,
+      uniqueIds,
+      CACHE_TTL_SECONDS.campaignIds
+    );
+
+    return uniqueIds;
+  }
+
+  private async invalidateClientCache(clientId: string): Promise<void> {
+    await redisCacheService.deleteByPrefix(this.getClientCachePrefix(clientId));
+  }
+
+  private getClientCachePrefix(clientId: string): string {
+    return `historical:${clientId}:`;
+  }
+
+  private buildQueryCacheKey(query: DataQuery): string {
+    const platform = query.platform || 'all';
+    const campaignIds =
+      query.campaign_ids && query.campaign_ids.length > 0
+        ? query.campaign_ids.slice().sort().join(',')
+        : 'all';
+    const metrics =
+      query.metrics && query.metrics.length > 0
+        ? query.metrics.slice().sort().join(',')
+        : 'all';
+
+    return (
+      this.getClientCachePrefix(query.client_id) +
+      'query:' +
+      platform +
+      ':' +
+      this.toDateOnly(query.date_from) +
+      ':' +
+      this.toDateOnly(query.date_to) +
+      ':' +
+      campaignIds +
+      ':' +
+      metrics +
+      ':limit=' +
+      (query.limit ?? 'none') +
+      ':offset=' +
+      (query.offset ?? 0)
+    );
+  }
+
+  private buildStorageStatsCacheKey(clientId: string): string {
+    return this.getClientCachePrefix(clientId) + 'storage-stats';
+  }
+
+  private buildRangeExistsCacheKey(
+    clientId: string,
+    platform: AdPlatform,
+    dateFrom: Date,
+    dateTo: Date
+  ): string {
+    return (
+      this.getClientCachePrefix(clientId) +
+      'range-exists:' +
+      platform +
+      ':' +
+      this.toDateOnly(dateFrom) +
+      ':' +
+      this.toDateOnly(dateTo)
+    );
+  }
+
+  private buildCampaignIdsCacheKey(
+    clientId: string,
+    platform?: AdPlatform
+  ): string {
+    return (
+      this.getClientCachePrefix(clientId) +
+      'campaign-ids:' +
+      (platform || 'all')
+    );
+  }
+
+  private toDateOnly(date: Date): string {
+    return date.toISOString().split('T')[0];
+  }
+
+  private mapInsightRecord(record: {
+    id: string;
+    platform: string;
+    client_id: string;
+    campaign_id: string;
+    campaign_name: string;
+    date: string;
+    impressions: number;
+    clicks: number;
+    spend: string | number;
+    conversions: number;
+    ctr: string | number;
+    cpc: string | number;
+    cpm: string | number;
+    conversion_rate: string | number;
+    is_deleted: boolean;
+    synced_at: string;
+  }): CampaignInsight {
+    return {
+      id: record.id,
+      platform: record.platform as AdPlatform,
+      client_id: record.client_id,
+      campaign_id: record.campaign_id,
+      campaign_name: record.campaign_name,
+      date: new Date(record.date),
+      impressions: record.impressions,
+      clicks: record.clicks,
+      spend: parseFloat(String(record.spend)),
+      conversions: record.conversions,
+      ctr: parseFloat(String(record.ctr)),
+      cpc: parseFloat(String(record.cpc)),
+      cpm: parseFloat(String(record.cpm)),
+      conversion_rate: parseFloat(String(record.conversion_rate)),
+      is_deleted: record.is_deleted,
+      synced_at: new Date(record.synced_at)
+    };
+  }
+
+  private deserializeInsights(insights: CampaignInsight[]): CampaignInsight[] {
+    return insights.map(insight => ({
+      ...insight,
+      date: new Date(insight.date),
+      synced_at: new Date(insight.synced_at)
+    }));
+  }
+
+  private deserializeStorageStats(stats: StorageStats): StorageStats {
+    return {
+      ...stats,
+      oldest_record_date: stats.oldest_record_date
+        ? new Date(stats.oldest_record_date)
+        : undefined,
+      newest_record_date: stats.newest_record_date
+        ? new Date(stats.newest_record_date)
+        : undefined
+    };
   }
 }

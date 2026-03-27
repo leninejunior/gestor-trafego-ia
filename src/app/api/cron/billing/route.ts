@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 /**
  * POST /api/cron/billing
  * Automated billing cron job endpoint
- * This endpoint should be called daily by a cron service (e.g., Vercel Cron, GitHub Actions, etc.)
+ * This endpoint should be called daily by a cron service (e.g., GitHub Actions, Scheduler, etc.)
  */
 export async function POST(request: NextRequest) {
   try {

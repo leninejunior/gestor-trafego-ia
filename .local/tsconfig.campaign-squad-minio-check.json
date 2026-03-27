@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false
+  },
+  "include": [
+    "../src/app/dashboard/campaign-squad/page.tsx",
+    "../src/app/api/campaign-squad/uploads/ready-creative/route.ts"
+  ]
+}
