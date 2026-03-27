@@ -92,3 +92,43 @@ DOCKER_BUILDKIT=1 docker compose up --build -d web
 
 3. Revalidar com `curl http://127.0.0.1:3000/api/health`.
 
+## Registro de deploy - 2026-03-27
+
+- Ambiente: producao VPS (`74.1.21.137`, usuario `root`, porta `22`)
+- Diretorio: `/opt/flying-fox-bob`
+- Branch aplicada: `main`
+- Commits publicados:
+  - `df9f7a3` - lote de mudancas locais
+  - `5999a3e` - hotfix para build de producao (`eslint.ignoreDuringBuilds`)
+
+### O que aconteceu
+
+1. Foi identificado que a VPS nao estava com checkout Git ativo em `/opt/flying-fox-bob` (sem pasta `.git`).
+2. `git pull` falhava por esse motivo.
+3. O arquivo `docker-compose.yml` existente no servidor nao estava versionado no repositorio.
+
+### Acoes executadas
+
+1. Backup do `.env` para `/root/flying-fox-bob.env.<timestamp>`.
+2. Inicializacao de Git no diretorio e sincronizacao com `origin/main`.
+3. Recriacao de `docker-compose.yml` no servidor para manter os servicos `web` e `postgres`.
+4. Rebuild do servico web com:
+
+```bash
+DOCKER_BUILDKIT=1 docker compose up --build -d web
+```
+
+### Validacao
+
+- `docker compose ps`:
+  - `gt-web-local` em execucao na porta `127.0.0.1:3000`
+  - `gt-postgres-local` healthy na porta `127.0.0.1:5432`
+- Healthcheck local:
+  - `curl -i http://127.0.0.1:3000/api/health` -> `HTTP/1.1 200 OK`
+- Healthcheck publico:
+  - `https://edith.engrene.com/api/health` -> `{"status":"ok"...}`
+
+### Observacao importante
+
+- Atualmente, `docker-compose.yml` esta presente na VPS, mas nao esta versionado no Git.
+- Recomendado versionar esse arquivo (ou um compose de producao equivalente) para evitar perda de configuracao em futuros deploys.

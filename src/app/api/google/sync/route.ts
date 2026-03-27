@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getGoogleSyncService } from '@/lib/google/sync-service';
+import { GoogleAdsClient } from '@/lib/google/client';
 import { validateCustomerId, logCustomerIdError } from '@/lib/google/customer-id-validator';
 import { z } from 'zod';
 
@@ -54,6 +55,65 @@ function checkRateLimit(clientId: string): { allowed: boolean; resetTime?: numbe
 
   current.count += 1;
   return { allowed: true };
+}
+
+async function resolveAccessibleCustomerId(
+  connectionId: string,
+  currentCustomerId: string,
+  requestId: string
+): Promise<string> {
+  try {
+    const googleClient = new GoogleAdsClient({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      developerToken: process.env.GOOGLE_DEVELOPER_TOKEN!,
+      refreshToken: '',
+      customerId: currentCustomerId,
+      connectionId,
+    });
+
+    const accessibleAccounts = await googleClient.listAccessibleCustomers();
+
+    if (!accessibleAccounts || accessibleAccounts.length === 0) {
+      console.warn(`[Google Sync API] Nenhuma conta acessivel retornada [${requestId}]`, {
+        connectionId,
+        currentCustomerId,
+      });
+      return currentCustomerId;
+    }
+
+    const hasCurrent = accessibleAccounts.some(
+      (account) => account.customerId === currentCustomerId
+    );
+    if (hasCurrent) {
+      return currentCustomerId;
+    }
+
+    const fallbackAccount =
+      accessibleAccounts.find((account) => !account.canManageClients) ||
+      accessibleAccounts[0];
+
+    if (!fallbackAccount?.customerId) {
+      return currentCustomerId;
+    }
+
+    console.warn(`[Google Sync API] Ajustando customer_id para conta acessivel [${requestId}]`, {
+      connectionId,
+      previousCustomerId: currentCustomerId,
+      fallbackCustomerId: fallbackAccount.customerId,
+      fallbackName: fallbackAccount.descriptiveName,
+      totalAccessibleAccounts: accessibleAccounts.length,
+    });
+
+    return fallbackAccount.customerId;
+  } catch (error) {
+    console.warn(`[Google Sync API] Falha ao resolver conta acessivel [${requestId}]`, {
+      connectionId,
+      currentCustomerId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return currentCustomerId;
+  }
 }
 
 // ============================================================================
@@ -248,11 +308,36 @@ export async function POST(request: NextRequest) {
     const syncResults = [];
     
     for (const connection of connections) {
+      let customerIdForSync = connection.customer_id;
       try {
+        const resolvedCustomerId = await resolveAccessibleCustomerId(
+          connection.id,
+          connection.customer_id,
+          requestId
+        );
+
+        if (resolvedCustomerId !== connection.customer_id) {
+          const { error: updateConnectionError } = await supabase
+            .from('google_ads_connections')
+            .update({
+              customer_id: resolvedCustomerId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', connection.id);
+
+          if (updateConnectionError) {
+            throw new Error(
+              `Falha ao atualizar customer_id da conexao: ${updateConnectionError.message}`
+            );
+          }
+
+          customerIdForSync = resolvedCustomerId;
+        }
+
         const syncOptions = {
           clientId,
           connectionId: connection.id,
-          customerId: connection.customer_id,
+          customerId: customerIdForSync,
           fullSync,
           syncType,
           dateRange: dateFrom && dateTo ? {
@@ -265,7 +350,7 @@ export async function POST(request: NextRequest) {
           ...syncOptions,
           connectionDetails: {
             id: connection.id,
-            customerId: connection.customer_id,
+            customerId: customerIdForSync,
             lastSyncAt: connection.last_sync_at,
             status: connection.status,
           },
@@ -277,7 +362,7 @@ export async function POST(request: NextRequest) {
 
         syncResults.push({
           connectionId: connection.id,
-          customerId: connection.customer_id,
+          customerId: customerIdForSync,
           syncId: result.syncId,
           status: result.status,
           estimatedTime: result.estimatedTime,
@@ -289,12 +374,12 @@ export async function POST(request: NextRequest) {
           errorName: syncError instanceof Error ? syncError.name : 'Unknown',
           errorStack: syncError instanceof Error ? syncError.stack : undefined,
           connectionId: connection.id,
-          customerId: connection.customer_id,
+          customerId: customerIdForSync,
           clientId,
           syncOptions: {
             clientId,
             connectionId: connection.id,
-            customerId: connection.customer_id,
+            customerId: customerIdForSync,
             fullSync,
             syncType,
             dateRange: dateFrom && dateTo ? {
@@ -308,7 +393,7 @@ export async function POST(request: NextRequest) {
         
         syncResults.push({
           connectionId: connection.id,
-          customerId: connection.customer_id,
+          customerId: customerIdForSync,
           error: syncError instanceof Error ? syncError.message : 'Erro desconhecido',
           status: 'failed',
         });

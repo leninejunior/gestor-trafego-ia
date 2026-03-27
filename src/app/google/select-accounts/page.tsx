@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { AlertCircle, CheckCircle, RefreshCw, Search } from 'lucide-react';
 
 // Forçar renderização dinâmica (não fazer pre-render estático)
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,7 @@ function SelectAccountsContent() {
 
   const [accounts, setAccounts] = useState<GoogleAdsAccount[]>([]);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -256,7 +258,7 @@ function SelectAccountsContent() {
       setAccounts(data.accounts || []);
 
       // Auto-select the first account if only one is available
-      if (data.accounts && data.accounts.length === 1) {
+      if (data.accounts && data.accounts.length === 1 && !data.accounts[0].canManageClients) {
         console.log('[Google Select Accounts] 🎯 AUTO-SELECIONANDO ÚNICA CONTA DISPONÍVEL:', data.accounts[0].customerId);
         setSelectedAccounts([data.accounts[0].customerId]);
       }
@@ -275,6 +277,11 @@ function SelectAccountsContent() {
   };
 
   const handleAccountToggle = (customerId: string) => {
+    const account = accounts.find((acc) => acc.customerId === customerId);
+    if (account?.canManageClients) {
+      return;
+    }
+
     setSelectedAccounts(prev => 
       prev.includes(customerId)
         ? prev.filter(id => id !== customerId)
@@ -283,7 +290,12 @@ function SelectAccountsContent() {
   };
 
   const handleSaveSelection = async () => {
-    if (selectedAccounts.length === 0) {
+    const selectableAccounts = selectedAccounts.filter((customerId) => {
+      const account = accounts.find((acc) => acc.customerId === customerId);
+      return account && !account.canManageClients;
+    });
+
+    if (selectableAccounts.length === 0) {
       setError('Selecione pelo menos uma conta');
       return;
     }
@@ -302,7 +314,7 @@ function SelectAccountsContent() {
       const requestBody = {
         connectionId,
         clientId,
-        selectedAccounts,
+        selectedAccounts: selectableAccounts,
       };
       
       console.log('[Google Select Accounts] 📡 ENVIANDO REQUISIÇÃO:');
@@ -360,7 +372,7 @@ function SelectAccountsContent() {
       }
       
       // Redirect to success page
-      const redirectUrl = `/dashboard/google?success=connected&accounts=${selectedAccounts.length}`;
+      const redirectUrl = `/dashboard/google?success=connected&accounts=${selectableAccounts.length}`;
       console.log('[Google Select Accounts] 🎯 REDIRECIONANDO PARA:', redirectUrl);
       router.push(redirectUrl);
       console.log('='.repeat(80));
@@ -385,6 +397,23 @@ function SelectAccountsContent() {
     console.log('[Google Select Accounts] 🔙 VOLTANDO PARA LISTAGEM DE CONTAS GOOGLE');
     router.push('/dashboard/google');
   };
+
+  const normalizeText = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+
+  const filteredAccounts = accounts.filter((account) => {
+    if (!searchQuery.trim()) return true;
+
+    const query = normalizeText(searchQuery.trim());
+    const content = normalizeText(
+      `${account.descriptiveName} ${account.customerId} ${account.currencyCode} ${account.timeZone}`
+    );
+
+    return content.includes(query);
+  });
 
   if (loading) {
     return (
@@ -480,7 +509,7 @@ function SelectAccountsContent() {
                   <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
                     <li>Aguarde o carregamento das contas do Google Ads</li>
                     <li>Selecione as contas que deseja conectar</li>
-                    <li>Clique em "Tentar Novamente" abaixo</li>
+                    <li>Clique em Tentar Novamente abaixo</li>
                     <li>Se o problema persistir, refaça a conexão OAuth</li>
                   </ol>
                 </div>
@@ -535,45 +564,73 @@ function SelectAccountsContent() {
             )}
 
             <div className="space-y-4 mb-6">
-              {accounts.map((account) => (
-                <Card key={account.customerId} className="cursor-pointer hover:bg-accent/50">
-                  <CardContent className="pt-4">
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        id={account.customerId}
-                        checked={selectedAccounts.includes(account.customerId)}
-                        onCheckedChange={() => handleAccountToggle(account.customerId)}
-                      />
-                      <div className="flex-1">
-                        <label 
-                          htmlFor={account.customerId}
-                          className="cursor-pointer block"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{account.descriptiveName}</span>
-                            {account.canManageClients && (
-                              <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded font-semibold">
-                                ⚠️ MCC (Não selecionável)
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            ID: {account.customerId}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {account.currencyCode} • {account.timeZone}
-                          </div>
-                          {!account.canManageClients && (
-                            <div className="text-xs text-green-600 mt-1">
-                              ✓ Conta de anúncios (pode ser conectada)
-                            </div>
-                          )}
-                        </label>
-                      </div>
-                    </div>
+              <div className="space-y-2">
+                <label htmlFor="google-account-search" className="text-sm font-medium">
+                  Buscar conta Google
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="google-account-search"
+                    placeholder="Buscar por nome, ID, moeda ou fuso"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Mostrando {filteredAccounts.length} de {accounts.length} conta(s)
+                </p>
+              </div>
+
+              {filteredAccounts.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6 text-center text-sm text-muted-foreground">
+                    Nenhuma conta encontrada para &quot;{searchQuery}&quot;.
                   </CardContent>
                 </Card>
-              ))}
+              ) : (
+                filteredAccounts.map((account) => (
+                  <Card key={account.customerId} className="cursor-pointer hover:bg-accent/50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id={account.customerId}
+                          checked={selectedAccounts.includes(account.customerId)}
+                          onCheckedChange={() => handleAccountToggle(account.customerId)}
+                          disabled={account.canManageClients}
+                        />
+                        <div className="flex-1">
+                          <label
+                            htmlFor={account.customerId}
+                            className="cursor-pointer block"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{account.descriptiveName}</span>
+                              {account.canManageClients && (
+                                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded font-semibold">
+                                  ⚠️ MCC (Não selecionável)
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              ID: {account.customerId}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {account.currencyCode} • {account.timeZone}
+                            </div>
+                            {!account.canManageClients && (
+                              <div className="text-xs text-green-600 mt-1">
+                                ✓ Conta de anúncios (pode ser conectada)
+                              </div>
+                            )}
+                          </label>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
 
             <div className="flex gap-4">
