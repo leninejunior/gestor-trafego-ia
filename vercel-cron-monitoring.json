@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/google-monitoring",
-      "schedule": "*/15 * * * *"
-    }
-  ]
-}
