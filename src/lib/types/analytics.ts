@@ -1,20 +1,20 @@
-// Tipos para o sistema de Analytics Multi-Nível
+// Tipos para o sistema de Analytics Multi-Nivel
 
 export type AnalysisLevel = 'campaign' | 'adset' | 'ad';
 
-export type DateRangePreset = 
+export type DateRangePreset =
   | '0'           // Hoje
-  | '7'           // Últimos 7 dias
-  | '14'          // Últimos 14 dias
-  | '28'          // Últimos 28 dias
-  | '30'          // Últimos 30 dias
-  | '90'          // Últimos 90 dias
-  | '180'         // Últimos 6 meses
-  | '365'         // Último ano
+  | '7'           // Ultimos 7 dias
+  | '14'          // Ultimos 14 dias
+  | '28'          // Ultimos 28 dias
+  | '30'          // Ultimos 30 dias
+  | '90'          // Ultimos 90 dias
+  | '180'         // Ultimos 6 meses
+  | '365'         // Ultimo ano
   | 'this_week'   // Esta semana
   | 'last_week'   // Semana passada
-  | 'this_month'  // Este mês
-  | 'last_month'; // Mês passado
+  | 'this_month'  // Este mes
+  | 'last_month'; // Mes passado
 
 export interface CustomDateRange {
   startDate: Date;
@@ -92,4 +92,14 @@ export interface Ad {
   spend: number;
   impressions: number;
   clicks: number;
-  conversions: nu
+  conversions: number;
+  ctr: number;
+  cpc: number;
+  cpm: number;
+  roas: number;
+  reach: number;
+  frequency: number;
+  created_time: string;
+  updated_time: string;
+  preview_shareable_link?: string;
+}

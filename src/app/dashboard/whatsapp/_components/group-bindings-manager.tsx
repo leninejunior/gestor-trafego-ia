@@ -8,6 +8,16 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
 
@@ -117,6 +127,7 @@ export function GroupBindingsManager() {
   const [isClientsLoading, setIsClientsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [search, setSearch] = useState("");
+  const [bindingToDelete, setBindingToDelete] = useState<GroupBinding | null>(null);
   const { toast } = useToast();
 
   const loadBindings = async (searchValue?: string) => {
@@ -305,6 +316,43 @@ export function GroupBindingsManager() {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const deleteBinding = async (groupId: string) => {
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/admin/whatsapp/group-bindings", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ group_id: groupId, hard_delete: true }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as { success?: boolean; error?: string };
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || "Falha ao excluir vinculo.");
+      }
+
+      toast({
+        title: "Vinculo excluido",
+      });
+
+      if (form.groupId.trim() === groupId) {
+        resetForm();
+      }
+      await loadBindings(search);
+    } catch (error) {
+      toast({
+        title: "Erro ao excluir",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+      setBindingToDelete(null);
     }
   };
 
@@ -520,6 +568,14 @@ export function GroupBindingsManager() {
                       >
                         Desativar
                       </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setBindingToDelete(binding)}
+                        disabled={isSubmitting}
+                      >
+                        Excluir
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -528,6 +584,39 @@ export function GroupBindingsManager() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={Boolean(bindingToDelete)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBindingToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir vinculo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {bindingToDelete
+                ? `Essa acao remove permanentemente o vinculo do grupo ${bindingToDelete.group_id} com o cliente ${bindingToDelete.clients?.name?.trim() || bindingToDelete.client_id}.`
+                : "Essa acao remove permanentemente o vinculo do grupo com o cliente."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (bindingToDelete) {
+                  void deleteBinding(bindingToDelete.group_id);
+                }
+              }}
+              disabled={isSubmitting || !bindingToDelete}
+            >
+              {isSubmitting ? "Excluindo..." : "Excluir vinculo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
