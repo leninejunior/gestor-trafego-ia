@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,12 +52,14 @@ import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
 import { createClient } from "@/lib/supabase/client";
+import { UserInviteDialog } from "@/components/admin/user-invite-dialog";
 import { 
   Edit, 
   Trash2, 
   UserX, 
   UserCheck, 
   MoreHorizontal,
+  UserPlus,
   Eye,
   Shield,
   ShieldOff,
@@ -125,7 +127,7 @@ export default function UserManagementSimple() {
   const { user } = useUser();
   const supabase = createClient();
 
-  // FunÃ§Ã£o auxiliar para fazer chamadas autenticadas
+  // Função auxiliar para fazer chamadas autenticadas
   const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     const { data: { session } } = await supabase.auth.getSession();
     
@@ -145,10 +147,11 @@ export default function UserManagementSimple() {
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Estados para formulÃ¡rios
+  // Estados para formulários
   const [editData, setEditData] = useState<EditUserData>({
     firstName: "",
     lastName: "",
@@ -187,7 +190,7 @@ export default function UserManagementSimple() {
         setRoles(rolesPayload.roles || []);
       }
     } catch (error) {
-      console.error("Erro ao carregar organizaÃ’Â§Ã’Âµes e roles:", error);
+      console.error("Erro ao carregar organizações e roles:", error);
     }
   };
 
@@ -209,23 +212,23 @@ export default function UserManagementSimple() {
         setStats(data.stats || { total: 0, active: 0, pending: 0, suspended: 0, superAdmins: 0 });
         
         toast({
-          title: "UsuÃ¡rios carregados",
-          description: `${data.users?.length || 0} usuÃ¡rios encontrados`,
+          title: "Usuários carregados",
+          description: `${data.users?.length || 0} usuários encontrados`,
         });
       } else {
         const errorData = await response.json();
         console.error("Erro da API:", errorData);
         toast({
-          title: "Erro ao carregar usuÃ¡rios",
+          title: "Erro ao carregar usuários",
           description: errorData.error || "Erro desconhecido",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("Erro ao buscar usuÃ¡rios:", error);
+      console.error("Erro ao buscar usuários:", error);
       toast({
-        title: "Erro de conexÃ£o",
-        description: "NÃ£o foi possÃ­vel conectar com o servidor",
+        title: "Erro de conexão",
+        description: "Não foi possível conectar com o servidor",
         variant: "destructive",
       });
     } finally {
@@ -233,7 +236,7 @@ export default function UserManagementSimple() {
     }
   };
 
-  // FunÃ§Ã£o para abrir modal de ediÃ§Ã£o
+  // Função para abrir modal de edição
   const openEditDialog = (user: User) => {
     setSelectedUser(user);
     setEditData({
@@ -244,14 +247,14 @@ export default function UserManagementSimple() {
     setEditDialogOpen(true);
   };
 
-  // FunÃ§Ã£o para abrir modal de suspensÃ£o
+  // Função para abrir modal de suspensão
   const openSuspendDialog = (user: User) => {
     setSelectedUser(user);
     setSuspendData({ reason: "" });
     setSuspendDialogOpen(true);
   };
 
-  // FunÃ§Ã£o para abrir modal de exclusÃ£o
+  // Função para abrir modal de exclusão
   const openDeleteDialog = (user: User) => {
     setSelectedUser(user);
     setDeleteDialogOpen(true);
@@ -270,7 +273,7 @@ export default function UserManagementSimple() {
     setAssignDialogOpen(true);
   };
 
-  // FunÃ§Ã£o para editar usuÃ¡rio
+  // Função para editar usuário
   const handleEditUser = async () => {
     if (!selectedUser) return;
 
@@ -289,24 +292,24 @@ export default function UserManagementSimple() {
 
       if (response.ok) {
         toast({
-          title: "UsuÃ¡rio atualizado",
-          description: "Os dados do usuÃ¡rio foram atualizados com sucesso.",
+          title: "Usuário atualizado",
+          description: "Os dados do usuário foram atualizados com sucesso.",
         });
         setEditDialogOpen(false);
         fetchUsers(); // Recarregar lista
       } else {
         const errorData = await response.json();
         toast({
-          title: "Erro ao atualizar usuÃ¡rio",
+          title: "Erro ao atualizar usuário",
           description: errorData.error || "Erro desconhecido",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("Erro ao editar usuÃ¡rio:", error);
+      console.error("Erro ao editar usuário:", error);
       toast({
-        title: "Erro de conexÃ£o",
-        description: "NÃ£o foi possÃ­vel conectar com o servidor",
+        title: "Erro de conexão",
+        description: "Não foi possível conectar com o servidor",
         variant: "destructive",
       });
     } finally {
@@ -314,7 +317,7 @@ export default function UserManagementSimple() {
     }
   };
 
-  // FunÃ§Ã£o para suspender usuÃ¡rio
+  // Função para suspender usuário
   const handleSuspendUser = async () => {
     if (!selectedUser) return;
 
@@ -331,24 +334,24 @@ export default function UserManagementSimple() {
 
       if (response.ok) {
         toast({
-          title: "UsuÃ¡rio suspenso",
-          description: "O usuÃ¡rio foi suspenso com sucesso.",
+          title: "Usuário suspenso",
+          description: "O usuário foi suspenso com sucesso.",
         });
         setSuspendDialogOpen(false);
         fetchUsers(); // Recarregar lista
       } else {
         const errorData = await response.json();
         toast({
-          title: "Erro ao suspender usuÃ¡rio",
+          title: "Erro ao suspender usuário",
           description: errorData.error || "Erro desconhecido",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("Erro ao suspender usuÃ¡rio:", error);
+      console.error("Erro ao suspender usuário:", error);
       toast({
-        title: "Erro de conexÃ£o",
-        description: "NÃ£o foi possÃ­vel conectar com o servidor",
+        title: "Erro de conexão",
+        description: "Não foi possível conectar com o servidor",
         variant: "destructive",
       });
     } finally {
@@ -356,7 +359,7 @@ export default function UserManagementSimple() {
     }
   };
 
-  // FunÃ§Ã£o para reativar usuÃ¡rio
+  // Função para reativar usuário
   const handleUnsuspendUser = async (user: User) => {
     try {
       setActionLoading(true);
@@ -370,23 +373,23 @@ export default function UserManagementSimple() {
 
       if (response.ok) {
         toast({
-          title: "UsuÃ¡rio reativado",
-          description: "O usuÃ¡rio foi reativado com sucesso.",
+          title: "Usuário reativado",
+          description: "O usuário foi reativado com sucesso.",
         });
         fetchUsers(); // Recarregar lista
       } else {
         const errorData = await response.json();
         toast({
-          title: "Erro ao reativar usuÃ¡rio",
+          title: "Erro ao reativar usuário",
           description: errorData.error || "Erro desconhecido",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("Erro ao reativar usuÃ¡rio:", error);
+      console.error("Erro ao reativar usuário:", error);
       toast({
-        title: "Erro de conexÃ£o",
-        description: "NÃ£o foi possÃ­vel conectar com o servidor",
+        title: "Erro de conexão",
+        description: "Não foi possível conectar com o servidor",
         variant: "destructive",
       });
     } finally {
@@ -394,7 +397,7 @@ export default function UserManagementSimple() {
     }
   };
 
-  // FunÃ§Ã£o para deletar usuÃ¡rio
+  // Função para deletar usuário
   const handleDeleteUser = async () => {
     if (!selectedUser || !user) return;
 
@@ -407,24 +410,24 @@ export default function UserManagementSimple() {
 
       if (response.ok) {
         toast({
-          title: "UsuÃ¡rio excluÃ­do",
-          description: "O usuÃ¡rio foi excluÃ­do permanentemente do sistema.",
+          title: "Usuário excluído",
+          description: "O usuário foi excluído permanentemente do sistema.",
         });
         setDeleteDialogOpen(false);
         fetchUsers(); // Recarregar lista
       } else {
         const errorData = await response.json();
         toast({
-          title: "Erro ao excluir usuÃ¡rio",
+          title: "Erro ao excluir usuário",
           description: errorData.error || "Erro desconhecido",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("Erro ao deletar usuÃ¡rio:", error);
+      console.error("Erro ao deletar usuário:", error);
       toast({
-        title: "Erro de conexÃ£o",
-        description: "NÃ£o foi possÃ­vel conectar com o servidor",
+        title: "Erro de conexão",
+        description: "Não foi possível conectar com o servidor",
         variant: "destructive",
       });
     } finally {
@@ -436,8 +439,8 @@ export default function UserManagementSimple() {
     if (!selectedUser) return;
     if (!assignData.organizationId || !assignData.roleId) {
       toast({
-        title: "Dados obrigatÃ’Â³rios",
-        description: "Selecione organizaÃ’Â§Ã’Â£o e role para vincular o usuÃ’Â¡rio.",
+        title: "Dados obrigatórios",
+        description: "Selecione organização e role para vincular o usuário.",
         variant: "destructive",
       });
       return;
@@ -459,24 +462,61 @@ export default function UserManagementSimple() {
 
       if (response.ok) {
         toast({
-          title: "UsuÃ’Â¡rio vinculado",
-          description: "OrganizaÃ’Â§Ã’Â£o e role atualizadas com sucesso.",
+          title: "Usuário vinculado",
+          description: "Organização e role atualizadas com sucesso.",
         });
         setAssignDialogOpen(false);
         fetchUsers();
       } else {
         const errorData = await response.json();
         toast({
-          title: "Erro ao vincular usuÃ’Â¡rio",
+          title: "Erro ao vincular usuário",
           description: errorData.error || "Erro desconhecido",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("Erro ao vincular usuÃ’Â¡rio:", error);
+      console.error("Erro ao vincular usuário:", error);
       toast({
-        title: "Erro de conexÃ’Â£o",
-        description: "NÃ’Â£o foi possÃ’Â­vel conectar com o servidor",
+        title: "Erro de conexão",
+        description: "Não foi possível conectar com o servidor",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSendPasswordReset = async (targetUser: User) => {
+    try {
+      setActionLoading(true);
+
+      const response = await authenticatedFetch(`/api/admin/users/${targetUser.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "send_password_reset",
+          email: targetUser.email,
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Reset de senha enviado",
+          description: `Instrucoes enviadas para ${targetUser.email}.`,
+        });
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Erro ao enviar reset",
+          description: errorData.error || "Erro desconhecido",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao resetar senha:", error);
+      toast({
+        title: "Erro de conexao",
+        description: "Nao foi possivel conectar com o servidor",
         variant: "destructive",
       });
     } finally {
@@ -518,13 +558,17 @@ export default function UserManagementSimple() {
               </Button>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">
-                  Gerenciar UsuÃ¡rios
+                  Gerenciar Usuários
                 </h1>
                 <p className="text-gray-600 mt-1">
-                  Visualize e gerencie todos os usuÃ¡rios do sistema
+                  Visualize e gerencie todos os usuários do sistema
                 </p>
               </div>
             </div>
+            <Button onClick={() => setInviteDialogOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Convidar usuario
+            </Button>
           </div>
         </div>
       </div>
@@ -555,7 +599,7 @@ export default function UserManagementSimple() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
-              <span className="text-2xl">â³</span>
+              <span className="text-2xl">⏳</span>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
@@ -617,20 +661,20 @@ export default function UserManagementSimple() {
         {/* Users Table */}
         <Card>
           <CardHeader>
-            <CardTitle>UsuÃ¡rios ({filteredUsers.length})</CardTitle>
+            <CardTitle>Usuários ({filteredUsers.length})</CardTitle>
             <CardDescription>
-              Lista de todos os usuÃ¡rios do sistema
+              Lista de todos os usuários do sistema
             </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Carregando usuÃ¡rios...</p>
+                <p className="mt-2 text-gray-600">Carregando usuários...</p>
               </div>
             ) : filteredUsers.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-600">Nenhum usuÃ¡rio encontrado</p>
+                <p className="text-gray-600">Nenhum usuário encontrado</p>
                 <Button onClick={fetchUsers} variant="outline" className="mt-4">
                   Tentar novamente
                 </Button>
@@ -639,13 +683,13 @@ export default function UserManagementSimple() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>UsuÃ¡rio</TableHead>
+                    <TableHead>Usuário</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead>Tipo de UsuÃ¡rio</TableHead>
+                    <TableHead>Tipo de Usuário</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Criado em</TableHead>
                     <TableHead>altimo acesso</TableHead>
-                    <TableHead>AÃ§Ãµes</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -708,10 +752,10 @@ export default function UserManagementSimple() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>AÃ§Ãµes</DropdownMenuLabel>
+                            <DropdownMenuLabel>Ações</DropdownMenuLabel>
                             <DropdownMenuItem onClick={() => openEditDialog(user)}>
                               <Edit className="mr-2 h-4 w-4" />
-                              Editar usuÃ¡rio
+                              Editar usuário
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openAssignDialog(user)}>
                               <Shield className="mr-2 h-4 w-4" />
@@ -724,7 +768,7 @@ export default function UserManagementSimple() {
                                 className="text-green-600"
                               >
                                 <UserCheck className="mr-2 h-4 w-4" />
-                                Reativar usuÃ¡rio
+                                Reativar usuário
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem 
@@ -732,16 +776,21 @@ export default function UserManagementSimple() {
                                 className="text-yellow-600"
                               >
                                 <UserX className="mr-2 h-4 w-4" />
-                                Suspender usuÃ¡rio
+                                Suspender usuário
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleSendPasswordReset(user)}>
+                              <ShieldOff className="mr-2 h-4 w-4" />
+                              Resetar senha
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
                               onClick={() => openDeleteDialog(user)}
                               className="text-red-600"
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Excluir usuÃ¡rio
+                              Excluir usuário
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -755,13 +804,13 @@ export default function UserManagementSimple() {
         </Card>
       </div>
 
-      {/* Modal de EdiÃ§Ã£o */}
+      {/* Modal de Edição */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Editar UsuÃ¡rio</DialogTitle>
+            <DialogTitle>Editar Usuário</DialogTitle>
             <DialogDescription>
-              Altere os dados do usuÃ¡rio {selectedUser?.first_name} {selectedUser?.last_name}
+              Altere os dados do usuário {selectedUser?.first_name} {selectedUser?.last_name}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -813,33 +862,33 @@ export default function UserManagementSimple() {
               onClick={handleEditUser}
               disabled={actionLoading}
             >
-              {actionLoading ? "Salvando..." : "Salvar alteraÃ§Ãµes"}
+              {actionLoading ? "Salvando..." : "Salvar alterações"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal de SuspensÃ£o */}
+      {/* Modal de Suspensão */}
       <Dialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              Suspender UsuÃ¡rio
+              Suspender Usuário
             </DialogTitle>
             <DialogDescription>
-              VocÃª estÃ¡ prestes a suspender o usuÃ¡rio {selectedUser?.first_name} {selectedUser?.last_name}.
-              O usuÃ¡rio nÃ£o poderÃ¡ mais acessar o sistema atÃ© ser reativado.
+              Você está prestes a suspender o usuário {selectedUser?.first_name} {selectedUser?.last_name}.
+              O usuário não poderá mais acessar o sistema até ser reativado.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="reason">
-                Motivo da suspensÃ£o *
+                Motivo da suspensão *
               </Label>
               <Textarea
                 id="reason"
-                placeholder="Digite o motivo da suspensÃ£o..."
+                placeholder="Digite o motivo da suspensão..."
                 value={suspendData.reason}
                 onChange={(e) => setSuspendData({ reason: e.target.value })}
                 rows={3}
@@ -860,35 +909,35 @@ export default function UserManagementSimple() {
               onClick={handleSuspendUser}
               disabled={actionLoading || !suspendData.reason.trim()}
             >
-              {actionLoading ? "Suspendendo..." : "Suspender usuÃ¡rio"}
+              {actionLoading ? "Suspendendo..." : "Suspender usuário"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
 
-      {/* Modal de Vincular OrganizaÃ§Ã£o */}
+      {/* Modal de Vincular Organização */}
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-blue-500" />
-              Vincular Ã  organizaÃ§Ã£o
+              Vincular à organização
             </DialogTitle>
             <DialogDescription>
-              Defina organizaÃ§Ã£o e role para o usuÃ¡rio {selectedUser?.first_name} {selectedUser?.last_name}.
+              Defina organização e role para o usuário {selectedUser?.first_name} {selectedUser?.last_name}.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label>OrganizaÃ§Ã£o</Label>
+              <Label>Organização</Label>
               <Select
                 value={assignData.organizationId}
                 onValueChange={(value) => setAssignData((prev) => ({ ...prev, organizationId: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione uma organizaÃ§Ã£o" />
+                  <SelectValue placeholder="Selecione uma organização" />
                 </SelectTrigger>
                 <SelectContent>
                   {organizations.map((organization) => (
@@ -925,23 +974,23 @@ export default function UserManagementSimple() {
               Cancelar
             </Button>
             <Button type="button" onClick={handleAssignOrganization} disabled={actionLoading}>
-              {actionLoading ? "Salvando..." : "Salvar vÃ­nculo"}
+              {actionLoading ? "Salvando..." : "Salvar vínculo"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Modal de ConfirmaÃ§Ã£o de ExclusÃ£o */}
+      {/* Modal de Confirmação de Exclusão */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <Trash2 className="h-5 w-5 text-red-500" />
-              Excluir UsuÃ¡rio Permanentemente
+              Excluir Usuário Permanentemente
             </AlertDialogTitle>
           </AlertDialogHeader>
           <div className="space-y-3 text-sm text-muted-foreground">
             <p>
-              <strong>ATEN!Ã’O:</strong> VocÃª estÃ¡ prestes a excluir permanentemente o usuÃ¡rio:
+              <strong>ATENÇÃO:</strong> Você está prestes a excluir permanentemente o usuário:
             </p>
             <div className="bg-gray-100 p-3 rounded-md space-y-1">
               <div><strong>Nome:</strong> {selectedUser?.first_name} {selectedUser?.last_name}</div>
@@ -949,7 +998,7 @@ export default function UserManagementSimple() {
               <div><strong>Tipo:</strong> {selectedUser?.user_type}</div>
             </div>
             <p className="text-red-600 font-medium">
-              Esta aÃ§Ã£o NÃ’O pode ser desfeita. Todos os dados do usuÃ¡rio serÃ£o removidos do sistema.
+              Esta ação NÃO pode ser desfeita. Todos os dados do usuário serão removidos do sistema.
             </p>
           </div>
           <AlertDialogFooter>
@@ -964,7 +1013,15 @@ export default function UserManagementSimple() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <UserInviteDialog
+        open={inviteDialogOpen}
+        onOpenChange={setInviteDialogOpen}
+        onSuccess={fetchUsers}
+      />
     </div>
   );
 }
+
+
 

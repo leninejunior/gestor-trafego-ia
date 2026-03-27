@@ -34,12 +34,16 @@ import {
 
 import { Building2, Plus, Edit, Trash2, Users } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useUser } from '@/hooks/use-user'
+import { createClient } from '@/lib/supabase/client'
 
 interface Organization {
   id: string
   name: string
   created_at: string
-  memberships: { count: number }[]
+  stats?: {
+    activeMembers?: number
+  }
 }
 
 export default function OrganizationsPage() {
@@ -51,18 +55,41 @@ export default function OrganizationsPage() {
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
   const [formData, setFormData] = useState({ name: '' })
   const { toast } = useToast()
+  const { user } = useUser()
+  const supabase = createClient()
 
   useEffect(() => {
-    loadOrganizations()
-  }, [])
+    if (user) {
+      void loadOrganizations()
+    }
+  }, [user])
+
+  const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    return fetch(url, {
+      ...options,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token}`,
+        ...options.headers,
+      },
+    })
+  }
 
   const loadOrganizations = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/organizations')
+      const response = await authenticatedFetch('/api/admin/organizations?include_stats=true')
       if (response.ok) {
         const data = await response.json()
         setOrganizations(data.organizations || [])
+      } else {
+        const data = await response.json()
+        throw new Error(data.error || 'Falha ao carregar organizacoes')
       }
     } catch (error) {
       console.error('Error loading organizations:', error)
@@ -78,9 +105,8 @@ export default function OrganizationsPage() {
 
   const handleCreate = async () => {
     try {
-      const response = await fetch('/api/organizations', {
+      const response = await authenticatedFetch('/api/admin/organizations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       })
 
@@ -109,9 +135,8 @@ export default function OrganizationsPage() {
     if (!selectedOrg) return
 
     try {
-      const response = await fetch(`/api/organizations/${selectedOrg.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await authenticatedFetch(`/api/admin/organizations/${selectedOrg.id}`, {
+        method: 'PATCH',
         body: JSON.stringify(formData)
       })
 
@@ -141,7 +166,7 @@ export default function OrganizationsPage() {
     if (!selectedOrg) return
 
     try {
-      const response = await fetch(`/api/organizations/${selectedOrg.id}`, {
+      const response = await authenticatedFetch(`/api/admin/organizations/${selectedOrg.id}`, {
         method: 'DELETE'
       })
 
@@ -180,7 +205,7 @@ export default function OrganizationsPage() {
   }
 
   const getMembersCount = (org: Organization) => {
-    return org.memberships?.[0]?.count || 0
+    return org.stats?.activeMembers || 0
   }
 
   return (
@@ -338,7 +363,7 @@ export default function OrganizationsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja deletar a organização "{selectedOrg?.name}"?
+              Tem certeza que deseja deletar a organização &quot;{selectedOrg?.name}&quot;?
               Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -353,3 +378,4 @@ export default function OrganizationsPage() {
     </div>
   )
 }
+

@@ -330,6 +330,38 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ message: "User reactivated successfully" });
     }
 
+    case "send_password_reset": {
+      if (!context.isMaster && !context.isSuperUser) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
+
+      const payloadEmail = normalizeString(body.email)?.toLowerCase() ?? null;
+      const profile = await loadProfileForUser(serviceSupabase, userId);
+      const profileEmail = normalizeString(profile?.email)?.toLowerCase() ?? null;
+      const targetEmail = payloadEmail ?? profileEmail;
+
+      if (!targetEmail) {
+        return NextResponse.json({ error: "User email not found" }, { status: 400 });
+      }
+
+      const configuredBase = normalizeString(process.env.NEXT_PUBLIC_APP_URL);
+      const baseUrl = configuredBase ? configuredBase.replace(/\/+$/, "") : request.nextUrl.origin;
+      const redirectTo = `${baseUrl}/login`;
+
+      const { error } = await serviceSupabase.auth.resetPasswordForEmail(targetEmail, {
+        redirectTo,
+      });
+
+      if (error) {
+        return NextResponse.json({ error: "Failed to send password reset email" }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        message: "Password reset email sent successfully",
+        email: targetEmail,
+      });
+    }
+
     case "update_role":
     case "assign_to_organization": {
       const organizationId = normalizeString(body.organizationId);
