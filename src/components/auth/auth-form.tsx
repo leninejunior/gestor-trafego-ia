@@ -46,6 +46,7 @@ export default function AuthForm() {
         appearance={{ theme: ThemeSupa }}
         providers={[]}
         view="sign_in"
+        showLinks={false}
         localization={{
             variables: {
                 sign_in: {
