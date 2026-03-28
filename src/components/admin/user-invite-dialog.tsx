@@ -145,7 +145,11 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
       if (response.ok) {
         const deliveryOk = data?.emailDelivery?.ok !== false;
         const deliveryWarning = data?.emailDelivery?.warning as string | undefined;
-        const inviteLink = data?.emailDelivery?.inviteLink as string | undefined;
+        const inviteLink =
+          (data?.emailDelivery?.inviteLink as string | undefined) ??
+          (data?.invite?.token && typeof window !== "undefined"
+            ? `${window.location.origin}/invite/${data.invite.token}`
+            : undefined);
         const copiedInviteLink = Boolean(inviteLink && typeof navigator !== "undefined" && navigator.clipboard?.writeText);
 
         if (copiedInviteLink) {

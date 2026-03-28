@@ -562,6 +562,14 @@ export async function POST(request: NextRequest) {
     email,
     normalizeString(inviteResult.invite.token)
   );
+  const inviteToken = normalizeString(inviteResult.invite.token);
+  const configuredBaseUrl = normalizeString(process.env.NEXT_PUBLIC_APP_URL);
+  const appBaseUrl = configuredBaseUrl ? configuredBaseUrl.replace(/\/+$/, "") : request.nextUrl.origin;
+  const fallbackInviteLink = inviteToken ? `${appBaseUrl}/invite/${inviteToken}` : undefined;
+  const normalizedEmailDelivery = {
+    ...emailDelivery,
+    inviteLink: emailDelivery.inviteLink ?? fallbackInviteLink,
+  };
 
   return NextResponse.json(
     {
@@ -572,7 +580,7 @@ export async function POST(request: NextRequest) {
         token: inviteResult.invite.token,
         expiresAt: inviteResult.invite.expires_at,
       },
-      emailDelivery,
+      emailDelivery: normalizedEmailDelivery,
     },
     { status: 201 }
   );

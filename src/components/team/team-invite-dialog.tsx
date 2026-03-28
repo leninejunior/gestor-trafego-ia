@@ -75,7 +75,11 @@ export function TeamInviteDialog({ children, roles }: TeamInviteDialogProps) {
 
       const deliveryOk = data?.emailDelivery?.ok !== false;
       const deliveryWarning = data?.emailDelivery?.warning as string | undefined;
-      const inviteLink = data?.emailDelivery?.inviteLink as string | undefined;
+      const inviteLink =
+        (data?.emailDelivery?.inviteLink as string | undefined) ??
+        (data?.invite?.token && typeof window !== "undefined"
+          ? `${window.location.origin}/invite/${data.invite.token}`
+          : undefined);
 
       let copiedInviteLink = false;
       if (inviteLink && typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
