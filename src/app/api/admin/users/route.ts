@@ -309,7 +309,7 @@ async function createInvite(
 async function sendSupabaseAuthInviteEmail(
   serviceSupabase: ReturnType<typeof createServiceClient>,
   email: string
-): Promise<{ ok: boolean; warning?: string }> {
+): Promise<{ ok: boolean; warning?: string; inviteLink?: string }> {
   const configuredBaseUrl = normalizeString(process.env.NEXT_PUBLIC_APP_URL);
   const redirectTo = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/+$/, "")}/login` : undefined;
 
@@ -318,6 +318,20 @@ async function sendSupabaseAuthInviteEmail(
   });
 
   if (error) {
+    const fallback = await serviceSupabase.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: redirectTo ? { redirectTo } : undefined,
+    });
+
+    if (!fallback.error && fallback.data?.properties?.action_link) {
+      return {
+        ok: false,
+        warning: error.message || "Invite email could not be sent by Supabase Auth",
+        inviteLink: fallback.data.properties.action_link,
+      };
+    }
+
     return { ok: false, warning: error.message || "Invite email could not be sent by Supabase Auth" };
   }
 

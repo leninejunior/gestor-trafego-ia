@@ -5,7 +5,7 @@ function normalizeString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-async function sendSupabaseAuthInviteEmail(email: string): Promise<{ ok: boolean; warning?: string }> {
+async function sendSupabaseAuthInviteEmail(email: string): Promise<{ ok: boolean; warning?: string; inviteLink?: string }> {
   const serviceSupabase = createServiceClient();
   const configuredBaseUrl = normalizeString(process.env.NEXT_PUBLIC_APP_URL);
   const redirectTo = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/+$/, "")}/login` : undefined;
@@ -15,6 +15,20 @@ async function sendSupabaseAuthInviteEmail(email: string): Promise<{ ok: boolean
   });
 
   if (error) {
+    const fallback = await serviceSupabase.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: redirectTo ? { redirectTo } : undefined,
+    });
+
+    if (!fallback.error && fallback.data?.properties?.action_link) {
+      return {
+        ok: false,
+        warning: error.message || "Invite email could not be sent by Supabase Auth",
+        inviteLink: fallback.data.properties.action_link,
+      };
+    }
+
     return { ok: false, warning: error.message || "Invite email could not be sent by Supabase Auth" };
   }
 
