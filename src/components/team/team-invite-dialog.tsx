@@ -73,10 +73,32 @@ export function TeamInviteDialog({ children, roles }: TeamInviteDialogProps) {
         throw new Error(data.error || "Erro ao enviar convite");
       }
 
-      toast({
-        title: "Sucesso",
-        description: "Convite enviado com sucesso!",
-      });
+      const deliveryOk = data?.emailDelivery?.ok !== false;
+      const deliveryWarning = data?.emailDelivery?.warning as string | undefined;
+      const inviteLink = data?.emailDelivery?.inviteLink as string | undefined;
+
+      let copiedInviteLink = false;
+      if (inviteLink && typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(inviteLink);
+        copiedInviteLink = true;
+      }
+
+      if (!deliveryOk) {
+        toast({
+          title: "Convite criado, mas email nao foi enviado",
+          description: copiedInviteLink
+            ? `${deliveryWarning || "Falha de envio no Supabase."} Link de convite copiado para a area de transferencia.`
+            : (deliveryWarning || "Falha de envio no Supabase."),
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Sucesso",
+          description: copiedInviteLink
+            ? "Convite processado. Link de convite copiado para backup."
+            : "Convite enviado com sucesso!",
+        });
+      }
 
       setEmail("");
       setSelectedRole("");
