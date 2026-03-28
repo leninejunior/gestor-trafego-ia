@@ -1,5 +1,25 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+
+function normalizeString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+async function sendSupabaseAuthInviteEmail(email: string): Promise<{ ok: boolean; warning?: string }> {
+  const serviceSupabase = createServiceClient();
+  const configuredBaseUrl = normalizeString(process.env.NEXT_PUBLIC_APP_URL);
+  const redirectTo = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/+$/, "")}/login` : undefined;
+
+  const { error } = await serviceSupabase.auth.admin.inviteUserByEmail(email, {
+    redirectTo,
+  });
+
+  if (error) {
+    return { ok: false, warning: error.message || "Invite email could not be sent by Supabase Auth" };
+  }
+
+  return { ok: true };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -131,9 +151,12 @@ export async function POST(request: NextRequest) {
       .eq("id", data)
       .single();
 
-    return NextResponse.json({ 
-      message: "Convite enviado com sucesso",
-      invite: newInvite
+    const emailDelivery = await sendSupabaseAuthInviteEmail(email.toLowerCase());
+
+    return NextResponse.json({
+      message: "Convite criado com sucesso",
+      invite: newInvite,
+      emailDelivery,
     });
 
   } catch (error) {

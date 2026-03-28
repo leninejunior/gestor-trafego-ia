@@ -353,7 +353,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       });
 
       if (error) {
-        return NextResponse.json({ error: "Failed to send password reset email" }, { status: 500 });
+        return NextResponse.json(
+          {
+            error: "Failed to send password reset email",
+            details: error.message,
+            hint: "Verify Supabase Auth email provider/SMTP and project rate limits.",
+          },
+          { status: 500 }
+        );
       }
 
       return NextResponse.json({

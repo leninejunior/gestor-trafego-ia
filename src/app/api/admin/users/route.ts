@@ -306,6 +306,24 @@ async function createInvite(
   return { ok: false, error: "Failed to create invite" };
 }
 
+async function sendSupabaseAuthInviteEmail(
+  serviceSupabase: ReturnType<typeof createServiceClient>,
+  email: string
+): Promise<{ ok: boolean; warning?: string }> {
+  const configuredBaseUrl = normalizeString(process.env.NEXT_PUBLIC_APP_URL);
+  const redirectTo = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/+$/, "")}/login` : undefined;
+
+  const { error } = await serviceSupabase.auth.admin.inviteUserByEmail(email, {
+    redirectTo,
+  });
+
+  if (error) {
+    return { ok: false, warning: error.message || "Invite email could not be sent by Supabase Auth" };
+  }
+
+  return { ok: true };
+}
+
 export async function GET(request: NextRequest) {
   const { context, errorResponse } = await requireAdminAccess(request);
   if (!context) {
@@ -518,6 +536,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: inviteResult.error ?? "Failed to create invite" }, { status: 500 });
   }
 
+  const emailDelivery = await sendSupabaseAuthInviteEmail(serviceSupabase, email);
+
   return NextResponse.json(
     {
       message: "Invite created successfully",
@@ -527,6 +547,7 @@ export async function POST(request: NextRequest) {
         token: inviteResult.invite.token,
         expiresAt: inviteResult.invite.expires_at,
       },
+      emailDelivery,
     },
     { status: 201 }
   );
