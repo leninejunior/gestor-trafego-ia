@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,32 +22,31 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
       const response = await fetch('/api/organization/invites/accept', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: params.token })
+        body: JSON.stringify({ token: params.token }),
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to accept invite');
+        const errorResponse = await response.json();
+        throw new Error(errorResponse.error || 'Failed to accept invite');
       }
 
       setAccepted(true);
       toast({
         title: 'Sucesso!',
-        description: 'Você foi adicionado à organização'
+        description: 'Voce foi adicionado a organizacao',
       });
 
-      // Redirecionar para dashboard após 2 segundos
+      // Redirecionar para dashboard apos 2 segundos
       setTimeout(() => {
         router.push('/dashboard');
       }, 2000);
-
-    } catch (error: any) {
-      console.error('Error accepting invite:', error);
-      setError(error.message || 'Falha ao aceitar convite');
+    } catch (caughtError: any) {
+      console.error('Error accepting invite:', caughtError);
+      setError(caughtError.message || 'Falha ao aceitar convite');
       toast({
         title: 'Erro',
-        description: error.message || 'Falha ao aceitar convite',
-        variant: 'destructive'
+        description: caughtError.message || 'Falha ao aceitar convite',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -62,15 +61,11 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
               <CheckCircle className="h-6 w-6 text-green-600" />
             </div>
-            <CardTitle>Convite Aceito!</CardTitle>
-            <CardDescription>
-              Você foi adicionado à organização com sucesso
-            </CardDescription>
+            <CardTitle>Convite aceito!</CardTitle>
+            <CardDescription>Voce foi adicionado a organizacao com sucesso</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <p className="text-sm text-muted-foreground">
-              Redirecionando para o dashboard...
-            </p>
+            <p className="text-sm text-muted-foreground">Redirecionando para o dashboard...</p>
           </CardContent>
         </Card>
       </div>
@@ -85,15 +80,13 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
               <XCircle className="h-6 w-6 text-red-600" />
             </div>
-            <CardTitle>Erro ao Aceitar Convite</CardTitle>
+            <CardTitle>Erro ao aceitar convite</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
           <CardContent className="text-center space-y-4">
-            <p className="text-sm text-muted-foreground">
-              O convite pode estar expirado ou inválido.
-            </p>
+            <p className="text-sm text-muted-foreground">O convite pode estar expirado ou invalido.</p>
             <Button onClick={() => router.push('/dashboard')} className="w-full">
-              Ir para Dashboard
+              Ir para dashboard
             </Button>
           </CardContent>
         </Card>
@@ -105,22 +98,16 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle>Convite para Organização</CardTitle>
-          <CardDescription>
-            Você foi convidado para participar de uma organização
-          </CardDescription>
+          <CardTitle>Convite para organizacao</CardTitle>
+          <CardDescription>Voce foi convidado para participar de uma organizacao</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground text-center">
-            Clique no botão abaixo para aceitar o convite e começar a colaborar.
+            Clique no botao abaixo para aceitar o convite e comecar a colaborar.
           </p>
-          <Button
-            onClick={handleAcceptInvite}
-            disabled={loading}
-            className="w-full"
-          >
+          <Button onClick={handleAcceptInvite} disabled={loading} className="w-full">
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Aceitar Convite
+            Aceitar convite
           </Button>
         </CardContent>
       </Card>

@@ -5,10 +5,15 @@ function normalizeString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-async function sendSupabaseAuthInviteEmail(email: string): Promise<{ ok: boolean; warning?: string; inviteLink?: string }> {
+async function sendSupabaseAuthInviteEmail(
+  email: string,
+  inviteToken?: string | null
+): Promise<{ ok: boolean; warning?: string; inviteLink?: string }> {
   const serviceSupabase = createServiceClient();
   const configuredBaseUrl = normalizeString(process.env.NEXT_PUBLIC_APP_URL);
-  const redirectTo = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/+$/, "")}/login` : undefined;
+  const normalizedToken = normalizeString(inviteToken);
+  const redirectPath = normalizedToken ? `/invite/${normalizedToken}` : "/login";
+  const redirectTo = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/+$/, "")}${redirectPath}` : undefined;
 
   const { error } = await serviceSupabase.auth.admin.inviteUserByEmail(email, {
     redirectTo,
@@ -165,7 +170,10 @@ export async function POST(request: NextRequest) {
       .eq("id", data)
       .single();
 
-    const emailDelivery = await sendSupabaseAuthInviteEmail(email.toLowerCase());
+    const emailDelivery = await sendSupabaseAuthInviteEmail(
+      email.toLowerCase(),
+      normalizeString(newInvite?.token)
+    );
 
     return NextResponse.json({
       message: "Convite criado com sucesso",

@@ -688,7 +688,7 @@ export default function UserManagementSimple() {
                     <TableHead>Tipo de Usuário</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Criado em</TableHead>
-                    <TableHead>altimo acesso</TableHead>
+                    <TableHead>Ultimo acesso</TableHead>
                     <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>

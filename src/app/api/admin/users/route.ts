@@ -308,10 +308,13 @@ async function createInvite(
 
 async function sendSupabaseAuthInviteEmail(
   serviceSupabase: ReturnType<typeof createServiceClient>,
-  email: string
+  email: string,
+  inviteToken?: string | null
 ): Promise<{ ok: boolean; warning?: string; inviteLink?: string }> {
   const configuredBaseUrl = normalizeString(process.env.NEXT_PUBLIC_APP_URL);
-  const redirectTo = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/+$/, "")}/login` : undefined;
+  const normalizedToken = normalizeString(inviteToken);
+  const redirectPath = normalizedToken ? `/invite/${normalizedToken}` : "/login";
+  const redirectTo = configuredBaseUrl ? `${configuredBaseUrl.replace(/\/+$/, "")}${redirectPath}` : undefined;
 
   const { error } = await serviceSupabase.auth.admin.inviteUserByEmail(email, {
     redirectTo,
@@ -550,7 +553,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: inviteResult.error ?? "Failed to create invite" }, { status: 500 });
   }
 
-  const emailDelivery = await sendSupabaseAuthInviteEmail(serviceSupabase, email);
+  const emailDelivery = await sendSupabaseAuthInviteEmail(
+    serviceSupabase,
+    email,
+    normalizeString(inviteResult.invite.token)
+  );
 
   return NextResponse.json(
     {

@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { createClient } from "@/lib/supabase/client";
 import { Mail, Loader2 } from "lucide-react";
 
 interface Organization {
@@ -43,6 +44,7 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
   const [loading, setLoading] = useState(false);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const supabase = createClient();
   const [formData, setFormData] = useState({
     email: "",
     firstName: "",
@@ -59,24 +61,54 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
     }
   }, [open]);
 
+  const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    return fetch(url, {
+      ...options,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.access_token}`,
+        ...options.headers,
+      },
+    });
+  };
+
   const loadOrganizations = async () => {
     try {
-      const response = await fetch("/api/admin/organizations");
+      const response = await authenticatedFetch("/api/admin/organizations");
       if (response.ok) {
         const data = await response.json();
         setOrganizations(data.organizations);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        toast({
+          title: "Erro ao carregar organizacoes",
+          description: data.error || "Nao foi possivel listar organizacoes.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
-      console.error("Erro ao carregar organizaÃ§Ãµes:", error);
+      console.error("Erro ao carregar organizacoes:", error);
     }
   };
 
   const loadRoles = async () => {
     try {
-      const response = await fetch("/api/admin/roles");
+      const response = await authenticatedFetch("/api/admin/roles");
       if (response.ok) {
         const data = await response.json();
         setRoles(data.roles);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        toast({
+          title: "Erro ao carregar roles",
+          description: data.error || "Nao foi possivel listar roles.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Erro ao carregar roles:", error);
@@ -89,7 +121,7 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
     if (!formData.email || !formData.firstName || !formData.organizationId || !formData.roleId) {
       toast({
         title: "Erro",
-        description: "Todos os campos sÃ£o obrigatÃ³rios",
+        description: "Todos os campos sao obrigatorios",
         variant: "destructive"
       });
       return;
@@ -99,11 +131,8 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
 
     try {
       const selectedRole = roles.find((role) => role.id === formData.roleId);
-      const response = await fetch("/api/admin/users", {
+      const response = await authenticatedFetch("/api/admin/users", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
         body: JSON.stringify({
           ...formData,
           roleId: formData.roleId,
@@ -172,10 +201,10 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
         <DialogHeader>
           <DialogTitle className="flex items-center">
             <Mail className="w-5 h-5 mr-2" />
-            Convidar Novo UsuÃ¡rio
+            Convidar novo usuario
           </DialogTitle>
           <DialogDescription>
-            Envie um convite para um novo usuÃ¡rio se juntar ao sistema
+            Envie um convite para um novo usuario se juntar ao sistema
           </DialogDescription>
         </DialogHeader>
 
@@ -215,14 +244,14 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="organization">OrganizaÃ§Ã£o</Label>
+            <Label htmlFor="organization">Organizacao</Label>
             <Select
               value={formData.organizationId}
               onValueChange={(value) => setFormData(prev => ({ ...prev, organizationId: value }))}
               required
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione uma organizaÃ§Ã£o" />
+                <SelectValue placeholder="Selecione uma organizacao" />
               </SelectTrigger>
               <SelectContent>
                 {organizations.length > 0 ? (
