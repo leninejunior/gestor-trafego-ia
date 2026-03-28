@@ -1,8 +1,14 @@
+import { randomUUID } from "crypto";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { canonicalRoleFromInput, resolveAdminAccessContext } from "@/lib/access/admin-rbac";
 import { NextRequest, NextResponse } from "next/server";
 
 function normalizeString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function resolveScopedOrganizationId(context: Awaited<ReturnType<typeof resolveAdminAccessContext>>): string | null {
+  return context.adminOrganizationIds[0] ?? context.organizationIds[0] ?? null;
 }
 
 async function sendSupabaseAuthInviteEmail(
@@ -44,54 +50,184 @@ async function sendSupabaseAuthInviteEmail(
   };
 }
 
-export async function GET(request: NextRequest) {
+async function listInvites(serviceSupabase: ReturnType<typeof createServiceClient>, organizationId: string) {
+  const selectCandidates = [
+    `
+      *,
+      user_roles (
+        name,
+        description
+      )
+    `,
+    "*",
+  ] as const;
+
+  for (const selectClause of selectCandidates) {
+    for (const column of ["organization_id", "org_id"] as const) {
+      const { data, error } = await serviceSupabase
+        .from("organization_invites")
+        .select(selectClause)
+        .eq(column, organizationId)
+        .order("created_at", { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        return data;
+      }
+    }
+  }
+
+  return [];
+}
+
+async function hasPendingInvite(
+  serviceSupabase: ReturnType<typeof createServiceClient>,
+  organizationId: string,
+  email: string
+): Promise<boolean> {
+  const checks = await Promise.all([
+    serviceSupabase
+      .from("organization_invites")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("email", email)
+      .eq("status", "pending")
+      .limit(1),
+    serviceSupabase
+      .from("organization_invites")
+      .select("id")
+      .eq("org_id", organizationId)
+      .eq("email", email)
+      .eq("status", "pending")
+      .limit(1),
+  ]);
+
+  return checks.some((check) => !check.error && Array.isArray(check.data) && check.data.length > 0);
+}
+
+async function findExistingUserIdByEmail(
+  serviceSupabase: ReturnType<typeof createServiceClient>,
+  email: string
+): Promise<string | null> {
+  const { data, error } = await serviceSupabase
+    .from("user_profiles")
+    .select("user_id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (error || !data?.user_id) {
+    return null;
+  }
+
+  return data.user_id as string;
+}
+
+async function userAlreadyInOrganization(
+  serviceSupabase: ReturnType<typeof createServiceClient>,
+  userId: string,
+  organizationId: string
+): Promise<boolean> {
+  const checks = await Promise.all([
+    serviceSupabase
+      .from("memberships")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("organization_id", organizationId)
+      .limit(1),
+    serviceSupabase
+      .from("memberships")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("org_id", organizationId)
+      .limit(1),
+  ]);
+
+  return checks.some((check) => !check.error && Array.isArray(check.data) && check.data.length > 0);
+}
+
+async function createDirectInvite(
+  serviceSupabase: ReturnType<typeof createServiceClient>,
+  payload: {
+    email: string;
+    organizationId: string;
+    invitedBy: string;
+    roleName: string;
+    roleId: string | null;
+  }
+): Promise<{ invite: Record<string, unknown> | null; error?: string }> {
+  const token = randomUUID();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
+  const basePayload = {
+    email: payload.email,
+    invited_by: payload.invitedBy,
+    token,
+    expires_at: expiresAt.toISOString(),
+    status: "pending",
+    role: payload.roleName,
+  };
+
+  const insertCandidates: Array<Record<string, unknown>> = [
+    {
+      ...basePayload,
+      organization_id: payload.organizationId,
+      role_id: payload.roleId,
+    },
+    {
+      ...basePayload,
+      org_id: payload.organizationId,
+      role_id: payload.roleId,
+    },
+    {
+      ...basePayload,
+      organization_id: payload.organizationId,
+    },
+    {
+      ...basePayload,
+      org_id: payload.organizationId,
+    },
+  ];
+
+  for (const candidate of insertCandidates) {
+    const { data, error } = await serviceSupabase
+      .from("organization_invites")
+      .insert(candidate as never)
+      .select("*")
+      .maybeSingle();
+
+    if (!error && data) {
+      return { invite: data as Record<string, unknown> };
+    }
+  }
+
+  return { invite: null, error: "Erro ao criar convite" };
+}
+
+export async function GET(_request: NextRequest) {
   try {
     const supabase = await createClient();
-    
-    const { data: { user } } = await supabase.auth.getUser();
+    const serviceSupabase = createServiceClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+      return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
     }
 
-    // Buscar organização do usuário
-    const { data: membership } = await supabase
-      .from("memberships")
-      .select("org_id, role")
-      .eq("user_id", user.id)
-      .single();
-
-    if (!membership) {
-      return NextResponse.json({ error: "Organização não encontrada" }, { status: 404 });
+    const accessContext = await resolveAdminAccessContext(user);
+    if (accessContext.role === "org_user") {
+      return NextResponse.json({ error: "Sem permissao" }, { status: 403 });
     }
 
-    // Verificar permissão
-    if (!['owner', 'admin'].includes(membership.role)) {
-      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    const organizationId = resolveScopedOrganizationId(accessContext);
+    if (!organizationId) {
+      return NextResponse.json({ error: "Organizacao nao encontrada" }, { status: 404 });
     }
 
-    // Buscar convites da organização
-    const { data: invites, error } = await supabase
-      .from("organization_invites")
-      .select(`
-        *,
-        user_roles (
-          name,
-          description
-        ),
-        invited_by_user:auth.users!organization_invites_invited_by_fkey (
-          email
-        )
-      `)
-      .eq("org_id", membership.org_id)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Erro ao buscar convites:", error);
-      return NextResponse.json({ error: "Erro interno" }, { status: 500 });
-    }
-
+    const invites = await listInvites(serviceSupabase, organizationId);
     return NextResponse.json({ invites });
-
   } catch (error) {
     console.error("Erro na API de convites:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
@@ -101,90 +237,84 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
-    
-    const { data: { user } } = await supabase.auth.getUser();
+    const serviceSupabase = createServiceClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+      return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
     }
 
-    const { email, role } = await request.json();
-
-    if (!email || !role) {
-      return NextResponse.json({ error: "Email e role são obrigatórios" }, { status: 400 });
+    const accessContext = await resolveAdminAccessContext(user);
+    if (accessContext.role === "org_user") {
+      return NextResponse.json({ error: "Sem permissao para convidar usuarios" }, { status: 403 });
     }
 
-    // Validar email
+    const organizationId = resolveScopedOrganizationId(accessContext);
+    if (!organizationId) {
+      return NextResponse.json({ error: "Organizacao nao encontrada" }, { status: 404 });
+    }
+
+    const body = (await request.json()) as { email?: unknown; role?: unknown };
+    const normalizedEmail = normalizeString(body.email)?.toLowerCase() ?? "";
+    const requestedRole = normalizeString(body.role) ?? "org_user";
+
+    if (!normalizedEmail || !requestedRole) {
+      return NextResponse.json({ error: "Email e role sao obrigatorios" }, { status: 400 });
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json({ error: "Email inválido" }, { status: 400 });
+    if (!emailRegex.test(normalizedEmail)) {
+      return NextResponse.json({ error: "Email invalido" }, { status: 400 });
     }
 
-    // Buscar organização do usuário
-    const { data: membership } = await supabase
-      .from("memberships")
-      .select("org_id, role")
-      .eq("user_id", user.id)
-      .single();
+    const { data: roleRow } = await serviceSupabase
+      .from("user_roles")
+      .select("id,name")
+      .ilike("name", requestedRole)
+      .maybeSingle();
 
-    if (!membership) {
-      return NextResponse.json({ error: "Organização não encontrada" }, { status: 404 });
+    const resolvedRoleName = normalizeString(roleRow?.name) ?? requestedRole;
+    const resolvedRoleId = normalizeString(roleRow?.id);
+    const canonicalTargetRole = canonicalRoleFromInput(resolvedRoleName);
+
+    if (!accessContext.canAssignRole(canonicalTargetRole)) {
+      return NextResponse.json({ error: "Sem permissao para atribuir essa role" }, { status: 403 });
     }
 
-    // Verificar permissão
-    if (!['owner', 'admin'].includes(membership.role)) {
-      return NextResponse.json({ error: "Sem permissão para convidar usuários" }, { status: 403 });
+    if (await hasPendingInvite(serviceSupabase, organizationId, normalizedEmail)) {
+      return NextResponse.json({ error: "Ja existe um convite pendente para este email" }, { status: 409 });
     }
 
-    // Chamar função do banco para criar convite
-    const { data, error } = await supabase.rpc('invite_user_to_org', {
-      p_org_id: membership.org_id,
-      p_email: email.toLowerCase(),
-      p_role_name: role,
-      p_invited_by: user.id
+    const existingUserId = await findExistingUserIdByEmail(serviceSupabase, normalizedEmail);
+    if (existingUserId && (await userAlreadyInOrganization(serviceSupabase, existingUserId, organizationId))) {
+      return NextResponse.json({ error: "Usuario ja e membro desta organizacao" }, { status: 409 });
+    }
+
+    const inviteResult = await createDirectInvite(serviceSupabase, {
+      email: normalizedEmail,
+      organizationId,
+      invitedBy: user.id,
+      roleName: resolvedRoleName,
+      roleId: resolvedRoleId,
     });
 
-    if (error) {
-      console.error("Erro ao criar convite:", error);
-      
-      if (error.message.includes('Já existe um convite pendente')) {
-        return NextResponse.json({ error: "Já existe um convite pendente para este email" }, { status: 409 });
-      }
-      
-      if (error.message.includes('Usuário já é membro')) {
-        return NextResponse.json({ error: "Usuário já é membro desta organização" }, { status: 409 });
-      }
-      
-      if (error.message.includes('Role não encontrada')) {
-        return NextResponse.json({ error: "Função não encontrada" }, { status: 400 });
-      }
-
-      return NextResponse.json({ error: "Erro ao criar convite" }, { status: 500 });
+    if (!inviteResult.invite) {
+      return NextResponse.json({ error: inviteResult.error || "Erro ao criar convite" }, { status: 500 });
     }
 
-    // Buscar o convite criado para retornar
-    const { data: newInvite } = await supabase
-      .from("organization_invites")
-      .select(`
-        *,
-        user_roles (
-          name,
-          description
-        )
-      `)
-      .eq("id", data)
-      .single();
-
     const emailDelivery = await sendSupabaseAuthInviteEmail(
-      email.toLowerCase(),
-      normalizeString(newInvite?.token)
+      normalizedEmail,
+      normalizeString(inviteResult.invite.token)
     );
 
     return NextResponse.json({
       message: "Convite criado com sucesso",
-      invite: newInvite,
+      invite: inviteResult.invite,
       emailDelivery,
     });
-
   } catch (error) {
     console.error("Erro na API de convites:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
