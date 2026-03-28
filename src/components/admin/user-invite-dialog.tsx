@@ -146,12 +146,13 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
         const deliveryOk = data?.emailDelivery?.ok !== false;
         const deliveryWarning = data?.emailDelivery?.warning as string | undefined;
         const inviteLink = data?.emailDelivery?.inviteLink as string | undefined;
+        const copiedInviteLink = Boolean(inviteLink && typeof navigator !== "undefined" && navigator.clipboard?.writeText);
+
+        if (copiedInviteLink) {
+          await navigator.clipboard.writeText(inviteLink!);
+        }
 
         if (!deliveryOk) {
-          if (inviteLink && typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(inviteLink);
-          }
-
           toast({
             title: "Convite criado, mas email nao foi enviado",
             description: inviteLink
@@ -162,7 +163,9 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
         } else {
           toast({
             title: "Sucesso",
-            description: "Convite enviado com sucesso!",
+            description: copiedInviteLink
+              ? "Convite processado. Link de convite copiado para backup."
+              : "Convite enviado com sucesso!",
           });
         }
         

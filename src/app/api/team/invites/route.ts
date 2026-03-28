@@ -19,25 +19,29 @@ async function sendSupabaseAuthInviteEmail(
     redirectTo,
   });
 
+  const manualLinkResult = await serviceSupabase.auth.admin.generateLink({
+    type: "invite",
+    email,
+    options: redirectTo ? { redirectTo } : undefined,
+  });
+
+  const manualInviteLink =
+    !manualLinkResult.error && manualLinkResult.data?.properties?.action_link
+      ? manualLinkResult.data.properties.action_link
+      : undefined;
+
   if (error) {
-    const fallback = await serviceSupabase.auth.admin.generateLink({
-      type: "invite",
-      email,
-      options: redirectTo ? { redirectTo } : undefined,
-    });
-
-    if (!fallback.error && fallback.data?.properties?.action_link) {
-      return {
-        ok: false,
-        warning: error.message || "Invite email could not be sent by Supabase Auth",
-        inviteLink: fallback.data.properties.action_link,
-      };
-    }
-
-    return { ok: false, warning: error.message || "Invite email could not be sent by Supabase Auth" };
+    return {
+      ok: false,
+      warning: error.message || "Invite email could not be sent by Supabase Auth",
+      inviteLink: manualInviteLink,
+    };
   }
 
-  return { ok: true };
+  return {
+    ok: true,
+    inviteLink: manualInviteLink,
+  };
 }
 
 export async function GET(request: NextRequest) {
