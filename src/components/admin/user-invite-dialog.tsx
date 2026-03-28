@@ -150,17 +150,23 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
           (data?.invite?.token && typeof window !== "undefined"
             ? `${window.location.origin}/invite/${data.invite.token}`
             : undefined);
-        const copiedInviteLink = Boolean(inviteLink && typeof navigator !== "undefined" && navigator.clipboard?.writeText);
-
-        if (copiedInviteLink) {
-          await navigator.clipboard.writeText(inviteLink!);
+        let copiedInviteLink = false;
+        if (inviteLink && typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+          try {
+            await navigator.clipboard.writeText(inviteLink);
+            copiedInviteLink = true;
+          } catch (copyError) {
+            console.warn("Falha ao copiar link de convite:", copyError);
+          }
         }
 
         if (!deliveryOk) {
           toast({
             title: "Convite criado, mas email nao foi enviado",
             description: inviteLink
-              ? `${deliveryWarning || "Falha de envio no Supabase."} Link de convite copiado para a area de transferencia.`
+              ? copiedInviteLink
+                ? `${deliveryWarning || "Falha de envio no Supabase."} Link de convite copiado para a area de transferencia.`
+                : `${deliveryWarning || "Falha de envio no Supabase."} Link manual: ${inviteLink}`
               : (deliveryWarning || "Falha de envio no Supabase."),
             variant: "destructive",
           });
@@ -169,7 +175,9 @@ export function UserInviteDialog({ open, onOpenChange, onSuccess }: UserInviteDi
             title: "Sucesso",
             description: copiedInviteLink
               ? "Convite processado. Link de convite copiado para backup."
-              : "Convite enviado com sucesso!",
+              : inviteLink
+                ? `Convite processado. Link manual: ${inviteLink}`
+                : "Convite enviado com sucesso!",
           });
         }
         
